@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import AdminEditForm, { EditableMatch } from '@/app/components/AdminEditForm';
 import dayjs from 'dayjs';
-
+import 'dayjs/locale/es';
 const { Title, Text } = Typography;
 const PHASES = ['Fase Regular', 'Octavos de Final', 'Cuartos de Final', 'Semifinal', 'Tercer Lugar', 'Final'];
 const COURTS = ['Cancha Bicentenario', 'Cancha Techada', 'Cancha III'];
@@ -190,27 +190,51 @@ export default function CalendarPage() {
 
   const waText = (() => {
     if (!waJornada || !seasonId) return '';
-    const mForJornada = matches.filter(m => m.jornada === waJornada).sort((a,b) => {
-      const dateA = a.scheduled_date || '9999-12-31';
-      const dateB = b.scheduled_date || '9999-12-31';
-      if (dateA !== dateB) return dateA.localeCompare(dateB);
-      return (a.time_str || '').localeCompare(b.time_str || '');
-    });
+    const mForJornada = matches.filter(m => m.jornada === waJornada);
     if (mForJornada.length === 0) return 'No hay partidos programados para esta jornada.';
 
-    let txt = `🏆 *LIGA NOCHIXTLÁN - JORNADA ${waJornada}* 🏆\n\n`;
+    let txt = `🏆 *LIGA MUNICIPAL DE BÁSQUETBOL - JORNADA ${waJornada}* 🏆\n\n`;
+
+    const byDate: Record<string, Match[]> = {};
     mForJornada.forEach(m => {
-       txt += `⚽ *${m.home_team?.name || '?'}* vs *${m.away_team?.name || '?'}*\n`;
-       if (m.scheduled_date) {
-         let dFormat = dayjs(m.scheduled_date);
-         if (!m.scheduled_date.includes('T')) dFormat = dayjs(m.scheduled_date + 'T12:00:00');
-         const d = dFormat.format('dddd DD [de] MMMM');
-         txt += `🗓 Fecha: ${d.charAt(0).toUpperCase() + d.slice(1)}\n`;
-       }
-       if (m.time_str) txt += `⏰ Hora: ${m.time_str}\n`;
-       if (m.court) txt += `🏟️ Cancha: ${m.court}\n`;
-       txt += `\n`;
+      let dFormat = dayjs(m.scheduled_date || '9999-12-31').locale('es');
+      if (m.scheduled_date && !m.scheduled_date.includes('T')) {
+        dFormat = dayjs(m.scheduled_date + 'T12:00:00').locale('es');
+      }
+      const dateKey = m.scheduled_date ? dFormat.format('dddd, DD [de] MMMM [de] YYYY') : 'Fecha por definir';
+      if (!byDate[dateKey]) byDate[dateKey] = [];
+      byDate[dateKey].push(m);
     });
+
+    Object.keys(byDate).sort().forEach(dateKey => {
+      if (dateKey !== 'Fecha por definir') {
+        const capitalizedDate = dateKey.charAt(0).toUpperCase() + dateKey.slice(1);
+        txt += `🗓 *${capitalizedDate}*\n`;
+      } else {
+        txt += `🗓 *${dateKey}*\n`;
+      }
+
+      const matchesOnDate = byDate[dateKey];
+      const byCourt: Record<string, Match[]> = {};
+      matchesOnDate.forEach(m => {
+        const courtKey = m.court || 'Cancha por definir';
+        if (!byCourt[courtKey]) byCourt[courtKey] = [];
+        byCourt[courtKey].push(m);
+      });
+
+      Object.keys(byCourt).sort().forEach(courtKey => {
+        txt += `📍 _${courtKey}_\n`;
+        const matchesOnCourt = byCourt[courtKey];
+        matchesOnCourt.sort((a,b) => (a.time_str || '').localeCompare(b.time_str || ''));
+        
+        matchesOnCourt.forEach(m => {
+          const time = m.time_str || 'Hora por definir';
+          txt += `🏀 ${time} | ${m.home_team?.name || '?'} vs ${m.away_team?.name || '?'}\n`;
+        });
+        txt += `\n`;
+      });
+    });
+    
     return txt.trim();
   })();
 
