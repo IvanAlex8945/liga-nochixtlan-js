@@ -83,8 +83,9 @@ export default function TeamsPage() {
         if (error) throw error;
       } else {
         const activeCount = players.filter((p) => p.team_id === playerModal && p.is_active).length;
-        if (activeCount >= 12) {
-          throw new Error('Límite excedido: El equipo ya tiene 12 jugadores activos permitidos.');
+        // Límite temporalmente apagado (aumentado a 99)
+        if (activeCount >= 99) {
+          throw new Error('Límite excedido: El equipo ya tiene 99 jugadores activos.');
         }
         const { error } = await supabase.from('players').insert({ ...v, team_id: playerModal, category: selectedSeason?.category ?? 'Libre', is_active: true });
         if (error) throw error;
@@ -246,7 +247,7 @@ export default function TeamsPage() {
         footer={null} width={760} style={{ top: 20 }}>
         <Collapse size="small" style={{ marginBottom: 12 }} defaultActiveKey={['1']} items={[
           {
-            key: '1', label: `Activos (${selectedTeamPlayers.filter(p => p.is_active).length}/12 permitidos)`,
+            key: '1', label: `Activos (${selectedTeamPlayers.filter(p => p.is_active).length} registrados - Límite temporal apagado)`,
             children: (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {selectedTeamPlayers.filter(p => p.is_active).map((p) => (
@@ -294,7 +295,7 @@ export default function TeamsPage() {
               <Form.Item label=" ">
                 <Space>
                   <Button type="primary" htmlType="submit" loading={savePlayer.isPending} 
-                    disabled={!editingPlayer && selectedTeamPlayers.filter(p => p.is_active).length >= 12}>
+                    disabled={!editingPlayer && selectedTeamPlayers.filter(p => p.is_active).length >= 99}>
                     {editingPlayer ? 'Actualizar' : 'Agregar'}
                   </Button>
                   {editingPlayer && (
