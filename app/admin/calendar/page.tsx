@@ -229,7 +229,12 @@ export default function CalendarPage() {
         
         matchesOnCourt.forEach(m => {
           const time = m.time_str || 'Hora por definir';
-          txt += `🏀 ${time} | ${m.home_team?.name || '?'} vs ${m.away_team?.name || '?'}\n`;
+          let statusText = '';
+          if (m.status === 'Pendiente') statusText = ' ⏳ (Pendiente/Reprogramado)';
+          else if (m.status.includes('WO')) statusText = ` 🚫 (${m.status})`;
+          else if (m.status === 'Jugado') statusText = ` ✅ (Jugado: ${m.home_score}-${m.away_score})`;
+
+          txt += `🏀 ${time} | ${m.home_team?.name || '?'} vs ${m.away_team?.name || '?'}${statusText}\n`;
         });
         txt += `\n`;
       });
