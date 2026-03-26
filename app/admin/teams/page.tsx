@@ -298,9 +298,27 @@ export default function TeamsPage() {
                     {editingPlayer ? 'Actualizar' : 'Agregar'}
                   </Button>
                   {editingPlayer && (
-                    <Button onClick={() => { setEditingPlayer(null); playerForm.resetFields(); }}>
-                      Cancelar
-                    </Button>
+                    <>
+                      <Button onClick={() => { setEditingPlayer(null); playerForm.resetFields(); }}>
+                        Cancelar
+                      </Button>
+                      <Button danger onClick={() => {
+                        Modal.confirm({
+                          title: `¿Eliminar a ${editingPlayer.name}?`,
+                          content: 'Si el jugador no tiene partidos se borrará, si no, se marcará como baja.',
+                          okText: 'Eliminar',
+                          okType: 'danger',
+                          cancelText: 'Cancelar',
+                          onOk: () => {
+                            deletePlayer.mutate(editingPlayer);
+                            setEditingPlayer(null);
+                            playerForm.resetFields();
+                          }
+                        });
+                      }}>
+                        Eliminar
+                      </Button>
+                    </>
                   )}
                 </Space>
               </Form.Item>
