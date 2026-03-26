@@ -23,6 +23,7 @@ export default function TeamsPage() {
   const [teamModal, setTeamModal] = useState(false);
   const [playerModal, setPlayerModal] = useState<number | null>(null);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [seasonId, setSeasonId] = useState<number | null>(null);
 
   // Auto-select active season on load
@@ -77,14 +78,24 @@ export default function TeamsPage() {
 
   const savePlayer = useMutation({
     mutationFn: async (v: { name: string; number: number }) => {
-      const activeCount = players.filter((p) => p.team_id === playerModal && p.is_active).length;
-      if (activeCount >= 12) {
-        throw new Error('Límite excedido: El equipo ya tiene 12 jugadores activos permitidos.');
+      if (editingPlayer) {
+        const { error } = await supabase.from('players').update(v).eq('id', editingPlayer.id);
+        if (error) throw error;
+      } else {
+        const activeCount = players.filter((p) => p.team_id === playerModal && p.is_active).length;
+        if (activeCount >= 12) {
+          throw new Error('Límite excedido: El equipo ya tiene 12 jugadores activos permitidos.');
+        }
+        const { error } = await supabase.from('players').insert({ ...v, team_id: playerModal, category: selectedSeason?.category ?? 'Libre', is_active: true });
+        if (error) throw error;
       }
-      const { error } = await supabase.from('players').insert({ ...v, team_id: playerModal, category: selectedSeason?.category ?? 'Libre', is_active: true });
-      if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['players'] }); message.success('Jugador agregado'); playerForm.resetFields(); },
+    onSuccess: () => { 
+      qc.invalidateQueries({ queryKey: ['players'] }); 
+      message.success(editingPlayer ? 'Jugador actualizado' : 'Jugador agregado'); 
+      playerForm.resetFields(); 
+      setEditingPlayer(null);
+    },
     onError: (e: Error) => message.error(e.message),
   });
 
@@ -231,7 +242,7 @@ export default function TeamsPage() {
 
       {/* Player Modal */}
       <Modal title={`Jugadores – ${teams.find((t) => t.id === playerModal)?.name ?? ''}`}
-        open={playerModal !== null} onCancel={() => { setPlayerModal(null); playerForm.resetFields(); }}
+        open={playerModal !== null} onCancel={() => { setPlayerModal(null); playerForm.resetFields(); setEditingPlayer(null); }}
         footer={null}>
         <Collapse size="small" style={{ marginBottom: 12 }} defaultActiveKey={['1']} items={[
           {
@@ -239,7 +250,15 @@ export default function TeamsPage() {
             children: (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {selectedTeamPlayers.filter(p => p.is_active).map((p) => (
-                  <Tag key={p.id} color="blue">#{p.number ?? '?'} {p.name}</Tag>
+                  <Tag 
+                    key={p.id} 
+                    color="blue" 
+                    icon={<EditOutlined />} 
+                    style={{ cursor: 'pointer', padding: '4px 8px' }}
+                    onClick={() => { setEditingPlayer(p); playerForm.setFieldsValue({ name: p.name, number: p.number }); }}
+                  >
+                    #{p.number ?? '?'} {p.name}
+                  </Tag>
                 ))}
                 {selectedTeamPlayers.filter(p => p.is_active).length === 0 && <Text style={{ color: '#555' }}>Sin jugadores activos</Text>}
               </div>
@@ -250,7 +269,15 @@ export default function TeamsPage() {
             children: (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {selectedTeamPlayers.filter(p => !p.is_active).map((p) => (
-                  <Tag key={p.id} color="default">#{p.number ?? '?'} {p.name}</Tag>
+                  <Tag 
+                    key={p.id} 
+                    color="default" 
+                    icon={<EditOutlined />} 
+                    style={{ cursor: 'pointer', padding: '4px 8px' }}
+                    onClick={() => { setEditingPlayer(p); playerForm.setFieldsValue({ name: p.name, number: p.number }); }}
+                  >
+                    #{p.number ?? '?'} {p.name}
+                  </Tag>
                 ))}
                 {selectedTeamPlayers.filter(p => !p.is_active).length === 0 && <Text style={{ color: '#555', fontSize: 12 }}>Sin bajas</Text>}
               </div>
@@ -259,16 +286,23 @@ export default function TeamsPage() {
         ]} />
         
         <div style={{ borderTop: '1px solid #333', paddingTop: 16, marginTop: 16 }}>
-          <Text strong style={{ display: 'block', marginBottom: 12 }}>Inscribir nuevo jugador</Text>
+          <Text strong style={{ display: 'block', marginBottom: 12 }}>{editingPlayer ? `Editar jugador: ${editingPlayer.name}` : 'Inscribir nuevo jugador'}</Text>
           <Form form={playerForm} layout="vertical" onFinish={(v) => savePlayer.mutate(v)}>
             <Space style={{ width: '100%', alignItems: 'flex-start' }}>
               <Form.Item name="number" label="Dorsal"><Input type="number" min={0} max={99} style={{ width: 80 }} /></Form.Item>
               <Form.Item name="name" label="Nombre completo" rules={[{ required: true }]} style={{ flex: 1 }}><Input /></Form.Item>
               <Form.Item label=" ">
-                <Button type="primary" htmlType="submit" loading={savePlayer.isPending} 
-                  disabled={selectedTeamPlayers.filter(p => p.is_active).length >= 12}>
-                  Agregar
-                </Button>
+                <Space>
+                  <Button type="primary" htmlType="submit" loading={savePlayer.isPending} 
+                    disabled={!editingPlayer && selectedTeamPlayers.filter(p => p.is_active).length >= 12}>
+                    {editingPlayer ? 'Actualizar' : 'Agregar'}
+                  </Button>
+                  {editingPlayer && (
+                    <Button onClick={() => { setEditingPlayer(null); playerForm.resetFields(); }}>
+                      Cancelar
+                    </Button>
+                  )}
+                </Space>
               </Form.Item>
             </Space>
           </Form>
