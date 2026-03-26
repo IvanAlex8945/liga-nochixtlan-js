@@ -243,7 +243,7 @@ export default function TeamsPage() {
       {/* Player Modal */}
       <Modal title={`Jugadores – ${teams.find((t) => t.id === playerModal)?.name ?? ''}`}
         open={playerModal !== null} onCancel={() => { setPlayerModal(null); playerForm.resetFields(); setEditingPlayer(null); }}
-        footer={null}>
+        footer={null} width={760} style={{ top: 20 }}>
         <Collapse size="small" style={{ marginBottom: 12 }} defaultActiveKey={['1']} items={[
           {
             key: '1', label: `Activos (${selectedTeamPlayers.filter(p => p.is_active).length}/12 permitidos)`,
