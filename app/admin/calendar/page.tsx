@@ -25,7 +25,7 @@ interface Match {
 }
 
 const statusColor: Record<string, string> = {
-  Programado: 'default', Jugado: 'green', 'WO Local': 'orange', 'WO Visitante': 'orange', 'WO Doble': 'red',
+  Programado: 'default', Pendiente: 'processing', Jugado: 'green', 'WO Local': 'orange', 'WO Visitante': 'orange', 'WO Doble': 'red',
 };
 
 export default function CalendarPage() {
@@ -34,6 +34,7 @@ export default function CalendarPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [seasonId, setSeasonId] = useState<number | null>(null);
   const [editingMatch, setEditingMatch] = useState<EditableMatch | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('Todos');
 
   useEffect(() => {
     supabase.from('seasons').select('id').eq('is_active', true).limit(1).single()
@@ -183,6 +184,12 @@ export default function CalendarPage() {
 
   const teamOptions = teams.map((t) => ({ label: t.name, value: t.id }));
 
+  const displayedMatches = matches.filter(m => {
+    if (filterStatus === 'Todos') return true;
+    if (filterStatus === 'Jugado') return m.status === 'Jugado' || m.status.startsWith('WO');
+    return m.status === filterStatus;
+  });
+
   return (
     <AdminLayout>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
@@ -190,8 +197,19 @@ export default function CalendarPage() {
           <Title level={4} style={{ color: '#FAAD14', margin: 0 }}>📅 Calendario</Title>
           <SeasonSelector value={seasonId} onChange={setSeasonId} style={{ marginTop: 8 }} />
           {seasonId && <Text style={{ color: '#888', fontSize: 12, display: 'block', marginTop: 4 }}>
-            {matches.length} partidos · {teams.length} equipos activos
+            {matches.length} partidos totales · {teams.length} equipos activos
           </Text>}
+          {seasonId && (
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: '#888', fontSize: 13 }}>Filtro rápido:</Text>
+              <Select size="small" value={filterStatus} onChange={setFilterStatus} style={{ width: 140 }} options={[
+                { label: 'Todos', value: 'Todos' },
+                { label: '⏳ Pendientes', value: 'Pendiente' },
+                { label: '📌 Programados', value: 'Programado' },
+                { label: '✅ Jugados / W.O.', value: 'Jugado' }
+              ]} />
+            </div>
+          )}
         </div>
         <Space wrap>
           <Button
@@ -220,7 +238,7 @@ export default function CalendarPage() {
       ) : teams.length < 2 && matches.length === 0 ? (
         <Text style={{ color: '#ff4d4f' }}>⚠ Se necesitan al menos 2 equipos activos para crear partidos.</Text>
       ) : (
-        <Table dataSource={matches} columns={cols} rowKey="id" loading={isLoading} size="small"
+        <Table dataSource={displayedMatches} columns={cols} rowKey="id" loading={isLoading} size="small"
           pagination={{ pageSize: 20, showSizeChanger: false }} scroll={{ x: 480 }} />
       )}
 

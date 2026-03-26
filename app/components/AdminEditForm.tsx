@@ -45,6 +45,7 @@ const STATUSES = [
   { label: '🟡 W.O. Visitante (visitante pierde)', value: 'WO Visitante' },
   { label: '🔴 Doble W.O. (ambos 0 pts)', value: 'WO Doble' },
   { label: '📌 Programado', value: 'Programado' },
+  { label: '⏳ Pendiente (Reprogramado)', value: 'Pendiente' },
 ];
 
 const COURTS = ['Cancha Bicentenario', 'Cancha Techada', 'Cancha III'];
@@ -58,7 +59,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
 
   const isWO = (s: string) => s.startsWith('WO') || s.startsWith('W.O');
   const needsScore = currentStatus === 'Jugado';
-  const isReadonly = isWO(currentStatus) || currentStatus === 'Programado';
+  const isReadonly = isWO(currentStatus) || currentStatus === 'Programado' || currentStatus === 'Pendiente';
 
   const editMatch = useMutation({
     mutationFn: async (values: {
@@ -76,7 +77,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
       if (values.status === 'WO Local')      { hs = 0;  as_ = 20; }
       if (values.status === 'WO Visitante')  { hs = 20; as_ = 0;  }
       if (values.status === 'WO Doble')      { hs = 0;  as_ = 0;  }
-      if (values.status === 'Programado')    { hs = null; as_ = null; }
+      if (values.status === 'Programado' || values.status === 'Pendiente') { hs = null; as_ = null; }
 
       const dateVal = values.scheduled_date ? values.scheduled_date : null;
 
@@ -95,8 +96,8 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
 
       if (error) throw error;
 
-      // If status changes back to Programado, purge stats
-      if (values.status === 'Programado') {
+      // If status changes back to Programado or Pendiente, purge stats
+      if (values.status === 'Programado' || values.status === 'Pendiente') {
         await supabase.from('player_match_stats').delete().eq('match_id', match.id);
       }
     },
@@ -123,7 +124,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
   const awayName = match.away_team?.name ?? `Equipo #${match.away_team_id}`;
 
   const affectedTables = ['matches', 'standings (recalculado)'];
-  if (currentStatus === 'Programado') affectedTables.push('player_match_stats (eliminadas)');
+  if (currentStatus === 'Programado' || currentStatus === 'Pendiente') affectedTables.push('player_match_stats (eliminadas)');
 
   return (
     <Modal
@@ -252,11 +253,11 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
           />
         )}
 
-        {currentStatus === 'Programado' && (
+        {(currentStatus === 'Programado' || currentStatus === 'Pendiente') && (
           <Alert
             type="error"
             showIcon
-            message="⚠️ Al cambiar a 'Programado' se eliminarán las estadísticas de jugadores de este partido"
+            message={`⚠️ Al cambiar a '${currentStatus}' se eliminarán las estadísticas de jugadores de este partido`}
             style={{ marginBottom: 12 }}
           />
         )}
