@@ -15,7 +15,7 @@ import dayjs from 'dayjs';
 const { Title, Text } = Typography;
 const PHASES = ['Fase Regular', 'Octavos de Final', 'Cuartos de Final', 'Semifinal', 'Tercer Lugar', 'Final'];
 const COURTS = ['Cancha Bicentenario', 'Cancha Techada', 'Cancha III'];
-const TIMES = ['06:00 PM', '07:00 PM', '08:00 PM', '09:00 PM', '10:00 PM', '11:00 PM'];
+const TIMES = ['06:00 PM', '06:30 PM', '07:00 PM', '07:30 PM', '08:00 PM', '08:30 PM', '09:00 PM', '09:30 PM', '10:00 PM', '10:30 PM', '11:00 PM'];
 
 interface Match {
   id: number; jornada: number; phase: string; status: string;
