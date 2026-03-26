@@ -49,7 +49,7 @@ const STATUSES = [
 ];
 
 const COURTS = ['Cancha Bicentenario', 'Cancha Techada', 'Cancha III'];
-const TIMES = ['18:00', '19:00', '20:00', '21:00', '22:00', '23:00'];
+const TIMES = ['06:00 PM', '07:00 PM', '08:00 PM', '09:00 PM', '10:00 PM', '11:00 PM'];
 
 export default function AdminEditForm({ match, onClose, onSaved }: Props) {
   const [form] = Form.useForm();

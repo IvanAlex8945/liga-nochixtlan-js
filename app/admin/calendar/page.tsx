@@ -4,7 +4,7 @@ import AdminLayout from '@/app/components/AdminLayout';
 import {
   Table, Button, Modal, Form, Select, InputNumber, Tag, Typography, Space, message,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined, WhatsAppOutlined, CopyOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
@@ -15,7 +15,7 @@ import dayjs from 'dayjs';
 const { Title, Text } = Typography;
 const PHASES = ['Fase Regular', 'Octavos de Final', 'Cuartos de Final', 'Semifinal', 'Tercer Lugar', 'Final'];
 const COURTS = ['Cancha Bicentenario', 'Cancha Techada', 'Cancha III'];
-const TIMES = ['18:00', '19:00', '20:00', '21:00', '22:00', '23:00'];
+const TIMES = ['06:00 PM', '07:00 PM', '08:00 PM', '09:00 PM', '10:00 PM', '11:00 PM'];
 
 interface Match {
   id: number; jornada: number; phase: string; status: string;
@@ -35,6 +35,8 @@ export default function CalendarPage() {
   const [seasonId, setSeasonId] = useState<number | null>(null);
   const [editingMatch, setEditingMatch] = useState<EditableMatch | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [waJornada, setWaJornada] = useState<number | null>(null);
 
   useEffect(() => {
     supabase.from('seasons').select('id').eq('is_active', true).limit(1).single()
@@ -184,6 +186,34 @@ export default function CalendarPage() {
 
   const teamOptions = teams.map((t) => ({ label: t.name, value: t.id }));
 
+  const uniqueJornadas = Array.from(new Set(matches.map(m => m.jornada))).sort((a,b) => a - b);
+
+  const waText = (() => {
+    if (!waJornada || !seasonId) return '';
+    const mForJornada = matches.filter(m => m.jornada === waJornada).sort((a,b) => {
+      const dateA = a.scheduled_date || '9999-12-31';
+      const dateB = b.scheduled_date || '9999-12-31';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      return (a.time_str || '').localeCompare(b.time_str || '');
+    });
+    if (mForJornada.length === 0) return 'No hay partidos programados para esta jornada.';
+
+    let txt = `🏆 *LIGA NOCHIXTLÁN - JORNADA ${waJornada}* 🏆\n\n`;
+    mForJornada.forEach(m => {
+       txt += `⚽ *${m.home_team?.name || '?'}* vs *${m.away_team?.name || '?'}*\n`;
+       if (m.scheduled_date) {
+         let dFormat = dayjs(m.scheduled_date);
+         if (!m.scheduled_date.includes('T')) dFormat = dayjs(m.scheduled_date + 'T12:00:00');
+         const d = dFormat.format('dddd DD [de] MMMM');
+         txt += `🗓 Fecha: ${d.charAt(0).toUpperCase() + d.slice(1)}\n`;
+       }
+       if (m.time_str) txt += `⏰ Hora: ${m.time_str}\n`;
+       if (m.court) txt += `🏟️ Cancha: ${m.court}\n`;
+       txt += `\n`;
+    });
+    return txt.trim();
+  })();
+
   const displayedMatches = matches.filter(m => {
     if (filterStatus === 'Todos') return true;
     if (filterStatus === 'Jugado') return m.status === 'Jugado' || m.status.startsWith('WO');
@@ -212,6 +242,18 @@ export default function CalendarPage() {
           )}
         </div>
         <Space wrap>
+          <Button
+            icon={<WhatsAppOutlined />}
+            style={{ color: '#25D366', borderColor: '#25D366' }}
+            disabled={!seasonId || matches.length === 0}
+            onClick={() => {
+              const latest = matches.length > 0 ? Math.max(...matches.map(m => m.jornada)) : null;
+              setWaJornada(latest);
+              setWaModalOpen(true);
+            }}
+          >
+            WhatsApp
+          </Button>
           <Button
             onClick={() => {
               Modal.confirm({
@@ -267,6 +309,44 @@ export default function CalendarPage() {
             <input type="date" style={{ width: '100%', padding: '6px 11px', background: '#141414', border: '1px solid #424242', borderRadius: 6, color: '#fff', colorScheme: 'dark' }} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal title="Generar Mensaje para WhatsApp" open={waModalOpen} onCancel={() => setWaModalOpen(false)}
+        footer={null} width={500}>
+        <div style={{ marginBottom: 16 }}>
+          <Text style={{ display: 'block', marginBottom: 8 }}>Selecciona la jornada a compartir:</Text>
+          <Select 
+            value={waJornada} 
+            onChange={setWaJornada} 
+            style={{ width: '100%' }}
+            options={uniqueJornadas.map(j => ({ label: `Jornada ${j}`, value: j }))}
+          />
+        </div>
+        <div style={{ position: 'relative' }}>
+          <textarea
+            readOnly
+            value={waText}
+            style={{ width: '100%', height: 300, padding: 12, background: '#111', color: '#fff', border: '1px solid #333', borderRadius: 8, fontFamily: 'monospace', resize: 'none' }}
+          />
+          <Button 
+            type="primary" 
+            icon={<CopyOutlined />} 
+            style={{ position: 'absolute', top: 12, right: 12 }}
+            onClick={() => {
+              navigator.clipboard.writeText(waText);
+              message.success('Mensaje copiado al portapapeles');
+            }}
+          >
+            Copiar
+          </Button>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <Button type="primary" block style={{ background: '#25D366', borderColor: '#25D366' }}
+            onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, '_blank')}
+          >
+            Abrir WhatsApp Web
+          </Button>
+        </div>
       </Modal>
 
       {editingMatch && (
