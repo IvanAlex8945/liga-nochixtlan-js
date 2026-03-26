@@ -1,0 +1,84 @@
+/* ============================================================
+   globals.css – Liga Nochixtlan
+   Mobile-first: optimizado para árbitros en cancha (360px+)
+   ============================================================ */
+@import "tailwindcss";
+
+/* ── Layout base ─────────────────────────────────────────── */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #141414;
+  min-height: 100vh;
+  font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── Botones grandes para dedos en cancha ─────────────────── */
+.btn-capture {
+  min-height: 48px !important;
+  font-size: 16px !important;
+  border-radius: 8px !important;
+}
+
+/* ── Tablas scrollables horizontal sin romper layout ────── */
+.ant-table-wrapper {
+  overflow-x: auto;
+}
+.ant-table {
+  min-width: 420px;
+}
+
+/* ── Fila líder – resaltar primer lugar ─────────────────── */
+.row-leader td {
+  background: rgba(250, 173, 20, 0.08) !important;
+}
+
+/* ── Checkboxes más grandes para dedos ─────────────────── */
+@media (max-width: 768px) {
+  .ant-checkbox-inner {
+    width: 22px !important;
+    height: 22px !important;
+  }
+  .ant-checkbox-inner::after {
+    width: 7px !important;
+    height: 11px !important;
+  }
+  .ant-form-item-label > label {
+    font-size: 15px;
+  }
+  .ant-table {
+    font-size: 12px;
+  }
+}
+
+/* ── Leaders grid en móvil ──────────────────────────────── */
+@media (max-width: 640px) {
+  .leaders-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Radio.Group en captura (wrap en móvil) ─────────────── */
+.capture-radio-group .ant-radio-button-wrapper {
+  flex: 1 1 120px;
+  height: 44px;
+  font-size: 14px;
+  line-height: 44px;
+  text-align: center;
+}
+
+/* ── Scrollbar oscuro ───────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FAAD14;
+}
