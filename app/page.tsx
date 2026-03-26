@@ -1,6 +1,9 @@
 import { supabase } from '@/lib/supabase';
 import PublicPageClient from './components/PublicPageClient';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function fetchPublicData() {
   // ── All seasons ──────────────────────────────────────────
   const { data: allSeasons } = await supabase
