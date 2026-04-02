@@ -398,7 +398,8 @@ function TeamStatsTab({ seasonId, teams, allPlayers, allStats, seasonMatches }: 
 
   const filteredMatches = useMemo(() => {
     if (phaseFilter === 'all') return seasonMatches;
-    if (phaseFilter === 'Fase Regular') return seasonMatches.filter((m) => m.phase === 'Fase Regular');
+    // Default null phase to 'Fase Regular'
+    if (phaseFilter === 'Fase Regular') return seasonMatches.filter((m) => !m.phase || m.phase === 'Fase Regular');
     // For Liguilla, we include everything that is not Fase Regular
     return seasonMatches.filter((m) => m.phase && m.phase !== 'Fase Regular');
   }, [seasonMatches, phaseFilter]);

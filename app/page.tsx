@@ -16,12 +16,14 @@ async function fetchPublicData() {
   // ── Teams (id + name only, no computed columns) ──────────
   const { data: teamsRaw } = await supabase
     .from('teams')
-    .select('id, name, season_id, status, category');
+    .select('id, name, season_id, status, category')
+    .limit(1000);
 
   // ── All Players (for full team rosters even with 0 pts) ──
   const { data: allPlayersRaw } = await supabase
     .from('players')
-    .select('id, name, team_id, number');
+    .select('id, name, team_id, number')
+    .limit(5000);
 
   // ── All matches (for client-side standings per season) ───
   const { data: matchesRaw } = await supabase
@@ -33,7 +35,8 @@ async function fetchPublicData() {
       home_team:teams!matches_home_team_id_fkey(id, name),
       away_team:teams!matches_away_team_id_fkey(id, name)
     `)
-    .order('jornada', { ascending: true });
+    .order('jornada', { ascending: true })
+    .limit(2000);
 
   // ── All stats (all seasons, for leaders + historical) ────
   const { data: statsRaw } = await supabase
@@ -45,7 +48,8 @@ async function fetchPublicData() {
         home_team:teams!matches_home_team_id_fkey(name),
         away_team:teams!matches_away_team_id_fkey(name))
     `)
-    .eq('played', true);
+    .eq('played', true)
+    .limit(10000);
 
   const allStats = statsRaw ?? [];
 
