@@ -22,6 +22,7 @@ interface Match {
 export default function CapturePage() {
   const [seasonId, setSeasonId] = useState<number | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
+  const [selectedJornada, setSelectedJornada] = useState<number | null>(null);
 
   useEffect(() => {
     supabase.from('seasons').select('id').eq('is_active', true).limit(1).single()
@@ -42,6 +43,9 @@ export default function CapturePage() {
       return (data ?? []) as any[];
     },
   });
+
+  const jornadas = Array.from(new Set(matches.map(m => m.jornada))).sort((a, b) => a - b);
+  const filteredMatches = selectedJornada ? matches.filter(m => m.jornada === selectedJornada) : matches;
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId);
 
@@ -99,27 +103,42 @@ export default function CapturePage() {
     <AdminLayout>
       <div style={{ marginBottom: 16 }}>
         <Title level={4} style={{ color: '#FAAD14', marginBottom: 12 }}>✍️ Captura de Resultado</Title>
-        <SeasonSelector value={seasonId} onChange={(id) => { setSeasonId(id); setSelectedMatchId(null); }} />
+        <SeasonSelector value={seasonId} onChange={(id) => { setSeasonId(id); setSelectedMatchId(null); setSelectedJornada(null); }} />
       </div>
 
       {!!seasonId && (
-        <div style={{ marginBottom: 20 }}>
-          <Text style={{ color: '#888', display: 'block', marginBottom: 6 }}>Partido a capturar:</Text>
-          <Select
-            style={{ width: '100%', maxWidth: 500 }}
-            placeholder="-- Seleccionar partido programado --"
-            options={matches.map((m) => ({
-              label: `J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} ${m.status !== 'Programado' ? `(${m.status})` : ''}`,
-              value: m.id,
-            }))}
-            value={selectedMatchId}
-            onChange={setSelectedMatchId}
-            loading={loadingMatches}
-            showSearch
-            notFoundContent={<Text style={{ color: '#555' }}>{loadingMatches ? 'Cargando...' : 'Sin partidos programados en esta temporada'}</Text>}
-          />
+        <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 150px', maxWidth: 200 }}>
+            <Text style={{ color: '#888', display: 'block', marginBottom: 6 }}>Jornada:</Text>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Todas las jornadas"
+              allowClear
+              value={selectedJornada}
+              onChange={(val) => { setSelectedJornada(val); setSelectedMatchId(null); }}
+              options={jornadas.map(j => ({ label: `Jornada ${j}`, value: j }))}
+              loading={loadingMatches}
+            />
+          </div>
+          <div style={{ flex: '2 1 300px', maxWidth: 500 }}>
+            <Text style={{ color: '#888', display: 'block', marginBottom: 6 }}>Partido a capturar:</Text>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="-- Seleccionar partido programado --"
+              options={filteredMatches.map((m) => ({
+                label: `J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} ${m.status !== 'Programado' ? `(${m.status})` : ''}`,
+                value: m.id,
+              }))}
+              value={selectedMatchId}
+              onChange={setSelectedMatchId}
+              loading={loadingMatches}
+              showSearch
+              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              notFoundContent={<Text style={{ color: '#555' }}>{loadingMatches ? 'Cargando...' : 'Sin partidos en esta jornada'}</Text>}
+            />
+          </div>
           {matches.length === 0 && !loadingMatches && (
-            <Alert type="info" message="No hay partidos programados en esta temporada" showIcon style={{ marginTop: 10 }} />
+            <Alert type="info" message="No hay partidos programados en esta temporada" showIcon style={{ width: '100%', marginTop: 10 }} />
           )}
         </div>
       )}
