@@ -65,6 +65,30 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
   const showHomeScorerCol = resultType === 'WO_Visitante';
   const showAwayScorerCol = resultType === 'WO_Local';
 
+  // Calculate live scores
+  let homeScore = homeLineup.reduce((acc, p) => acc + (Number(p.points) || 0), 0);
+  let awayScore = awayLineup.reduce((acc, p) => acc + (Number(p.points) || 0), 0);
+
+  if (resultType === 'WO_Local') {
+    homeScore = 0;
+    awayScore = 20;
+  } else if (resultType === 'WO_Visitante') {
+    homeScore = 20;
+    awayScore = 0;
+  } else if (resultType === 'WO_Doble') {
+    homeScore = 0;
+    awayScore = 0;
+  }
+
+  const getScoreColor = (score1: number, score2: number) => {
+    if (score1 > score2) return '#52c41a'; // Green for winning
+    if (score1 < score2) return '#f5222d'; // Red for losing
+    return '#888'; // Gray for tie
+  };
+
+  const homeColor = getScoreColor(homeScore, awayScore);
+  const awayColor = getScoreColor(awayScore, homeScore);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -139,6 +163,49 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
             </Text>
           </div>
         )}
+
+        {/* ── Marcador en vivo ──────────────────────────────── */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          background: '#1a1a1a',
+          border: '1px solid #333',
+          borderRadius: 8,
+          padding: '16px 24px',
+          marginBottom: 16,
+          gap: 24
+        }}>
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <Text style={{ fontSize: 16, color: '#ccc', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+              🏠 {match.home_team.name}
+            </Text>
+            <div style={{
+              fontSize: 54,
+              fontWeight: 800,
+              color: homeColor,
+              textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              lineHeight: 1
+            }}>
+              {homeScore}
+            </div>
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 'bold', color: '#555' }}>VS</div>
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <Text style={{ fontSize: 16, color: '#ccc', display: 'block', marginBottom: 8, fontWeight: 600 }}>
+              ✈️ {match.away_team.name}
+            </Text>
+            <div style={{
+              fontSize: 54,
+              fontWeight: 800,
+              color: awayColor,
+              textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              lineHeight: 1
+            }}>
+              {awayScore}
+            </div>
+          </div>
+        </div>
 
         {/* ── Tablas de asistencia ──────────────────────────── */}
         <Row gutter={[16, 16]}>
