@@ -5,27 +5,41 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 async function fetchPublicData() {
-  // ── All seasons ──────────────────────────────────────────
-  const { data: allSeasons } = await supabase
+  // ── Active seasons ──────────────────────────────────────────
+  const { data: activeSeasonsRaw } = await supabase
     .from('seasons')
     .select('id, name, category, year, is_active')
+    .eq('is_active', true)
     .order('year', { ascending: false });
 
-  const seasons = allSeasons ?? [];
+  const seasons = activeSeasonsRaw ?? [];
+  const activeSeasonIds = seasons.map(s => s.id);
 
-  // ── Teams (id + name only, no computed columns) ──────────
+  if (activeSeasonIds.length === 0) {
+    return { seasons: [], teams: [], allPlayers: [], allMatches: [], allStats: [] };
+  }
+
+  // ── Teams ──────────
   const { data: teamsRaw } = await supabase
     .from('teams')
     .select('id, name, season_id, status, category')
+    .in('season_id', activeSeasonIds)
     .limit(1000);
 
-  // ── All Players (for full team rosters even with 0 pts) ──
-  const { data: allPlayersRaw } = await supabase
-    .from('players')
-    .select('id, name, team_id, number')
-    .limit(5000);
+  const teamIds = (teamsRaw ?? []).map(t => t.id);
 
-  // ── All matches (for client-side standings per season) ───
+  // ── All Players ──
+  let allPlayersRaw: any[] = [];
+  if (teamIds.length > 0) {
+    const { data } = await supabase
+      .from('players')
+      .select('id, name, team_id, number')
+      .in('team_id', teamIds)
+      .limit(5000);
+    allPlayersRaw = data ?? [];
+  }
+
+  // ── All matches ───
   const { data: matchesRaw } = await supabase
     .from('matches')
     .select(`
@@ -35,10 +49,11 @@ async function fetchPublicData() {
       home_team:teams!matches_home_team_id_fkey(id, name),
       away_team:teams!matches_away_team_id_fkey(id, name)
     `)
+    .in('season_id', activeSeasonIds)
     .order('jornada', { ascending: true })
     .limit(2000);
 
-  // ── All stats (all seasons, for leaders + historical) ────
+  // ── All stats ────
   const { data: statsRaw } = await supabase
     .from('player_match_stats')
     .select(`
@@ -49,11 +64,10 @@ async function fetchPublicData() {
         away_team:teams!matches_away_team_id_fkey(name))
     `)
     .eq('played', true)
+    .in('matches.season_id', activeSeasonIds)
     .limit(10000);
 
   const allStats = statsRaw ?? [];
-
-
 
   return {
     seasons,
