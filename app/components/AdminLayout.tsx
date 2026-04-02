@@ -52,8 +52,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           selectedKeys={[pathname]}
           items={menuItems}
           onClick={({ key }) => router.push(key)}
-          style={{ background: 'transparent', border: 'none' }}
+          style={{ background: 'transparent', border: 'none', flex: 1 }}
         />
+        <div style={{ padding: '16px', borderTop: '1px solid #222', marginTop: 'auto' }}>
+          <button
+            onClick={async () => {
+              const { createClient } = await import('@/lib/supabase/client');
+              const supabase = createClient();
+              await supabase.auth.signOut();
+              router.push('/login');
+              router.refresh();
+            }}
+            style={{
+              width: '100%',
+              background: 'transparent',
+              color: '#f5222d',
+              border: '1px solid #f5222d44',
+              borderRadius: 6,
+              padding: '6px 0',
+              cursor: 'pointer',
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = '#f5222d11')}
+            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+          >
+            Cerrar Sesión
+          </button>
+        </div>
       </Sider>
 
       {/* ── Content ──────────────────────────────────────── */}
