@@ -15,7 +15,7 @@ const supabase = createClient(supabaseUrl, serviceKey);
 
 const adminsToCreate = [
   { email: 'admin1@liganochixtlan.com', password: 'Liganochixtlan2026+', role: 'Mesa Directiva' },
-  { email: 'admin2@liganochixtlan.com', password: 'Liganochixtlan2026+', role: 'Mesa Directiva' },
+  { email: 'admin2@liganochixtlan.com', password: 'Liganochixtlan2026', role: 'Mesa Directiva' },
   { email: 'admin3@liganochixtlan.com', password: 'Liganochixtlan2026+', role: 'Mesa Directiva' }
 ];
 
