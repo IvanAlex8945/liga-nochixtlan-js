@@ -27,29 +27,49 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
   const qc = useQueryClient();
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
 
-  // Calcular partidos faltantes
+  // Calcular partidos faltantes (lógica por PAR, no direccional)
+  // Independientemente de quién fue local/visitante, cada par debe enfrentarse 2 veces.
   const missingMatches = useMemo(() => {
     const faltantes: MissingMatch[] = [];
-    teams.forEach((local) => {
-      teams.forEach((visitante) => {
-        if (local.id === visitante.id) return;
-        
-        const exist = matches.find(
+
+    for (let i = 0; i < teams.length; i++) {
+      for (let j = i + 1; j < teams.length; j++) {
+        const teamA = teams[i];
+        const teamB = teams[j];
+
+        // Contar cuántas veces se han enfrentado, sin importar quién fue local
+        const matchesBetween = matches.filter(
           (m) =>
-            m.home_team_id === local.id &&
-            m.away_team_id === visitante.id &&
-            m.phase === 'Fase Regular'
+            m.phase === 'Fase Regular' &&
+            ((m.home_team_id === teamA.id && m.away_team_id === teamB.id) ||
+              (m.home_team_id === teamB.id && m.away_team_id === teamA.id))
         );
 
-        if (!exist) {
+        const needed = 2 - matchesBetween.length; // cuántos partidos faltan del par
+        if (needed <= 0) continue;
+
+        // Detectar qué equipo ya fue local, para sugerir correctamente el faltante
+        const aWasHome = matchesBetween.some((m) => m.home_team_id === teamA.id);
+        const bWasHome = matchesBetween.some((m) => m.home_team_id === teamB.id);
+
+        for (let k = 0; k < needed; k++) {
+          // Asignar local/visitante: intentar que cada uno sea local una vez
+          let home: Team, away: Team;
+          if (!aWasHome || (aWasHome && bWasHome && k === 0)) {
+            home = teamA; away = teamB;
+          } else {
+            home = teamB; away = teamA;
+          }
+
           faltantes.push({
-            key: `${local.id}-${visitante.id}`,
-            home: local,
-            away: visitante,
+            key: `${teamA.id}-${teamB.id}-${k}`,
+            home,
+            away,
           });
         }
-      });
-    });
+      }
+    }
+
     return faltantes;
   }, [teams, matches]);
 
