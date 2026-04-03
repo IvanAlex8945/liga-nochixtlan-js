@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Form, Input, Button, Typography, message, Card } from 'antd';
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
 const { Title, Text } = Typography;
@@ -13,7 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const handleLogin = async (values: any) => {
+  const handleLogin = async (values: Record<string, string>) => {
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -32,7 +33,7 @@ export default function LoginPage() {
         router.push('/admin');
         router.refresh(); // Refrescar para garantizar que middleware e interfaz se actualicen
       }
-    } catch (err: any) {
+    } catch {
       message.error('Ocurrió un error inesperado al iniciar sesión.');
     } finally {
       setLoading(false);
@@ -106,9 +107,9 @@ export default function LoginPage() {
         </Form>
         
         <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <a href="/" style={{ color: '#555', fontSize: 13, textDecoration: 'underline' }}>
+          <Link href="/" style={{ color: '#555', fontSize: 13, textDecoration: 'underline' }}>
             ← Volver al inicio público
-          </a>
+          </Link>
         </div>
       </Card>
     </div>

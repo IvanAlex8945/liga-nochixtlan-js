@@ -1,6 +1,7 @@
 'use client';
 
 import { Layout, Menu } from 'antd';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   CalendarOutlined,
@@ -41,9 +42,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Liga Admin
           </div>
           <div style={{ marginTop: 12 }}>
-            <a href="/" style={{ color: '#888', fontSize: 12, border: '1px solid #333', padding: '4px 10px', borderRadius: 4, display: 'inline-block' }}>
+            <Link href="/" style={{ color: '#888', fontSize: 12, border: '1px solid #333', padding: '4px 10px', borderRadius: 4, display: 'inline-block' }}>
               🏠 Ver Inicio
-            </a>
+            </Link>
           </div>
         </div>
         <Menu

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Tabs, Typography, Tag, Select, Button, FloatButton } from 'antd';
-import { FilePdfOutlined, TrophyOutlined } from '@ant-design/icons';
+import { FilePdfOutlined } from '@ant-design/icons';
 import StandingsTable from './StandingsTable';
 import TeamDetailModal from './TeamDetailModal';
 import { calcularPosiciones, MatchForStandings, TeamStats } from '@/lib/standings';
@@ -15,22 +15,51 @@ const { Title, Text } = Typography;
 
 interface Season { id: number; name: string; category: string; year: number; is_active: boolean; }
 
-interface HistoricalRecord {
-  nombre: string;
-  equipo: string;
-  temporada: string;
-  jornada: number | null;
-  phase: string | null;
-  puntos?: number;
-  triples?: number;
+export interface TeamData {
+  id: number;
+  season_id?: number | null;
+  name: string;
+}
+
+export interface PlayerData {
+  id: number;
+  team_id?: number;
+  number?: string | null;
+  name: string;
+}
+
+export interface MatchData {
+  id: number;
+  season_id?: number | null;
+  jornada?: number | null;
+  phase?: string | null;
+  status?: string | null;
+  home_team_id?: number;
+  away_team_id?: number;
+  home_score?: number | null;
+  away_score?: number | null;
+  home_team?: TeamData;
+  away_team?: TeamData;
+  scheduled_date?: string | null;
+  time_str?: string | null;
+  court?: string | null;
+}
+
+export interface PlayerStats {
+  match_id: number;
+  team_id: number;
+  played: boolean;
+  points?: number | null;
+  triples?: number | null;
+  players?: PlayerData | null;
 }
 
 interface Props {
   seasons: Season[];
-  teams: any[];
-  allPlayers: any[];
-  allMatches: any[];
-  allStats: any[];
+  teams: TeamData[];
+  allPlayers: PlayerData[];
+  allMatches: MatchData[];
+  allStats: PlayerStats[];
 }
 
 export default function PublicPageClient({ seasons, teams, allPlayers, allMatches, allStats }: Props) {
@@ -63,9 +92,9 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
 
   // Leaders for selected season
   const leaders = useMemo(() => {
-    const matchIds = new Set(seasonMatches.map((m: any) => m.id));
+    const matchIds = new Set(seasonMatches.map((m) => m.id));
     const map: Record<number, { id: number; nombre: string; puntos: number; triples: number; team_id: number }> = {};
-    for (const s of allStats as any[]) {
+    for (const s of allStats) {
       if (!matchIds.has(s.match_id) || !s.played) continue;
       const p = s.players;
       if (!p) continue;
@@ -78,9 +107,9 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
 
   // Top tripleros for selected season
   const tripleros = useMemo(() => {
-    const matchIds = new Set(seasonMatches.map((m: any) => m.id));
+    const matchIds = new Set(seasonMatches.map((m) => m.id));
     const map: Record<number, { id: number; nombre: string; puntos: number; triples: number; team_id: number }> = {};
-    for (const s of allStats as any[]) {
+    for (const s of allStats) {
       if (!matchIds.has(s.match_id) || !s.played) continue;
       const p = s.players;
       if (!p || !s.triples) continue;
@@ -93,18 +122,18 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
 
   // Season-level record (best single game scorers and tripler for this season)
   const seasonRecords = useMemo(() => {
-    const matchIds = new Set(seasonMatches.map((m: any) => m.id));
+    const matchIds = new Set(seasonMatches.map((m) => m.id));
     let bestPuntos: { nombre: string; valor: number; equipo: string; jornada: number | null } | null = null;
     let bestTriples: { nombre: string; valor: number; equipo: string; jornada: number | null } | null = null;
 
-    for (const s of allStats as any[]) {
+    for (const s of allStats) {
       if (!matchIds.has(s.match_id) || !s.played) continue;
       const p = s.players;
       if (!p) continue;
       
       const team = teams.find((t) => t.id === s.team_id);
       const teamName = team?.name ?? '?';
-      const m = (seasonMatches as any[]).find((match) => match.id === s.match_id);
+      const m = seasonMatches.find((match) => match.id === s.match_id);
 
       if (s.points && (!bestPuntos || s.points > bestPuntos.valor)) {
         bestPuntos = { nombre: p.name, valor: s.points, equipo: teamName, jornada: m?.jornada ?? null };
@@ -117,13 +146,13 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
   }, [allStats, seasonMatches, teams]);
 
   const jornadasDropdown = useMemo(() => {
-    const js = new Set(seasonMatches.map((m: any) => m.jornada).filter(Boolean));
-    return Array.from(js).sort((a, b) => a - b);
+    const js = new Set(seasonMatches.map((m) => m.jornada).filter(Boolean));
+    return Array.from(js).sort((a, b) => (a as number) - (b as number));
   }, [seasonMatches]);
 
   const handlePDF = () => {
     if (!selectedSeason) return;
-    generateEligibilityPDF(standings, seasonMatches, selectedSeason.name, allStats as any[]);
+    generateEligibilityPDF(standings, seasonMatches as unknown as Record<string, unknown>[], selectedSeason.name, allStats as unknown as Parameters<typeof generateEligibilityPDF>[3]);
   };
 
   return (
@@ -266,11 +295,12 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
                 />
               ),
             },
+
             {
               key: 'bracket',
               label: '🔥 Liguilla',
               children: (
-                <LiguillaBracketTab seasonMatches={seasonMatches} />
+                <LiguillaBracketTab seasonMatches={seasonMatches as unknown as Parameters<typeof LiguillaBracketTab>[0]['seasonMatches']} />
               ),
             },
             {
@@ -342,7 +372,7 @@ function SmallRecordBadge({ icon, label, color, jugador, equipo, valor, jornada 
   );
 }
 
-function LeadersTable({ data, type, color, teams }: { data: any[]; type: 'puntos' | 'triples'; color: string; teams: any[] }) {
+function LeadersTable({ data, type, color, teams }: { data: { id: number; nombre: string; team_id: number; puntos: number; triples: number }[]; type: 'puntos' | 'triples'; color: string; teams: TeamData[] }) {
   if (data.length === 0) {
     return <Text style={{ color: '#555' }}>Sin estadísticas registradas</Text>;
   }
@@ -390,7 +420,7 @@ function LeadersTable({ data, type, color, teams }: { data: any[]; type: 'puntos
   );
 }
 
-function TeamStatsTab({ seasonId, teams, allPlayers, allStats, seasonMatches }: { seasonId: number | null; teams: any[]; allPlayers: any[]; allStats: any[]; seasonMatches: any[] }) {
+function TeamStatsTab({ seasonId, teams, allPlayers, allStats, seasonMatches }: { seasonId: number | null; teams: TeamData[]; allPlayers: PlayerData[]; allStats: PlayerStats[]; seasonMatches: MatchData[] }) {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [phaseFilter, setPhaseFilter] = useState<'all' | 'Fase Regular' | 'Liguilla'>('all');
 
@@ -412,13 +442,13 @@ function TeamStatsTab({ seasonId, teams, allPlayers, allStats, seasonMatches }: 
     const byPlayer: Record<number, { id: number; number: string | null; nombre: string; triples: number; puntos: number }> = {};
     for (const p of allPlayers) {
       if (p.team_id === selectedTeamId) {
-        byPlayer[p.id] = { id: p.id, number: p.number, nombre: p.name, triples: 0, puntos: 0 };
+        byPlayer[p.id] = { id: p.id, number: p.number ?? null, nombre: p.name, triples: 0, puntos: 0 };
       }
     }
 
-    const matchIds = new Set(filteredMatches.map((m: any) => m.id));
+    const matchIds = new Set(filteredMatches.map((m) => m.id));
 
-    for (const s of allStats as any[]) {
+    for (const s of allStats) {
       if (!matchIds.has(s.match_id) || s.team_id !== selectedTeamId || !s.played) continue;
       const p = s.players;
       if (!p) continue;
@@ -440,7 +470,7 @@ function TeamStatsTab({ seasonId, teams, allPlayers, allStats, seasonMatches }: 
             style={{ width: '100%', maxWidth: 400 }}
             placeholder="-- Seleccionar equipo --"
             value={selectedTeamId}
-            onChange={setSelectedTeamId}
+            onChange={(v) => setSelectedTeamId(v as number | null)}
             options={activeTeams.map((t) => ({ label: t.name, value: t.id }))}
             showSearch
             filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
@@ -477,7 +507,7 @@ function TeamStatsTab({ seasonId, teams, allPlayers, allStats, seasonMatches }: 
                   </tr>
                 </thead>
                 <tbody>
-                  {teamStats.map((s, i) => (
+                  {teamStats.map((s) => (
                     <tr key={s.id} style={{ borderBottom: '1px solid #1a1a1a' }}>
                       <td style={{ ...tdS, textAlign: 'left', color: '#666', width: 40 }}>{s.number ? `#${s.number}` : '-'}</td>
                       <td style={{ ...tdS, textAlign: 'left', fontWeight: 500 }}>{s.nombre}</td>
@@ -498,11 +528,11 @@ function TeamStatsTab({ seasonId, teams, allPlayers, allStats, seasonMatches }: 
 const thS: React.CSSProperties = { padding: '7px 10px', color: '#FAAD14', fontWeight: 600, fontSize: 11, textAlign: 'center' };
 const tdS: React.CSSProperties = { padding: '7px 10px', fontSize: 13, textAlign: 'center', color: '#fff' };
 
-function CalendarList({ matches, jornadaFilter }: { matches: any[]; jornadaFilter: number | 'all' }) {
+function CalendarList({ matches, jornadaFilter }: { matches: MatchData[]; jornadaFilter: number | 'all' }) {
   const filtered = matches.filter((m) => jornadaFilter === 'all' || m.jornada === jornadaFilter);
 
   // Group by phase
-  const grouped: Record<string, any[]> = {};
+  const grouped: Record<string, MatchData[]> = {};
   filtered.forEach(m => {
     const p = m.phase || 'Fase Regular';
     if (!grouped[p]) grouped[p] = [];

@@ -5,23 +5,54 @@ import { Typography } from 'antd';
 
 const { Text, Title } = Typography;
 
-export function LiguillaBracketTab({ seasonMatches }: { seasonMatches: any[] }) {
+export interface TeamData {
+  id: number;
+  name: string;
+}
+
+export interface MatchData {
+  id: number;
+  jornada: number;
+  phase: string;
+  status: string;
+  home_team_id: number;
+  away_team_id: number;
+  home_score: number | null;
+  away_score: number | null;
+  home_team?: TeamData;
+  away_team?: TeamData;
+}
+
+const BracketColumn = ({ title, seriesList, neonColor }: { title: string; seriesList: MatchData[][], neonColor: string }) => (
+  <div style={{ flex: '1 1 290px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ textAlign: 'center', paddingBottom: 12, marginBottom: 8, position: 'relative' }}>
+      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '80%', height: 20, background: neonColor, filter: 'blur(30px)', opacity: 0.3, zIndex: 0 }} />
+      <Text style={{ 
+        color: '#fff', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 2, fontSize: 16,
+        textShadow: `0 0 10px ${neonColor}88`, position: 'relative', zIndex: 1
+      }}>
+        {title}
+      </Text>
+      <div style={{ height: 2, width: '40%', background: `linear-gradient(90deg, transparent, ${neonColor}, transparent)`, margin: '8px auto 0' }} />
+    </div>
+    {seriesList.length === 0 ? (
+      <div style={{ background: '#11111188', border: '1px dashed #333', borderRadius: 12, padding: 30, textAlign: 'center' }}>
+        <Text style={{ color: '#444', fontSize: 13 }}>Por definir</Text>
+      </div>
+    ) : (
+      seriesList.map((matchesGroup) => <SeriesBox key={matchesGroup[0].id} matches={matchesGroup} neonColor={neonColor} />)
+    )}
+  </div>
+);
+
+export function LiguillaBracketTab({ seasonMatches }: { seasonMatches: MatchData[] }) {
   const liguillaMatches = useMemo(() => {
     return seasonMatches.filter((m) => m.phase && m.phase !== 'Fase Regular');
   }, [seasonMatches]);
 
-  if (liguillaMatches.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <div style={{ fontSize: 64, filter: 'grayscale(1)', opacity: 0.2 }}>🏆</div>
-        <Title level={4} style={{ color: '#FAAD14', marginTop: 16 }}>Esperando Liguilla</Title>
-        <Text style={{ color: '#555', display: 'block' }}>Aún no hay encuentros de Liguilla definidos para esta temporada.</Text>
-      </div>
-    );
-  }
 
-  function groupSeries(matches: any[]) {
-    const map: Record<string, any[]> = {};
+  function groupSeries(matches: MatchData[]) {
+    const map: Record<string, MatchData[]> = {};
     matches.forEach((m) => {
       const h = m.home_team_id || 0;
       const a = m.away_team_id || 0;
@@ -38,28 +69,6 @@ export function LiguillaBracketTab({ seasonMatches }: { seasonMatches: any[] }) 
   const final = groupSeries(liguillaMatches.filter((m) => m.phase === 'Final'));
   const tercero = groupSeries(liguillaMatches.filter((m) => m.phase === 'Tercer Lugar'));
 
-  const BracketColumn = ({ title, seriesList, neonColor }: { title: string; seriesList: any[][], neonColor: string }) => (
-    <div style={{ flex: '1 1 290px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ textAlign: 'center', paddingBottom: 12, marginBottom: 8, position: 'relative' }}>
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '80%', height: 20, background: neonColor, filter: 'blur(30px)', opacity: 0.3, zIndex: 0 }} />
-        <Text style={{ 
-          color: '#fff', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 2, fontSize: 16,
-          textShadow: `0 0 10px ${neonColor}88`, position: 'relative', zIndex: 1
-        }}>
-          {title}
-        </Text>
-        <div style={{ height: 2, width: '40%', background: `linear-gradient(90deg, transparent, ${neonColor}, transparent)`, margin: '8px auto 0' }} />
-      </div>
-      {seriesList.length === 0 ? (
-        <div style={{ background: '#11111188', border: '1px dashed #333', borderRadius: 12, padding: 30, textAlign: 'center' }}>
-          <Text style={{ color: '#444', fontSize: 13 }}>Por definir</Text>
-        </div>
-      ) : (
-        seriesList.map((matchesGroup) => <SeriesBox key={matchesGroup[0].id} matches={matchesGroup} neonColor={neonColor} />)
-      )}
-    </div>
-  );
-
   return (
     <div style={{ overflowX: 'auto', paddingBottom: 40, paddingTop: 20 }}>
       {/* Horizontal container simulating an NBA Playoff bracket structure */}
@@ -72,7 +81,7 @@ export function LiguillaBracketTab({ seasonMatches }: { seasonMatches: any[] }) 
   );
 }
 
-function SeriesBox({ matches, neonColor }: { matches: any[], neonColor: string }) {
+function SeriesBox({ matches, neonColor }: { matches: MatchData[], neonColor: string }) {
   const [hovered, setHovered] = useState(false);
   
   // Extract canonical teams from the first match
@@ -89,8 +98,8 @@ function SeriesBox({ matches, neonColor }: { matches: any[], neonColor: string }
     const isJugado = ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status);
     if (!isJugado) return;
     
-    let homeWon = (m.home_score ?? 0) > (m.away_score ?? 0) || m.status === 'WO Visitante';
-    let awayWon = (m.away_score ?? 0) > (m.home_score ?? 0) || m.status === 'WO Local';
+    const homeWon = (m.home_score ?? 0) > (m.away_score ?? 0) || m.status === 'WO Visitante';
+    const awayWon = (m.away_score ?? 0) > (m.home_score ?? 0) || m.status === 'WO Local';
     
     if (m.home_team_id === tA_id && homeWon) winsA++;
     if (m.away_team_id === tA_id && awayWon) winsA++;

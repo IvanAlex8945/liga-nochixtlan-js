@@ -20,7 +20,7 @@ interface StatRow {
 
 export function generateEligibilityPDF(
   standings: TeamStats[],
-  seasonMatches: any[],
+  seasonMatches: Record<string, unknown>[],
   seasonName: string,
   allStats: StatRow[]
 ): void {
@@ -40,7 +40,7 @@ export function generateEligibilityPDF(
   const teamData = top8.map(team => {
     const teamMatches = seasonMatches.filter(
       (m) => (m.home_team_id === team.id || m.away_team_id === team.id) &&
-              ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? '')
+              ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes((m.status as string) ?? '')
     );
     const totalPartidos = teamMatches.length;
     const minReq = elegibilidadLiguilla(totalPartidos);
@@ -201,7 +201,7 @@ export function generateEligibilityPDF(
         },
         margin: { left: 14, right: 14 },
       });
-      y = (doc as any).lastAutoTable.finalY + 14;
+      y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14;
     }
   }
 

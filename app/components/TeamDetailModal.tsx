@@ -23,12 +23,14 @@ interface Player {
   is_active: boolean;
 }
 
+import type { MatchData, PlayerStats } from './PublicPageClient';
+
 interface Props {
   team: TeamStats;
   seasonId: number;
   seasonName: string;
-  seasonMatches: any[];
-  allStats: any[];
+  seasonMatches: MatchData[];
+  allStats: PlayerStats[];
   onClose: () => void;
 }
 
@@ -36,13 +38,12 @@ type Phase = 'Ambas' | 'Fase Regular' | 'Liguilla';
 
 export default function TeamDetailModal({ team, seasonId, seasonName, seasonMatches, allStats, onClose }: Props) {
   const [players, setPlayers] = useState<Player[]>([]);
-  const [eligibility, setEligibility] = useState<any[] | null>(null);
+  const [eligibility, setEligibility] = useState<{ jugador_id: number; nombre: string; asistencias: number; elegible: boolean; min_requerido: number }[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [phase, setPhase] = useState<Phase>('Ambas');
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     Promise.all([
       supabase
         .from('players')

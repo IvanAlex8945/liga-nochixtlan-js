@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import PublicPageClient from './components/PublicPageClient';
+import PublicPageClient, { PlayerData, MatchData, PlayerStats } from './components/PublicPageClient';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -29,7 +29,7 @@ async function fetchPublicData() {
   const teamIds = (teamsRaw ?? []).map(t => t.id);
 
   // ── All Players ──
-  let allPlayersRaw: any[] = [];
+  let allPlayersRaw: Record<string, unknown>[] = [];
   if (teamIds.length > 0) {
     const { data } = await supabase
       .from('players')
@@ -85,9 +85,9 @@ export default async function Home() {
     <PublicPageClient
       seasons={seasons}
       teams={teams}
-      allPlayers={allPlayers as any[]}
-      allMatches={allMatches as any[]}
-      allStats={allStats as any[]}
+      allPlayers={allPlayers as unknown as PlayerData[]}
+      allMatches={allMatches as unknown as MatchData[]}
+      allStats={allStats as unknown as PlayerStats[]}
     />
   );
 }

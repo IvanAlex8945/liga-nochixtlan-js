@@ -50,7 +50,7 @@ export default function EligibilityPage() {
           home_team:teams!matches_home_team_id_fkey(id, name),
           away_team:teams!matches_away_team_id_fkey(id, name)`)
         .eq('season_id', seasonId!);
-      return (data ?? []) as any[];
+      return (data ?? []) as Record<string, unknown>[];
     },
   });
 
@@ -58,7 +58,7 @@ export default function EligibilityPage() {
     queryKey: ['stats', seasonId],
     enabled: !!seasonId,
     queryFn: async () => {
-      const matchIds = allMatches.map((m: any) => m.id);
+      const matchIds = (allMatches as { id: number }[]).map(m => m.id);
       if (matchIds.length === 0) return [];
       const { data } = await supabase.from('player_match_stats')
         .select('player_id, match_id, team_id, played, points, triples, players!inner(id, name)')
@@ -74,12 +74,12 @@ export default function EligibilityPage() {
   });
 
   const standings = calcularPosiciones(
-    allMatches.filter((m: any) => ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? '')) as MatchForStandings[]
+    (allMatches as unknown as MatchForStandings[]).filter(m => ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? ''))
   );
 
   const handlePDF = () => {
     if (!selectedSeason) return;
-    generateEligibilityPDF(standings, allMatches, selectedSeason.name, allStats as any[]);
+    generateEligibilityPDF(standings, allMatches, selectedSeason.name, allStats as unknown as Parameters<typeof generateEligibilityPDF>[3]);
   };
 
   return (

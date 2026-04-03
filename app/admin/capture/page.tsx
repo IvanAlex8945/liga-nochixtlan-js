@@ -40,7 +40,7 @@ export default function CapturePage() {
           away_team:teams!matches_away_team_id_fkey(id, name)`)
         .eq('season_id', seasonId!)
         .order('jornada');
-      return (data ?? []) as any[];
+      return (data ?? []) as unknown as Match[];
     },
   });
 

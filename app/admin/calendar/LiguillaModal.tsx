@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Modal, Button, Checkbox, Select, Typography, Space, Table, message } from 'antd';
-import { calcularPosiciones, MatchForStandings } from '@/lib/standings';
+import { Modal, Button, Checkbox, Select, Typography, message } from 'antd';
+import { calcularPosiciones, MatchForStandings, TeamStats } from '@/lib/standings';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -32,7 +32,7 @@ export default function LiguillaModal({
   onClose: () => void;
   seasonId: number;
   matches: Match[];
-  teams: any[];
+  teams: unknown[];
 }) {
   const qc = useQueryClient();
   const [step, setStep] = useState(1);
@@ -46,7 +46,7 @@ export default function LiguillaModal({
   const standbyFaseRegular = useMemo(() => {
     const regularMatches = matches.filter(m => !m.phase || m.phase === 'Fase Regular');
     // Adapt to MatchForStandings structure
-    const st = calcularPosiciones(regularMatches as any);
+    const st = calcularPosiciones(regularMatches as unknown as MatchForStandings[]);
     return st; // Ordered from 1st to Nth
   }, [matches]);
 
@@ -64,7 +64,7 @@ export default function LiguillaModal({
     return 4; // Terminado
   }, [cuartosExist, semisExist, finalExists]);
 
-  const insertMatches = async (matchesArray: any[]) => {
+  const insertMatches = async (matchesArray: Record<string, unknown>[]) => {
     setLoading(true);
     try {
       const { error } = await supabase.from('matches').insert(matchesArray);
@@ -72,8 +72,12 @@ export default function LiguillaModal({
       message.success('Partidos de liguilla inyectados al calendario.');
       qc.invalidateQueries({ queryKey: ['matches'] });
       onClose();
-    } catch (err: any) {
-      message.error(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        message.error(err.message);
+      } else {
+        message.error('Ocurrió un error inesperado al insertar partidos.');
+      }
     } finally {
       setLoading(false);
     }
@@ -92,7 +96,7 @@ export default function LiguillaModal({
       { h: top8[3], a: top8[4] }  // 4 vs 5
     ];
 
-    const toInsert: any[] = [];
+    const toInsert: Record<string, unknown>[] = [];
     const maxJornada = matches.length > 0 ? Math.max(...matches.map(m => m.jornada)) : 10;
     const nextJornada = maxJornada + 1;
 
@@ -122,7 +126,7 @@ export default function LiguillaModal({
     // Re-seeding logic
     const reseedingTeams = selectedSemisTeamIds
       .map(id => standbyFaseRegular.find(t => t.id === id))
-      .filter(Boolean) as any[];
+      .filter((t): t is TeamStats => Boolean(t));
 
     // Sort heavily utilizing original stance (highest Pts, DP) - already sorted in standbyFaseRegular, so we just use index!
     reseedingTeams.sort((a, b) => {
@@ -137,7 +141,7 @@ export default function LiguillaModal({
       { h: reseedingTeams[1], a: reseedingTeams[2] }
     ];
 
-    const toInsert: any[] = [];
+    const toInsert: Record<string, unknown>[] = [];
     const maxJornada = matches.length > 0 ? Math.max(...matches.map(m => m.jornada)) : 10;
     const nextJornada = maxJornada + 1;
 
@@ -173,7 +177,7 @@ export default function LiguillaModal({
     selectedFinalistsIds.forEach(id => allSemiTeamIds.delete(id));
     const losersArray = Array.from(allSemiTeamIds); // Estos van a 3er lugar
 
-    const toInsert: any[] = [];
+    const toInsert: Record<string, unknown>[] = [];
     const maxJornada = matches.length > 0 ? Math.max(...matches.map(m => m.jornada)) : 10;
     const nextJornada = maxJornada + 1;
 
@@ -304,7 +308,7 @@ export default function LiguillaModal({
               options={
                 Array.from(new Set(matches.filter(m => m.phase === 'Semifinal').flatMap(m => [m.home_team, m.away_team])))
                   .filter((v, i, a) => v && a.findIndex(t => t?.id === v.id) === i)
-                  .map((t: any) => ({ label: t.name, value: t.id }))
+                  .map((t) => ({ label: t?.name ?? 'Desconocido', value: t?.id as number }))
               }
               value={selectedFinalistsIds}
               onChange={(v) => setSelectedFinalistsIds(v as number[])}
