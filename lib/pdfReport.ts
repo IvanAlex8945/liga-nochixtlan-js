@@ -113,7 +113,7 @@ export function generateEligibilityPDF(
   doc.setFont('helvetica', 'bold');
   doc.text('Total elegibles para Liguilla: ', 14, 52);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${globalElegibles} de ${globalJugadores} | Debug: allStats=${allStats.length}, tId=${typeof allStats[0]?.team_id}, mId=${typeof allStats[0]?.match_id}`, 60, 52);
+  doc.text(`${globalElegibles} de ${globalJugadores}`, 60, 52);
 
   doc.setLineWidth(0.1);
   doc.setDrawColor(200, 200, 200);
