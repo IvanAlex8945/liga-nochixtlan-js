@@ -71,8 +71,38 @@ export default function TeamsPage() {
   });
 
   const deleteTeam = useMutation({
-    mutationFn: async (id: number) => { const { error } = await supabase.from('teams').delete().eq('id', id); if (error) throw error; },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['teams', 'players'] }); message.success('Equipo y sus datos eliminados'); },
+    mutationFn: async (id: number) => {
+      // 1. Obtener los partidos donde el equipo participa (como local o visitante)
+      const { data: teamMatches } = await supabase
+        .from('matches')
+        .select('id')
+        .or(`home_team_id.eq.${id},away_team_id.eq.${id}`);
+
+      const matchIds = (teamMatches ?? []).map((m: { id: number }) => m.id);
+
+      // 2. Borrar estadísticas de jugadores de esos partidos
+      if (matchIds.length > 0) {
+        const { error: statsErr } = await supabase
+          .from('player_match_stats')
+          .delete()
+          .in('match_id', matchIds);
+        if (statsErr) throw statsErr;
+      }
+
+      // 3. Borrar los partidos
+      if (matchIds.length > 0) {
+        const { error: matchErr } = await supabase
+          .from('matches')
+          .delete()
+          .in('id', matchIds);
+        if (matchErr) throw matchErr;
+      }
+
+      // 4. Borrar el equipo (jugadores se eliminan en cascada por Supabase)
+      const { error } = await supabase.from('teams').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['teams', 'players'] }); message.success('Equipo y todos sus datos eliminados correctamente'); },
     onError: (e: Error) => message.error(e.message),
   });
 
@@ -156,9 +186,10 @@ export default function TeamsPage() {
               content: (
                 <span>
                   Se eliminarán en cascada:<br />
+                  <b>• Todos los partidos donde participó el equipo</b><br />
+                  <b>• Todas las estadísticas de esos partidos</b><br />
                   <b>• Todos los jugadores del equipo</b><br />
-                  <b>• Todas las estadísticas de partidos</b><br />
-                  Esta acción no se puede deshacer.
+                  Esta acción <b>no se puede deshacer</b>.
                 </span>
               ),
               okText: 'Sí, eliminar todo', okType: 'danger', cancelText: 'Cancelar',
