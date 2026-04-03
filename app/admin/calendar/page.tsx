@@ -287,12 +287,9 @@ export default function CalendarPage() {
           )}
         </div>
         <Space wrap>
-          <Button
-            onClick={() => setLiguillaModalOpen(true)}
-            disabled={!seasonId || matches.length === 0}
-            style={{ borderColor: '#FAAD14', color: '#FAAD14', fontWeight: 600 }}
-          >
-            🔥 Arrancar Liguilla
+          <Button type="primary" icon={<PlusOutlined />} disabled={!seasonId || teams.length < 2}
+            onClick={() => setModalOpen(true)}>
+            Nuevo Partido
           </Button>
           <Button
             icon={<WhatsAppOutlined />}
@@ -320,9 +317,12 @@ export default function CalendarPage() {
           >
             Rol Básico (Auto)
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} disabled={!seasonId || teams.length < 2}
-            onClick={() => setModalOpen(true)}>
-            Nuevo Partido
+          <Button
+            onClick={() => setLiguillaModalOpen(true)}
+            disabled={!seasonId || matches.length === 0}
+            style={{ borderColor: '#FAAD14', color: '#FAAD14', fontWeight: 600 }}
+          >
+            🔥 Arrancar Liguilla
           </Button>
         </Space>
       </div>
