@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import AdminEditForm, { EditableMatch } from '@/app/components/AdminEditForm';
+import LiguillaModal from './LiguillaModal';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 const { Title, Text } = Typography;
@@ -21,7 +22,7 @@ interface Match {
   id: number; jornada: number; phase: string; status: string;
   home_team_id: number; away_team_id: number; home_score: number | null; away_score: number | null;
   scheduled_date: string | null; time_str: string | null; court: string | null;
-  home_team?: { name: string }; away_team?: { name: string };
+  home_team?: { id: number; name: string }; away_team?: { id: number; name: string };
 }
 
 const statusColor: Record<string, string> = {
@@ -59,8 +60,8 @@ export default function CalendarPage() {
       const { data, error } = await supabase
         .from('matches')
         .select(`id, jornada, phase, status, home_team_id, away_team_id, home_score, away_score, scheduled_date, time_str, court,
-          home_team:teams!matches_home_team_id_fkey(name),
-          away_team:teams!matches_away_team_id_fkey(name)`)
+          home_team:teams!matches_home_team_id_fkey(id, name),
+          away_team:teams!matches_away_team_id_fkey(id, name)`)
         .eq('season_id', seasonId!)
         .order('jornada', { ascending: true });
       if (error) throw error;
@@ -243,10 +244,20 @@ export default function CalendarPage() {
     return txt.trim();
   })();
 
+  const [jornadaFilter, setJornadaFilter] = useState<number | 'all'>('all');
+  const [liguillaModalOpen, setLiguillaModalOpen] = useState(false);
+
   const displayedMatches = matches.filter(m => {
-    if (filterStatus === 'Todos') return true;
-    if (filterStatus === 'Jugado') return m.status === 'Jugado' || m.status.startsWith('WO');
-    return m.status === filterStatus;
+    let passStatus = false;
+    if (filterStatus === 'Todos') passStatus = true;
+    else if (filterStatus === 'Jugado') passStatus = m.status === 'Jugado' || m.status.startsWith('WO');
+    else passStatus = m.status === filterStatus;
+
+    let passJornada = false;
+    if (jornadaFilter === 'all') passJornada = true;
+    else passJornada = m.jornada === jornadaFilter;
+
+    return passStatus && passJornada;
   });
 
   return (
@@ -259,18 +270,30 @@ export default function CalendarPage() {
             {matches.length} partidos totales · {teams.length} equipos activos
           </Text>}
           {seasonId && (
-            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: '#888', fontSize: 13 }}>Filtro rápido:</Text>
+            <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Text style={{ color: '#888', fontSize: 13 }}>Status:</Text>
               <Select size="small" value={filterStatus} onChange={setFilterStatus} style={{ width: 140 }} options={[
                 { label: 'Todos', value: 'Todos' },
                 { label: '⏳ Pendientes', value: 'Pendiente' },
                 { label: '📌 Programados', value: 'Programado' },
                 { label: '✅ Jugados / W.O.', value: 'Jugado' }
               ]} />
+              <Text style={{ color: '#888', fontSize: 13, marginLeft: 8 }}>Jornada:</Text>
+              <Select size="small" value={jornadaFilter} onChange={setJornadaFilter} style={{ width: 120 }} options={[
+                { label: 'Todas', value: 'all' },
+                ...uniqueJornadas.map(j => ({ label: `Jornada ${j}`, value: j }))
+              ]} />
             </div>
           )}
         </div>
         <Space wrap>
+          <Button
+            onClick={() => setLiguillaModalOpen(true)}
+            disabled={!seasonId || matches.length === 0}
+            style={{ borderColor: '#FAAD14', color: '#FAAD14', fontWeight: 600 }}
+          >
+            🔥 Arrancar Liguilla
+          </Button>
           <Button
             icon={<WhatsAppOutlined />}
             style={{ color: '#25D366', borderColor: '#25D366' }}
@@ -287,7 +310,7 @@ export default function CalendarPage() {
             onClick={() => {
               Modal.confirm({
                 title: 'Generar Rol Automático',
-                content: 'Esto creará un torneo de 2 vueltas todos contra todos (ida y vuelta), asignando la Cancha Bicentenario, Techada y Cancha III desde las 18:00 hrs. Los partidos se añadirán al final del calendario.',
+                content: 'Esto creará un torneo de 2 vueltas todos contra todos (ida y vuelta), asignando las canchas desde las 06:00 PM. Los partidos formarán "Fase Regular".',
                 okText: 'Sí, generar', cancelText: 'Cancelar',
                 onOk: () => autoGenerate.mutate(),
               });
@@ -295,7 +318,7 @@ export default function CalendarPage() {
             loading={autoGenerate.isPending}
             disabled={!seasonId || teams.length < 2}
           >
-            Generar Rol (Auto)
+            Rol Básico (Auto)
           </Button>
           <Button type="primary" icon={<PlusOutlined />} disabled={!seasonId || teams.length < 2}
             onClick={() => setModalOpen(true)}>
@@ -383,6 +406,16 @@ export default function CalendarPage() {
           match={editingMatch}
           onClose={() => setEditingMatch(null)}
           onSaved={() => setEditingMatch(null)}
+        />
+      )}
+
+      {seasonId && liguillaModalOpen && (
+        <LiguillaModal
+          open={liguillaModalOpen}
+          onClose={() => setLiguillaModalOpen(false)}
+          seasonId={seasonId}
+          matches={matches}
+          teams={teams}
         />
       )}
     </AdminLayout>

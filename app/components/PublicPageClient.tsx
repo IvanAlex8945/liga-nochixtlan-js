@@ -570,8 +570,9 @@ function LiguillaBracketTab({ seasonMatches }: { seasonMatches: any[] }) {
   if (liguillaMatches.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-        <div style={{ fontSize: 48, filter: 'grayscale(1)', opacity: 0.5 }}>🏆</div>
-        <Text style={{ color: '#555', display: 'block', marginTop: 12 }}>Aún no hay encuentros de Liguilla definidos para esta temporada.</Text>
+        <div style={{ fontSize: 64, filter: 'grayscale(1)', opacity: 0.2 }}>🏆</div>
+        <Title level={4} style={{ color: '#FAAD14', marginTop: 16 }}>Esperando Liguilla</Title>
+        <Text style={{ color: '#555', display: 'block' }}>Aún no hay encuentros de Liguilla definidos para esta temporada.</Text>
       </div>
     );
   }
@@ -581,60 +582,127 @@ function LiguillaBracketTab({ seasonMatches }: { seasonMatches: any[] }) {
   const final = liguillaMatches.filter((m) => m.phase === 'Final');
   const tercero = liguillaMatches.filter((m) => m.phase === 'Tercer Lugar');
 
-  const BracketColumn = ({ title, matches }: { title: string; matches: any[] }) => (
-    <div style={{ flex: '1 1 250px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ textAlign: 'center', borderBottom: '2px solid #222', paddingBottom: 8, marginBottom: 8 }}>
-        <Text style={{ color: '#FAAD14', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>{title}</Text>
+  const BracketColumn = ({ title, matches, neonColor }: { title: string; matches: any[], neonColor: string }) => (
+    <div style={{ flex: '1 1 280px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ textAlign: 'center', paddingBottom: 12, marginBottom: 8, position: 'relative' }}>
+        {/* Glow behind title */}
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '80%', height: 20, background: neonColor, filter: 'blur(30px)', opacity: 0.3, zIndex: 0 }} />
+        <Text style={{ 
+          color: '#fff', 
+          fontWeight: 900, 
+          textTransform: 'uppercase', 
+          letterSpacing: 2, 
+          fontSize: 16,
+          textShadow: `0 0 10px ${neonColor}88`,
+          position: 'relative',
+          zIndex: 1
+        }}>
+          {title}
+        </Text>
+        <div style={{ height: 2, width: '40%', background: `linear-gradient(90deg, transparent, ${neonColor}, transparent)`, margin: '8px auto 0' }} />
       </div>
       {matches.length === 0 ? (
-        <Text style={{ color: '#444', textAlign: 'center', fontSize: 12, marginTop: 20 }}>Por definir</Text>
+        <div style={{ background: '#11111188', border: '1px dashed #333', borderRadius: 12, padding: 30, textAlign: 'center' }}>
+          <Text style={{ color: '#444', fontSize: 13 }}>Por definir</Text>
+        </div>
       ) : (
-        matches.map((m) => <MatchBox key={m.id} match={m} />)
+        matches.map((m) => <MatchBox key={m.id} match={m} neonColor={neonColor} />)
       )}
     </div>
   );
 
   return (
-    <div style={{ overflowX: 'auto', paddingBottom: 20 }}>
+    <div style={{ overflowX: 'auto', paddingBottom: 40, paddingTop: 20 }}>
       {/* Horizontal container simulating an NBA Playoff bracket structure */}
-      <div style={{ display: 'flex', gap: 24, minWidth: 800, padding: '10px 0', alignItems: 'stretch' }}>
-        <BracketColumn title="Cuartos de Final" matches={cuartos} />
-        <BracketColumn title="Semifinales" matches={semis} />
-        <BracketColumn title="Gran Final" matches={[...final, ...tercero]} />
+      <div style={{ display: 'flex', gap: 40, minWidth: 900, padding: '10px 20px', alignItems: 'stretch' }}>
+        <BracketColumn title="Cuartos de Final" matches={cuartos} neonColor="#1677ff" />
+        <BracketColumn title="Semifinales" matches={semis} neonColor="#f5222d" />
+        <BracketColumn title="La Gran Final" matches={[...final, ...tercero]} neonColor="#FAAD14" />
       </div>
     </div>
   );
 }
 
-function MatchBox({ match }: { match: any }) {
+function MatchBox({ match, neonColor }: { match: any, neonColor: string }) {
   const isJugado = ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(match.status);
-  const homeWin = isJugado && (match.home_score ?? 0) > (match.away_score ?? 0) || match.status === 'WO Visitante';
-  const awayWin = isJugado && (match.away_score ?? 0) > (match.home_score ?? 0) || match.status === 'WO Local';
+  const homeWin = isJugado && ((match.home_score ?? 0) > (match.away_score ?? 0) || match.status === 'WO Visitante');
+  const awayWin = isJugado && ((match.away_score ?? 0) > (match.home_score ?? 0) || match.status === 'WO Local');
+
+  const containerStyle: React.CSSProperties = {
+    background: 'linear-gradient(145deg, #1a1a1a 0%, #0d0d0d 100%)',
+    border: `1px solid #333`,
+    borderRadius: 12,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    position: 'relative',
+    boxShadow: `0 8px 24px rgba(0,0,0,0.6)`,
+    transition: 'all 0.3s ease',
+    cursor: 'default',
+  };
+
+  const TeamRow = ({ name, score, isWinner, isLoser }: { name: string; score: any; isWinner: boolean; isLoser: boolean }) => (
+    <div style={{ 
+      display: 'flex', 
+      justifyContent: 'space-between', 
+      padding: '12px 16px', 
+      alignItems: 'center',
+      background: isWinner ? `linear-gradient(90deg, ${neonColor}22 0%, transparent 100%)` : 'transparent',
+      borderLeft: isWinner ? `4px solid ${neonColor}` : '4px solid transparent',
+      transition: 'all 0.2s',
+      opacity: isLoser ? 0.5 : 1
+    }}>
+      <Text style={{ 
+        color: isWinner ? '#fff' : (isLoser ? '#666' : '#bbb'), 
+        fontWeight: isWinner ? 800 : 500,
+        fontSize: 14,
+        textShadow: isWinner ? `0 0 10px ${neonColor}55` : 'none'
+      }}>
+        {name}
+        {isWinner && <span style={{ marginLeft: 8, fontSize: 10 }}>🔥</span>}
+      </Text>
+      <div style={{ 
+        background: isWinner ? neonColor : '#222', 
+        color: isWinner ? '#000' : '#888', 
+        padding: '2px 8px', 
+        borderRadius: 4, 
+        fontWeight: 800,
+        fontSize: 14,
+        minWidth: 32,
+        textAlign: 'center',
+        boxShadow: isWinner ? `0 0 8px ${neonColor}` : 'none'
+      }}>
+        {score}
+      </div>
+    </div>
+  );
 
   return (
-    <div style={{
-      background: '#111', border: '1px solid #2a2a2a', borderRadius: 8, overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', position: 'relative',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
-    }}>
+    <div style={containerStyle} 
+         onMouseOver={(e) => { e.currentTarget.style.borderColor = neonColor; e.currentTarget.style.boxShadow = `0 8px 32px ${neonColor}44`; e.currentTarget.style.transform = 'translateY(-2px)' }}
+         onMouseOut={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.boxShadow = `0 8px 24px rgba(0,0,0,0.6)`; e.currentTarget.style.transform = 'translateY(0)' }}>
       {/* Etiqueta superior */}
-      <div style={{ background: '#0a0a0a', padding: '4px 8px', fontSize: 10, color: '#888', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #1a1a1a' }}>
-        <span>Jornada {match.jornada}</span>
-        {match.phase === 'Tercer Lugar' && <span style={{ color: '#1677ff', fontWeight: 700 }}>3er Lugar</span>}
-        {match.phase === 'Final' && <span style={{ color: '#FAAD14', fontWeight: 700 }}>Final</span>}
+      <div style={{ background: '#000000dd', padding: '6px 12px', fontSize: 11, display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #222' }}>
+        <span style={{ color: '#aaa', fontWeight: 600, letterSpacing: 0.5 }}>JORNADA {match.jornada}</span>
+        {match.phase === 'Tercer Lugar' && <span style={{ color: '#1677ff', fontWeight: 800, textShadow: '0 0 5px #1677ff' }}>3ER LUGAR</span>}
+        {match.phase === 'Final' && <span style={{ color: '#FAAD14', fontWeight: 900, textShadow: '0 0 8px #FAAD14', letterSpacing: 1 }}>🏆 GRAN FINAL</span>}
       </div>
       
-      {/* Equipo Local */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #1a1a1a', background: homeWin ? '#FAAD1411' : 'transparent' }}>
-        <Text style={{ color: homeWin ? '#fff' : '#aaa', fontWeight: homeWin ? 700 : 400 }}>{match.home_team?.name ?? 'Por definir'}</Text>
-        <Text style={{ color: homeWin ? '#FAAD14' : '#666', fontWeight: 700 }}>{isJugado ? (match.status === 'WO Doble' ? 'W' : match.home_score) : '-'}</Text>
-      </div>
+      <TeamRow 
+        name={match.home_team?.name ?? 'Por definir'} 
+        score={isJugado ? (match.status === 'WO Doble' ? 'W' : match.home_score) : '-'} 
+        isWinner={homeWin} 
+        isLoser={awayWin} 
+      />
+      
+      <div style={{ height: 1, background: '#222', margin: '0 16px' }} />
 
-      {/* Equipo Visitante */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: awayWin ? '#FAAD1411' : 'transparent' }}>
-        <Text style={{ color: awayWin ? '#fff' : '#aaa', fontWeight: awayWin ? 700 : 400 }}>{match.away_team?.name ?? 'Por definir'}</Text>
-        <Text style={{ color: awayWin ? '#FAAD14' : '#666', fontWeight: 700 }}>{isJugado ? (match.status === 'WO Doble' ? 'W' : match.away_score) : '-'}</Text>
-      </div>
+      <TeamRow 
+        name={match.away_team?.name ?? 'Por definir'} 
+        score={isJugado ? (match.status === 'WO Doble' ? 'W' : match.away_score) : '-'} 
+        isWinner={awayWin} 
+        isLoser={homeWin} 
+      />
     </div>
   );
 }
