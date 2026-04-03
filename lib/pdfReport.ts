@@ -45,18 +45,15 @@ export function generateEligibilityPDF(
     const totalPartidos = teamMatches.length;
     const minReq = elegibilidadLiguilla(totalPartidos);
     const teamMatchIds = new Set(teamMatches.map((m) => m.id));
-    
-    // We get all players who belong to this team in this season (from stats)
-    // To include players with 0 assists, we should just read allStats where team_id == team.id
     const asistMap: Record<number, { nombre: string; asistencias: number }> = {};
+    
     for (const s of allStats) {
-      if (s.team_id !== team.id) continue;
+      // Usar comprobación holgada por si hay diferencias sutiles (string vs number)
+      if (!teamMatchIds.has(s.match_id) || Number(s.team_id) !== Number(team.id) || !s.played) continue;
       const p = s.players;
       if (!p) continue;
       if (!asistMap[p.id]) asistMap[p.id] = { nombre: p.name, asistencias: 0 };
-      if (teamMatchIds.has(s.match_id) && s.played) {
-        asistMap[p.id].asistencias++;
-      }
+      asistMap[p.id].asistencias++;
     }
 
     const rows = Object.values(asistMap).sort((a, b) => b.asistencias - a.asistencias);
