@@ -44,12 +44,12 @@ export function generateEligibilityPDF(
     );
     const totalPartidos = teamMatches.length;
     const minReq = elegibilidadLiguilla(totalPartidos);
-    const teamMatchIds = new Set(teamMatches.map((m) => m.id));
-    const asistMap: Record<number, { nombre: string; asistencias: number }> = {};
+    const teamMatchIds = new Set(teamMatches.map((m) => String(m.id)));
+    
+    const asistMap: Record<string, { nombre: string; asistencias: number }> = {};
     
     for (const s of allStats) {
-      // Usar comprobación holgada por si hay diferencias sutiles (string vs number)
-      if (!teamMatchIds.has(s.match_id) || Number(s.team_id) !== Number(team.id) || !s.played) continue;
+      if (!teamMatchIds.has(String(s.match_id)) || String(s.team_id) !== String(team.id) || !s.played) continue;
       const p = s.players;
       if (!p) continue;
       if (!asistMap[p.id]) asistMap[p.id] = { nombre: p.name, asistencias: 0 };
@@ -113,7 +113,7 @@ export function generateEligibilityPDF(
   doc.setFont('helvetica', 'bold');
   doc.text('Total elegibles para Liguilla: ', 14, 52);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${globalElegibles} de ${globalJugadores}`, 60, 52);
+  doc.text(`${globalElegibles} de ${globalJugadores} | Debug: allStats=${allStats.length}, tId=${typeof allStats[0]?.team_id}, mId=${typeof allStats[0]?.match_id}`, 60, 52);
 
   doc.setLineWidth(0.1);
   doc.setDrawColor(200, 200, 200);
@@ -145,7 +145,7 @@ export function generateEligibilityPDF(
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
     doc.text(
-      `Partidos jugados: ${tData.totalPartidos} | Minimo requerido: ${tData.minReq} ( ⌊${tData.totalPartidos} / 2⌋ + 1 ) | Elegibles: ${tData.elegiblesCount} de ${tData.jugadoresCount}`,
+      `Partidos jugados: ${tData.totalPartidos} | Minimo requerido: ${tData.minReq} ( ( ${tData.totalPartidos} / 2 ) + 1 ) | Elegibles: ${tData.elegiblesCount} de ${tData.jugadoresCount}`,
       14, y
     );
     y += 4;
