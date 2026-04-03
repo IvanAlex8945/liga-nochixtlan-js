@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import AdminEditForm, { EditableMatch } from '@/app/components/AdminEditForm';
 import LiguillaModal from './LiguillaModal';
+import { LiguillaBracketTab } from '@/app/components/LiguillaBracket';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 const { Title, Text } = Typography;
@@ -332,8 +333,17 @@ export default function CalendarPage() {
       ) : teams.length < 2 && matches.length === 0 ? (
         <Text style={{ color: '#ff4d4f' }}>⚠ Se necesitan al menos 2 equipos activos para crear partidos.</Text>
       ) : (
-        <Table dataSource={displayedMatches} columns={cols} rowKey="id" loading={isLoading} size="small"
-          pagination={{ pageSize: 20, showSizeChanger: false }} scroll={{ x: 480 }} />
+        <>
+          {matches.some((m) => m.phase && m.phase !== 'Fase Regular') && (
+            <div style={{ marginBottom: 24, background: '#0a0a0a', padding: '16px 20px', borderRadius: 12, border: '1px solid #222' }}>
+              <Title level={5} style={{ color: '#FAAD14', marginTop: 0, marginBottom: 12 }}>🔥 Dashboard Visual de Liguilla</Title>
+              <LiguillaBracketTab seasonMatches={matches} />
+            </div>
+          )}
+          <Title level={5} style={{ color: '#fff', marginBottom: 16 }}>Listado de Partidos</Title>
+          <Table dataSource={displayedMatches} columns={cols} rowKey="id" loading={isLoading} size="small"
+            pagination={{ pageSize: 20, showSizeChanger: false }} scroll={{ x: 480 }} />
+        </>
       )}
 
       <Modal title="Nuevo Partido" open={modalOpen} onCancel={() => setModalOpen(false)}
