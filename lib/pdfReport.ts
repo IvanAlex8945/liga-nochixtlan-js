@@ -28,135 +28,184 @@ export function generateEligibilityPDF(
 
   const now = new Date();
   const fecha = now.toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'long', year: 'numeric', weekday: 'long',
+    day: '2-digit', month: 'long', year: 'numeric'
   });
 
-  // Limit to top 8 teams (per requirement)
   const top8 = standings.slice(0, 8);
-  const matchIds = new Set(seasonMatches.map((m) => m.id));
 
-  // ── Header ───────────────────────────────────────────────
-  doc.setFillColor(20, 20, 20);
-  doc.rect(0, 0, 210, 25, 'F');
-  doc.setTextColor(250, 173, 20);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Liga Municipal de Básquetbol – Nochixtlán', 105, 10, { align: 'center' });
-  doc.setFontSize(11);
-  doc.setTextColor(200, 200, 200);
-  doc.text('REPORTE DE ELEGIBILIDAD DE LIGUILLA', 105, 17, { align: 'center' });
+  // ── Pre-calculate Data ──────────────────────────────────────
+  let globalJugadores = 0;
+  let globalElegibles = 0;
 
-  doc.setTextColor(100, 100, 100);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Temporada: ${seasonName}`, 14, 30);
-  doc.text(`Fecha: ${fecha}`, 14, 36);
-  doc.text(`Fórmula: Mínimo = ⌊Total de Partidos ÷ 2⌋ + 1`, 14, 42);
-  doc.text(`Clasificados a liguilla: Primeros 8 equipos`, 14, 48);
-
-  let y = 56;
-
-  // ── Per-team eligibility ──────────────────────────────────
-  for (let ti = 0; ti < top8.length; ti++) {
-    const team = top8[ti];
-
-    // Count team's played matches
+  const teamData = top8.map(team => {
     const teamMatches = seasonMatches.filter(
       (m) => (m.home_team_id === team.id || m.away_team_id === team.id) &&
               ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? '')
     );
     const totalPartidos = teamMatches.length;
     const minReq = elegibilidadLiguilla(totalPartidos);
-
-    // Player attendance for this team's matches
     const teamMatchIds = new Set(teamMatches.map((m) => m.id));
+    
+    // We get all players who belong to this team in this season (from stats)
+    // To include players with 0 assists, we should just read allStats where team_id == team.id
     const asistMap: Record<number, { nombre: string; asistencias: number }> = {};
     for (const s of allStats) {
-      if (!teamMatchIds.has(s.match_id) || s.team_id !== team.id || !s.played) continue;
+      if (s.team_id !== team.id) continue;
       const p = s.players;
       if (!p) continue;
       if (!asistMap[p.id]) asistMap[p.id] = { nombre: p.name, asistencias: 0 };
-      asistMap[p.id].asistencias++;
+      if (teamMatchIds.has(s.match_id) && s.played) {
+        asistMap[p.id].asistencias++;
+      }
     }
 
-    const rows = Object.values(asistMap)
-      .sort((a, b) => b.asistencias - a.asistencias)
-      .map((p) => [
-        p.nombre,
-        `${p.asistencias}`,
-        `${minReq}`,
-        p.asistencias >= minReq ? '✓ Elegible' : '✗ No elegible',
-      ]);
+    const rows = Object.values(asistMap).sort((a, b) => b.asistencias - a.asistencias);
+    const equipoElegibles = rows.filter(r => r.asistencias >= minReq).length;
+    
+    globalJugadores += rows.length;
+    globalElegibles += equipoElegibles;
 
-    if (y > 240) {
+    return {
+      team,
+      totalPartidos,
+      minReq,
+      jugadoresCount: rows.length,
+      elegiblesCount: equipoElegibles,
+      rows
+    };
+  });
+
+  // ── Header ───────────────────────────────────────────────
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, 210, 297, 'F'); // White background
+  
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('LIGA MUNICIPAL DE BASQUETBOL DE NOCHIXTLAN', 105, 15, { align: 'center' });
+  
+  doc.setFontSize(12);
+  doc.text('REPORTE GENERAL DE ELEGIBILIDAD PARA LIGUILLA', 105, 21, { align: 'center' });
+  
+  // Thick Black Line
+  doc.setLineWidth(0.8);
+  doc.line(14, 24, 196, 24);
+
+  // Meta info
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Fecha de emision: ', 14, 32);
+  doc.setFont('helvetica', 'normal');
+  doc.text(fecha, 43, 32);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Temporada: ', 14, 37);
+  doc.setFont('helvetica', 'normal');
+  doc.text(seasonName, 35, 37);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total de equipos: ', 14, 42);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${top8.length}`, 43, 42);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total de jugadores en plantilla: ', 14, 47);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${globalJugadores}`, 64, 47);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total elegibles para Liguilla: ', 14, 52);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${globalElegibles} de ${globalJugadores}`, 60, 52);
+
+  doc.setLineWidth(0.1);
+  doc.setDrawColor(200, 200, 200);
+  doc.line(14, 58, 196, 58);
+
+  let y = 68;
+
+  // ── Per-team eligibility ──────────────────────────────────
+  for (const tData of teamData) {
+    if (y > 250) {
       doc.addPage();
-      y = 14;
+      y = 20;
     }
 
-    // Team title bar
-    doc.setFillColor(30, 30, 30);
-    doc.rect(14, y - 4, 182, 9, 'F');
-    doc.setTextColor(250, 173, 20);
-    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text(`${ti + 1}° ${team.equipo}`, 16, y + 2);
-    doc.setTextColor(150, 150, 150);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(
-      `PJ: ${team.PJ} | PG: ${team.PG} | Pts: ${team.Pts} | Mínimo: ${minReq} partidos`,
-      120, y + 2
-    );
-    y += 8;
+    doc.text(`Equipo: ${tData.team.equipo}`, 14, y);
 
-    if (rows.length === 0) {
-      doc.setTextColor(120, 120, 120);
-      doc.setFontSize(8);
-      doc.text('Sin estadísticas de asistencia registradas', 16, y + 4);
+    // Subtle line under team name
+    y += 3;
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.3);
+    doc.line(14, y, 196, y);
+    y += 5;
+
+    // Sub info
+    doc.setTextColor(80, 80, 80);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.text(
+      `Partidos jugados: ${tData.totalPartidos} | Minimo requerido: ${tData.minReq} ( ⌊${tData.totalPartidos} / 2⌋ + 1 ) | Elegibles: ${tData.elegiblesCount} de ${tData.jugadoresCount}`,
+      14, y
+    );
+    y += 4;
+
+    const tableRows = tData.rows.map((p, i) => [
+      `${i + 1}`,
+      p.nombre,
+      `${p.asistencias}`,
+      `${tData.minReq}`,
+      p.asistencias >= tData.minReq ? 'ELEGIBLE' : 'NO ELEGIBLE',
+    ]);
+
+    if (tableRows.length === 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.text('Sin jugadores registrados.', 14, y + 5);
       y += 12;
     } else {
       autoTable(doc, {
         startY: y,
-        head: [['Jugador', 'Asistencias', 'Mínimo', 'Estatus']],
-        body: rows,
-        theme: 'plain',
-        styles: { fontSize: 8.5, textColor: [220, 220, 220], fillColor: [26, 26, 26] },
-        headStyles: { fontStyle: 'bold', textColor: [180, 180, 180], fillColor: [17, 17, 17] },
+        head: [['#', 'Jugador', 'Asistencias', 'Minimo req.', 'Estatus']],
+        body: tableRows,
+        theme: 'grid',
+        styles: { 
+          fontSize: 8.5, 
+          textColor: [0, 0, 0], 
+          fillColor: [255, 255, 255],
+          lineColor: [0, 0, 0],
+          lineWidth: 0.1,
+          cellPadding: 3
+        },
+        headStyles: { 
+          fillColor: [0, 0, 0], 
+          textColor: [255, 255, 255], 
+          fontStyle: 'bold',
+          halign: 'center'
+        },
         columnStyles: {
-          0: { cellWidth: 80 },
-          1: { cellWidth: 28, halign: 'center' },
-          2: { cellWidth: 22, halign: 'center' },
-          3: {
-            cellWidth: 34, halign: 'center',
-            textColor: undefined, // overridden per cell below
-          },
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 80 },
+          2: { cellWidth: 26, halign: 'center' },
+          3: { cellWidth: 26, halign: 'center' },
+          4: { cellWidth: 40, halign: 'center', fontStyle: 'bold' }
         },
         didParseCell: (data) => {
-          if (data.column.index === 3 && data.section === 'body') {
+          if (data.column.index === 4 && data.section === 'body') {
             const v = String(data.cell.raw);
-            data.cell.styles.textColor = v.startsWith('✓')
-              ? [82, 196, 26]
-              : [255, 77, 79];
+            if (v === 'ELEGIBLE') {
+              data.cell.styles.textColor = [34, 139, 34]; // Forest Green
+            } else {
+              data.cell.styles.textColor = [220, 38, 38]; // Red
+            }
           }
         },
         margin: { left: 14, right: 14 },
       });
-      y = (doc as any).lastAutoTable.finalY + 6;
+      y = (doc as any).lastAutoTable.finalY + 14;
     }
-  }
-
-  // ── Footer ────────────────────────────────────────────────
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(80, 80, 80);
-    doc.text(
-      `Liga Nochixtlán · ${fecha} · Pág. ${i} de ${pageCount}`,
-      105,
-      290,
-      { align: 'center' }
-    );
   }
 
   doc.save(`Elegibilidad_${seasonName.replace(/\s/g, '_')}.pdf`);
