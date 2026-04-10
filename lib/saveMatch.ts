@@ -29,32 +29,14 @@ export async function saveMatchResult(
   matchId: number,
   resultType: ResultType,
   homeLineup: LineupRow[],
-  awayLineup: LineupRow[],
-  woScorerId?: number // player who receives 20 pts in W.O.
+  awayLineup: LineupRow[]
 ): Promise<void> {
-  // Process lineup: in W.O. mode block stats except the wo scorer
-  const processLineup = (lineup: LineupRow[]): LineupRow[] =>
-    lineup.map((row) => ({
-      ...row,
-      points:
-        resultType !== 'Normal'
-          ? row.player_id === woScorerId
-            ? 20
-            : 0
-          : row.points,
-      triples: resultType !== 'Normal' ? 0 : row.triples,
-    }));
+  // Usa los puntos capturados tal cual
+  const processLineup = (lineup: LineupRow[]): LineupRow[] => lineup;
 
-  // Calculate score
-  const homeScore =
-    resultType === 'Normal'
-      ? homeLineup.reduce((s, r) => s + (r.points ?? 0), 0)
-      : scoreMap[resultType].home;
-
-  const awayScore =
-    resultType === 'Normal'
-      ? awayLineup.reduce((s, r) => s + (r.points ?? 0), 0)
-      : scoreMap[resultType].away;
+  // Calcula el score basándose en los puntos asignados
+  const homeScore = homeLineup.reduce((s, r) => s + (r.points ?? 0), 0);
+  const awayScore = awayLineup.reduce((s, r) => s + (r.points ?? 0), 0);
 
   // Update match
   const { error: matchErr } = await supabase

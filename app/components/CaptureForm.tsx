@@ -46,39 +46,13 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
   const [resultType, setResultType] = useState<ResultType>(initialResultType);
   const [homeLineup, setHomeLineup] = useState<PlayerRow[]>(homePlayers);
   const [awayLineup, setAwayLineup] = useState<PlayerRow[]>(awayPlayers);
-  const [woScorerId, setWoScorerId] = useState<number | undefined>();
   const [saving, setSaving] = useState(false);
 
-  // Determine an initial woScorerId if this match is already a W.O.
-  useEffect(() => {
-    if (initialResultType === 'Normal' || initialResultType === 'WO_Doble') return;
-    // Find the player who has 20 points
-    const woPlayer = [...homePlayers, ...awayPlayers].find(p => p.points === 20);
-    if (woPlayer) setWoScorerId(woPlayer.player_id);
-  }, [initialResultType, homePlayers, awayPlayers]);
-
   const isWO = resultType !== 'Normal';
-  // In Doble WO, attendance IS captured but stats are blocked
-  const disableStats = isWO;
+  const disableStats = false;
 
-  // Only show 20pts scorer column when one team clearly wins
-  const showHomeScorerCol = resultType === 'WO_Visitante';
-  const showAwayScorerCol = resultType === 'WO_Local';
-
-  // Calculate live scores
-  let homeScore = homeLineup.reduce((acc, p) => acc + (Number(p.points) || 0), 0);
-  let awayScore = awayLineup.reduce((acc, p) => acc + (Number(p.points) || 0), 0);
-
-  if (resultType === 'WO_Local') {
-    homeScore = 0;
-    awayScore = 20;
-  } else if (resultType === 'WO_Visitante') {
-    homeScore = 20;
-    awayScore = 0;
-  } else if (resultType === 'WO_Doble') {
-    homeScore = 0;
-    awayScore = 0;
-  }
+  const homeScore = homeLineup.reduce((acc, p) => acc + (Number(p.points) || 0), 0);
+  const awayScore = awayLineup.reduce((acc, p) => acc + (Number(p.points) || 0), 0);
 
   const getScoreColor = (score1: number, score2: number) => {
     if (score1 > score2) return '#52c41a'; // Green for winning
@@ -109,8 +83,7 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
           played: r.played,
           points: r.points,
           triples: r.triples,
-        })),
-        woScorerId
+        }))
       );
       message.success('Resultado guardado correctamente');
       onSaved?.();
@@ -130,7 +103,6 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
             value={resultType}
             onChange={(e) => {
               setResultType(e.target.value);
-              setWoScorerId(undefined);
             }}
             buttonStyle="solid"
             className="capture-radio-group"
@@ -157,9 +129,7 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
         {resultType === 'WO_Doble' && (
           <div style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 6, padding: '10px 14px', marginBottom: 16 }}>
             <Text style={{ color: '#888', fontSize: 12 }}>
-              📋 En Doble W.O. puedes marcar a los jugadores que sí se presentaron a la cancha.
-              Su asistencia se registra aunque el partido no cuente en la tabla.
-              Los campos de Pts y Triples quedan bloqueados (marcador oficial: 0-0).
+              📋 En Doble W.O. puedes capturar los puntos manualmente de los jugadores.
             </Text>
           </div>
         )}
@@ -214,10 +184,7 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
               title={`🏠 ${match.home_team.name}`}
               players={homeLineup}
               disableStats={disableStats}
-              showWOScorer={showHomeScorerCol}
-              woScorerId={woScorerId}
               onChange={setHomeLineup}
-              onWOScorerChange={setWoScorerId}
             />
           </Col>
           <Col xs={24} md={12}>
@@ -225,10 +192,7 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
               title={`✈️ ${match.away_team.name}`}
               players={awayLineup}
               disableStats={disableStats}
-              showWOScorer={showAwayScorerCol}
-              woScorerId={woScorerId}
               onChange={setAwayLineup}
-              onWOScorerChange={setWoScorerId}
             />
           </Col>
         </Row>

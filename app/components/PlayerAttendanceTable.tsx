@@ -19,20 +19,14 @@ interface Props {
   title: string;
   players: PlayerRow[];
   disableStats: boolean;
-  showWOScorer: boolean;
-  woScorerId?: number;
   onChange: (rows: PlayerRow[]) => void;
-  onWOScorerChange?: (playerId: number | undefined) => void;
 }
 
 export default function PlayerAttendanceTable({
   title,
   players,
   disableStats,
-  showWOScorer,
-  woScorerId,
   onChange,
-  onWOScorerChange,
 }: Props) {
   const [rows, setRows] = useState<PlayerRow[]>(players);
 
@@ -68,10 +62,6 @@ export default function PlayerAttendanceTable({
           checked={row.played}
           onChange={(e) => {
             update(idx, { played: e.target.checked });
-            // If unselecting the WO scorer, clear it
-            if (!e.target.checked && row.player_id === woScorerId) {
-              onWOScorerChange?.(undefined);
-            }
           }}
         />
       ),
@@ -109,26 +99,7 @@ export default function PlayerAttendanceTable({
           size="small"
         />
       ),
-    },
-    ...(showWOScorer
-      ? [
-          {
-            title: '20pts',
-            key: 'wo_scorer',
-            width: 65,
-            align: 'center' as const,
-            render: (_: unknown, row: PlayerRow) => (
-              <Checkbox
-                checked={row.player_id === woScorerId}
-                disabled={!row.played}
-                onChange={(e) =>
-                  onWOScorerChange?.(e.target.checked ? row.player_id : undefined)
-                }
-              />
-            ),
-          },
-        ]
-      : []),
+    }
   ];
 
   return (
