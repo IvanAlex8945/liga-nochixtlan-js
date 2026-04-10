@@ -11,6 +11,7 @@ import {
   Spin,
   message,
   Typography,
+  Tag,
 } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import PlayerAttendanceTable, { PlayerRow } from './PlayerAttendanceTable';
@@ -35,9 +36,9 @@ interface Props {
 
 const scoreLabels: Record<ResultType, string> = {
   Normal: '',
-  WO_Local:     'Local falta — Visitante gana 20-0. Se puede capturar asistencia.',
-  WO_Visitante: 'Visitante falta — Local gana 20-0. Se puede capturar asistencia.',
-  WO_Doble:     'Ambos equipos faltan — Marcador 0-0, 0 pts c/u. Solo se captura asistencia de quienes sí llegaron.',
+  WO_Local:     'W.O. Local: Visita gana por default. Escribe los puntos en la tabla y captura asistencias correspondientes.',
+  WO_Visitante: 'W.O. Visitante: Local gana por default. Escribe los puntos en la tabla y captura asistencias correspondientes.',
+  WO_Doble:     'W.O. Doble: Ambos faltan. Captura puntos o asistencias de quienes sí llegaron.',
 };
 
 const btnStyle: React.CSSProperties = { flex: '1 1 120px', height: 44, fontSize: 14 };
@@ -150,6 +151,16 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
             <Text style={{ fontSize: 16, color: '#ccc', display: 'block', marginBottom: 8, fontWeight: 600 }}>
               🏠 {match.home_team.name}
             </Text>
+            {(resultType === 'WO_Local' || resultType === 'WO_Doble') && (
+              <div style={{ marginBottom: 12 }}>
+                <Tag color="error">🔴 Pierde por default</Tag>
+              </div>
+            )}
+            {resultType === 'WO_Visitante' && (
+              <div style={{ marginBottom: 12 }}>
+                <Tag color="success">✅ Gana por default</Tag>
+              </div>
+            )}
             <div style={{
               fontSize: 54,
               fontWeight: 800,
@@ -165,6 +176,16 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
             <Text style={{ fontSize: 16, color: '#ccc', display: 'block', marginBottom: 8, fontWeight: 600 }}>
               ✈️ {match.away_team.name}
             </Text>
+            {(resultType === 'WO_Visitante' || resultType === 'WO_Doble') && (
+              <div style={{ marginBottom: 12 }}>
+                <Tag color="error">🔴 Pierde por default</Tag>
+              </div>
+            )}
+            {resultType === 'WO_Local' && (
+              <div style={{ marginBottom: 12 }}>
+                <Tag color="success">✅ Gana por default</Tag>
+              </div>
+            )}
             <div style={{
               fontSize: 54,
               fontWeight: 800,
