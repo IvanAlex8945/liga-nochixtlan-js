@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Liga de Básquetbol de Nochixtlán
 
-## Getting Started
+![Versión](https://img.shields.io/badge/Versión-1.2.0-blue)
+![Stack](https://img.shields.io/badge/Stack-Next.js%20%7C%20Supabase%20%7C%20Ant%20Design-green)
+![Status](https://img.shields.io/badge/Status-Producción-orange)
 
-First, run the development server:
+## 🏀 Descripción del Proyecto
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Este sistema es una plataforma integral de gestión deportiva diseñada específicamente para la **Liga Municipal de Básquetbol de Nochixtlán**. El objetivo principal es centralizar la administración de torneos, el seguimiento de estadísticas de jugadores en tiempo real y la automatización de la programación de encuentros.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A diferencia de soluciones genéricas, esta plataforma implementa la lógica de negocio particular de la liga, permitiendo una gestión fluida de múltiples categorías (**Libre, Veteranos, Femenil, 3ra**) y adaptándose al ritmo de competencia local, donde los encuentros se concentran los días **jueves, viernes y sábados** en sedes oficiales como la *Cancha Bicentenario* y la *Cancha Techada*.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🚀 Desafíos de la Migración Técnica
 
-## Learn More
+El proyecto representa una transición crítica desde una arquitectura monolítica en **Python/Streamlit** hacia una arquitectura moderna y distribuida basada en **Javascript/Next.js**.
 
-To learn more about Next.js, take a look at the following resources:
+Los principales retos de ingeniería abordados fueron:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1.  **Refactorización de Lógica de Negocio**: Migración de algoritmos de cálculo de estadísticas y tablas de posiciones desde scripts de Python a una capa de servicios en Typescript.
+2.  **Desacoplamiento de Datos**: Sustitución del manejo de estados locales por una infraestructura de base de datos relacional robusta en la nube con Supabase.
+3.  **Optimización de UX/UI**: Creación de una interfaz profesional, altamente interactiva y mobile-first utilizando Ant Design y Tailwind CSS 4.
+4.  **Estado Global e Hidratación**: Implementación de **Zustand** y **React Query** para manejar la sincronización de partidos en vivo y caché de servidor.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🛠️ Stack Tecnológico
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+*   **Frontend**: Next.js 16 (App Router) con React 19.
+*   **Lenguaje**: TypeScript (Tipado estático riguroso).
+*   **UI Framework**: Ant Design + Tailwind CSS 4.
+*   **Backend as a Service (BaaS)**: [Supabase](https://supabase.com/) (PostgreSQL + Auth + Storage).
+*   **Gestión de Estado**: Zustand & TanStack Query.
+*   **Reportes & Gráficos**: jsPDF + jspdf-autotable / Recharts.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 💎 Ingeniería de Reglas de Negocio
+
+El sistema no solo registra datos, sino que aplica reglas estrictas de la liga:
+
+### 📊 Sistema de Puntuación (Regla 3-1-0)
+A diferencia del estándar internacional, el sistema calcula posiciones basándose en:
+*   **Victoria**: 3 puntos.
+*   **Derrota (en cancha)**: 1 punto.
+*   **W.O. (Default/Forfeit)**: 0 puntos para el perdedor, 3 puntos para el ganador (marcador 20-0).
+
+### 🏆 Elegibilidad para Liguilla
+Cálculo automatizado basado en la asistencia del jugador. Un jugador es elegible para playoffs solo si cumple con la fórmula:
+`minRequerido = floor(totalPartidosEquipo / 2) + 1`
+
+### 🛡️ Integridad Operativa
+*   **Soft-delete de Jugadores**: Los jugadores con historial estadístico no se eliminan permanentemente, sino que pasan a estado de "Baja" para preservar la integridad histórica del equipo y sus récords.
+*   **Alertas de W.O.**: Seguimiento automático de incomparecencias; los equipos con ≥4 W.O. son marcados visualmente para sanción.
+*   **Gestión de Permisos**: Control de "permisos de refuerzo" limitados por equipo (0-3).
+
+---
+
+## ⚡ Automatizaciones y Funciones Clave
+
+*   **Generador de Roles (Round Robin)**: Motor automático que crea torneos de 2 vueltas (ida y vuelta), asignando equitativamente horarios y sedes desde las 06:00 PM.
+*   **Difusión por WhatsApp**: Generador dinámico de mensajes estructurados con emojis, permitiendo compartir la jornada completa, horarios y ligas de interés en un solo clic.
+*   **Reportes Profesionales en PDF**: Generación de reportes de elegibilidad para el **Top 8** de cada categoría, listos para impresión y firmas oficiales.
+*   **Captura Predictiva**: Interfaz de mesa de control diseñada para minimizar errores en la captura de puntos y triples durante el desarrollo del partido.
+
+---
+
+## ☁️ Integridad de los Datos y Escalabilidad
+
+La migración a **Supabase** marca un hito en la seguridad:
+1.  **Persistencia Robusta**: PostgreSQL garantiza transacciones ACID para cada acción de juego.
+2.  **Seguridad RLS (Row Level Security)**: Políticas estrictas que separan el acceso del público (lectura) del panel administrativo protegido (escritura).
+3.  **Disponibilidad 24/7**: Acceso desde cualquier dispositivo móvil en cancha sin necesidad de infraestructura local.
+
+---
+
+### Perfil del Desarrollador
+Este proyecto refleja un enfoque de ingeniería centrado en la **resolución de problemas reales** mediante la modernización de stacks tecnológicos y la implementación de lógica de negocio compleja.
+
+---
+*Desarrollado para la Municipalidad de Nochixtlán.*
