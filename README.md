@@ -4,7 +4,7 @@
 ![Stack](https://img.shields.io/badge/Stack-Next.js%20%7C%20Supabase%20%7C%20Ant%20Design-green)
 ![Status](https://img.shields.io/badge/Status-Producción-orange)
 
-## 🏀 Descripción del Proyecto
+## Descripción del Proyecto
 
 Este sistema es una plataforma integral de gestión deportiva diseñada específicamente para la **Liga Municipal de Básquetbol de Nochixtlán**. El objetivo principal es centralizar la administración de torneos, el seguimiento de estadísticas de jugadores en tiempo real y la automatización de la programación de encuentros.
 
@@ -12,7 +12,7 @@ A diferencia de soluciones genéricas, esta plataforma implementa la lógica de 
 
 ---
 
-## 🚀 Desafíos de la Migración Técnica
+## Desafíos de la Migración Técnica
 
 El proyecto representa una transición crítica desde una arquitectura monolítica en **Python/Streamlit** hacia una arquitectura moderna y distribuida basada en **Javascript/Next.js**.
 
@@ -25,7 +25,7 @@ Los principales retos de ingeniería abordados fueron:
 
 ---
 
-## 🛠️ Stack Tecnológico
+## Stack Tecnológico
 
 *   **Frontend**: Next.js 16 (App Router) con React 19.
 *   **Lenguaje**: TypeScript (Tipado estático riguroso).
@@ -36,28 +36,28 @@ Los principales retos de ingeniería abordados fueron:
 
 ---
 
-## 💎 Ingeniería de Reglas de Negocio
+## Ingeniería de Reglas de Negocio
 
 El sistema no solo registra datos, sino que aplica reglas estrictas de la liga:
 
-### 📊 Sistema de Puntuación (Regla 3-1-0)
+### Sistema de Puntuación (Regla 3-1-0)
 A diferencia del estándar internacional, el sistema calcula posiciones basándose en:
 *   **Victoria**: 3 puntos.
 *   **Derrota (en cancha)**: 1 punto.
 *   **W.O. (Default/Forfeit)**: 0 puntos para el perdedor, 3 puntos para el ganador (marcador 20-0).
 
-### 🏆 Elegibilidad para Liguilla
+### Elegibilidad para Liguilla
 Cálculo automatizado basado en la asistencia del jugador. Un jugador es elegible para playoffs solo si cumple con la fórmula:
 `minRequerido = floor(totalPartidosEquipo / 2) + 1`
 
-### 🛡️ Integridad Operativa
+### Integridad Operativa
 *   **Soft-delete de Jugadores**: Los jugadores con historial estadístico no se eliminan permanentemente, sino que pasan a estado de "Baja" para preservar la integridad histórica del equipo y sus récords.
 *   **Alertas de W.O.**: Seguimiento automático de incomparecencias; los equipos con ≥4 W.O. son marcados visualmente para sanción.
 *   **Gestión de Permisos**: Control de "permisos de refuerzo" limitados por equipo (0-3).
 
 ---
 
-## ⚡ Automatizaciones y Funciones Clave
+## Automatizaciones y Funciones Clave
 
 *   **Generador de Roles (Round Robin)**: Motor automático que crea torneos de 2 vueltas (ida y vuelta), asignando equitativamente horarios y sedes desde las 06:00 PM.
 *   **Difusión por WhatsApp**: Generador dinámico de mensajes estructurados con emojis, permitiendo compartir la jornada completa, horarios y ligas de interés en un solo clic.
@@ -66,7 +66,7 @@ Cálculo automatizado basado en la asistencia del jugador. Un jugador es elegibl
 
 ---
 
-## ☁️ Integridad de los Datos y Escalabilidad
+## Integridad de los Datos y Escalabilidad
 
 La migración a **Supabase** marca un hito en la seguridad:
 1.  **Persistencia Robusta**: PostgreSQL garantiza transacciones ACID para cada acción de juego.
