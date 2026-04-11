@@ -80,3 +80,38 @@ Este proyecto refleja un enfoque de ingeniería centrado en la **resolución de 
 
 ---
 *Desarrollado para la Municipalidad de Nochixtlán.*
+
+---
+
+## Instalación y Configuración
+
+Para desplegar una instancia local de este proyecto y realizar pruebas técnicas, sigue estos pasos:
+
+### 1. Clonación del Repositorio
+Clona el proyecto en tu máquina local utilizando Git:
+```bash
+git clone https://github.com/IvanAlex8945/liga-nochixtlan-js.git
+cd liga-nochixtlan-js
+```
+
+### 2. Instalación de Dependencias
+Asegúrate de tener [Node.js](https://nodejs.org/) instalado y ejecuta:
+```bash
+npm install
+```
+
+### 3. Variables de Entorno
+El backend utiliza **Supabase**. Crea un archivo `.env` o `.env.local` en el directorio raíz con las siguientes variables:
+```env
+NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key_de_supabase
+```
+
+### 4. Ejecución en Entorno de Desarrollo
+Inicia el servidor de desarrollo local:
+```bash
+npm run dev
+```
+
+El sistema estará disponible para inspección en [http://localhost:3000](http://localhost:3000).
+
