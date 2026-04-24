@@ -254,7 +254,7 @@ export default function LiguillaModal({
               <Text>Formato de serie:</Text>
               <Select value={formatCuartos} onChange={setFormatCuartos} style={{ width: 180 }}>
                 <Select.Option value="1">A un solo partido</Select.Option>
-                <Select.Option value="3">Al mejor de 3 partidos</Select.Option>
+                <Select.Option value="3">Serie 2 de 3</Select.Option>
               </Select>
             </div>
 
@@ -284,7 +284,7 @@ export default function LiguillaModal({
               <Text>Formato de serie:</Text>
               <Select value={formatSemis} onChange={setFormatSemis} style={{ width: 180 }}>
                 <Select.Option value="1">A un solo partido</Select.Option>
-                <Select.Option value="3">Al mejor de 3 partidos</Select.Option>
+                <Select.Option value="3">Serie 2 de 3</Select.Option>
               </Select>
             </div>
 

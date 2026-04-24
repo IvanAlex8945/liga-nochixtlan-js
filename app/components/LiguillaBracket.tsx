@@ -155,7 +155,7 @@ function SeriesBox({ matches, neonColor }: { matches: MatchData[], neonColor: st
   return (
     <div style={containerStyle} onMouseOver={() => setHovered(true)} onMouseOut={() => setHovered(false)}>
       <div style={{ background: '#000000dd', padding: '6px 12px', fontSize: 11, display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #222' }}>
-        <span style={{ color: '#aaa', fontWeight: 600 }}>{matches.length > 1 ? `SERIE AL MEJOR DE ${matches.length}` : 'PARTIDO ÚNICO'}</span>
+        <span style={{ color: '#aaa', fontWeight: 600 }}>{matches.length > 1 ? `SERIE 2 DE ${matches.length}` : 'PARTIDO ÚNICO'}</span>
         {phase === 'Tercer Lugar' && <span style={{ color: '#1677ff', fontWeight: 800 }}>3ER LUGAR</span>}
         {phase === 'Final' && <span style={{ color: '#FAAD14', fontWeight: 900 }}>🏆 GRAN FINAL</span>}
       </div>
