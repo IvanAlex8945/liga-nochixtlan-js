@@ -52,7 +52,7 @@ export default function CapturePage() {
   const selectedMatch = matches.find((m) => m.id === selectedMatchId);
 
   const { data: homePlayers = [], isLoading: loadingHome } = useQuery<PlayerRow[]>({
-    queryKey: ['players-capture-home', selectedMatch?.id],
+    queryKey: ['players-capture-home', selectedMatch?.id, seasonId],
     enabled: !!selectedMatch,
     queryFn: async () => {
       const [playersRes, statsRes] = await Promise.all([
@@ -82,7 +82,7 @@ export default function CapturePage() {
   });
 
   const { data: awayPlayers = [], isLoading: loadingAway } = useQuery<PlayerRow[]>({
-    queryKey: ['players-capture-away', selectedMatch?.id],
+    queryKey: ['players-capture-away', selectedMatch?.id, seasonId],
     enabled: !!selectedMatch,
     queryFn: async () => {
       const [playersRes, statsRes] = await Promise.all([

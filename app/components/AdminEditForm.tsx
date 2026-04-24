@@ -100,6 +100,59 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
       if (values.status === 'Programado' || values.status === 'Pendiente') {
         await supabase.from('player_match_stats').delete().eq('match_id', match.id);
       }
+
+      // --- RECALCULATE LIGUILLA SERIES (same logic as saveMatchResult) ---
+      const activePhase = values.phase ?? match.phase;
+      if (activePhase && activePhase !== 'Fase Regular') {
+        const teamA = match.home_team_id;
+        const teamB = match.away_team_id;
+
+        // Fetch season of this match
+        const { data: matchMeta } = await supabase
+          .from('matches')
+          .select('season_id')
+          .eq('id', match.id)
+          .single();
+
+        if (matchMeta?.season_id) {
+          const { data: seriesMatches } = await supabase
+            .from('matches')
+            .select('id, status, home_score, away_score, home_team_id, away_team_id')
+            .eq('season_id', matchMeta.season_id)
+            .eq('phase', activePhase)
+            .in('home_team_id', [teamA, teamB])
+            .in('away_team_id', [teamA, teamB]);
+
+          if (seriesMatches && seriesMatches.length > 0) {
+            let winsA = 0;
+            let winsB = 0;
+
+            for (const m of seriesMatches) {
+              if (['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status)) {
+                const scoreH = m.home_score || 0;
+                const scoreAw = m.away_score || 0;
+                if (scoreH > scoreAw) {
+                  if (m.home_team_id === teamA) winsA++; else winsB++;
+                } else if (scoreAw > scoreH) {
+                  if (m.away_team_id === teamA) winsA++; else winsB++;
+                }
+              }
+            }
+
+            if (winsA >= 2 || winsB >= 2) {
+              const toCancel = seriesMatches.filter(m => m.status === 'Programado');
+              if (toCancel.length > 0) {
+                await supabase.from('matches').update({ status: 'No Necesario' }).in('id', toCancel.map(m => m.id));
+              }
+            } else {
+              const toRevert = seriesMatches.filter(m => m.status === 'No Necesario');
+              if (toRevert.length > 0) {
+                await supabase.from('matches').update({ status: 'Programado' }).in('id', toRevert.map(m => m.id));
+              }
+            }
+          }
+        }
+      }
     },
     onSuccess: () => {
       // Invalidate everything so standings recalculate
