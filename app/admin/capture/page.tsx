@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import CaptureForm from '@/app/components/CaptureForm';
 import type { PlayerRow } from '@/app/components/PlayerAttendanceTable';
+import { calcularElegibilidad } from '@/lib/eligibility';
 
 const { Title, Text } = Typography;
 
@@ -15,6 +16,7 @@ interface Match {
   id: number;
   jornada: number;
   status: string;
+  phase?: string;
   home_team: { id: number; name: string };
   away_team: { id: number; name: string };
 }
@@ -35,7 +37,7 @@ export default function CapturePage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('matches')
-        .select(`id, jornada, status,
+        .select(`id, jornada, status, phase,
           home_team:teams!matches_home_team_id_fkey(id, name),
           away_team:teams!matches_away_team_id_fkey(id, name)`)
         .eq('season_id', seasonId!)
@@ -58,8 +60,16 @@ export default function CapturePage() {
           .eq('team_id', selectedMatch!.home_team.id).eq('is_active', true).order('number'),
         supabase.from('player_match_stats').select('*').eq('match_id', selectedMatch!.id)
       ]);
+      
+      let playersData = playersRes.data ?? [];
+      if (selectedMatch?.phase && selectedMatch.phase !== 'Fase Regular') {
+        const { results } = await calcularElegibilidad(supabase, selectedMatch.home_team.id, seasonId!);
+        const eligibleSet = new Set(results.filter(r => r.elegible).map(r => r.jugador_id));
+        playersData = playersData.filter(p => eligibleSet.has(p.id));
+      }
+
       const stats = statsRes.data ?? [];
-      return (playersRes.data ?? []).map((p) => {
+      return playersData.map((p) => {
         const stat = stats.find((s) => s.player_id === p.id);
         return { 
           player_id: p.id, team_id: p.team_id, name: p.name, number: p.number, 
@@ -80,8 +90,16 @@ export default function CapturePage() {
           .eq('team_id', selectedMatch!.away_team.id).eq('is_active', true).order('number'),
         supabase.from('player_match_stats').select('*').eq('match_id', selectedMatch!.id)
       ]);
+      
+      let playersData = playersRes.data ?? [];
+      if (selectedMatch?.phase && selectedMatch.phase !== 'Fase Regular') {
+        const { results } = await calcularElegibilidad(supabase, selectedMatch.away_team.id, seasonId!);
+        const eligibleSet = new Set(results.filter(r => r.elegible).map(r => r.jugador_id));
+        playersData = playersData.filter(p => eligibleSet.has(p.id));
+      }
+
       const stats = statsRes.data ?? [];
-      return (playersRes.data ?? []).map((p) => {
+      return playersData.map((p) => {
         const stat = stats.find((s) => s.player_id === p.id);
         return { 
           player_id: p.id, team_id: p.team_id, name: p.name, number: p.number, 
