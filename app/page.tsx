@@ -45,7 +45,7 @@ async function fetchPublicData() {
     .select(`
       id, season_id, home_team_id, away_team_id,
       home_score, away_score, status,
-      jornada, phase, scheduled_date, played_date,
+      jornada, phase, scheduled_date, played_date, time_str, court,
       home_team:teams!matches_home_team_id_fkey(id, name),
       away_team:teams!matches_away_team_id_fkey(id, name)
     `)

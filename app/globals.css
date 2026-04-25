@@ -82,3 +82,16 @@ html, body {
 ::-webkit-scrollbar-thumb:hover {
   background: #FAAD14;
 }
+
+/* ── Billboard Card ────────────────────────────────────── */
+.billboard-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.billboard-card:hover {
+  transform: translateY(-2px);
+}
+
+@keyframes billboard-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}

@@ -9,6 +9,7 @@ import { calcularPosiciones, MatchForStandings, TeamStats } from '@/lib/standing
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 import { generateEligibilityPDF } from '@/lib/pdfReport';
+import GameDayBillboard from './GameDayBillboard';
 dayjs.locale('es');
 
 const { Title, Text } = Typography;
@@ -202,6 +203,9 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
           <a href="/admin" style={{ color: '#555', fontSize: 12, border: '1px solid #333', padding: '4px 12px', borderRadius: 4 }}>⚙️ Admin</a>
         </div>
       </div>
+
+      {/* ── Billboard: Próximos partidos de Liguilla ────────── */}
+      <GameDayBillboard seasonMatches={seasonMatches as never[]} />
 
       {/* ── Tabs ────────────────────────────────────────────── */}
       <div style={{ maxWidth: 960, margin: '16px auto 0', padding: '0 12px' }}>
