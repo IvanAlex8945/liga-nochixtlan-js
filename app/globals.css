@@ -83,15 +83,42 @@ html, body {
   background: #FAAD14;
 }
 
-/* ── Billboard Card ────────────────────────────────────── */
+/* ── Billboard Card: Ultra-Premium Style ─────────────────── */
 .billboard-card {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.billboard-card:hover {
-  transform: translateY(-2px);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
+  position: relative;
+  background-size: 200% 200% !important;
+  animation: mesh-bg 10s ease infinite;
 }
 
-@keyframes billboard-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+.billboard-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+
+@keyframes mesh-bg {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes billboard-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(250, 173, 20, 0.1); }
+  50% { box-shadow: 0 0 40px rgba(250, 173, 20, 0.2); }
+}
+
+.billboard-text-bg {
+  user-select: none;
+  pointer-events: none;
+  font-family: 'Inter', sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  opacity: 0.05;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 120px;
+  white-space: nowrap;
+  z-index: 0;
 }
