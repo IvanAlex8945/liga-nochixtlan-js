@@ -20,6 +20,7 @@ export interface TeamStats {
 export interface MatchForStandings {
   id: number;
   season_id?: number;
+  jornada?: number | null;
   home_team_id: number;
   away_team_id: number;
   home_score: number | null;

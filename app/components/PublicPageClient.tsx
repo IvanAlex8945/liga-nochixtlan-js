@@ -89,7 +89,8 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
     calcularPosiciones(
       seasonMatches.filter((m) => 
         ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? '') &&
-        (!m.phase || m.phase === 'Fase Regular')
+        (!m.phase || m.phase === 'Fase Regular') &&
+        (m.jornada != null ? m.jornada <= 18 : true)
       ) as MatchForStandings[]
     ),
     [seasonMatches]);
