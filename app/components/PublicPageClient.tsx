@@ -87,7 +87,10 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
 
   const standings = useMemo(() =>
     calcularPosiciones(
-      seasonMatches.filter((m) => ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? '')) as MatchForStandings[]
+      seasonMatches.filter((m) => 
+        ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? '') &&
+        (!m.phase || m.phase === 'Fase Regular')
+      ) as MatchForStandings[]
     ),
     [seasonMatches]);
 

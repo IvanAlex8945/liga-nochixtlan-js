@@ -25,6 +25,7 @@ export interface MatchForStandings {
   home_score: number | null;
   away_score: number | null;
   status: string | null;
+  phase?: string | null;
   home_team: { id: number; name: string };
   away_team: { id: number; name: string };
 }

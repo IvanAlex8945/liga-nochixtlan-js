@@ -74,7 +74,10 @@ export default function EligibilityPage() {
   });
 
   const standings = calcularPosiciones(
-    (allMatches as unknown as MatchForStandings[]).filter(m => ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? ''))
+    (allMatches as unknown as MatchForStandings[]).filter(m => 
+      ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? '') &&
+      (!m.phase || m.phase === 'Fase Regular')
+    )
   );
 
   const handlePDF = () => {
