@@ -326,7 +326,7 @@ export default function GameDayBillboard({ seasonMatches }: { seasonMatches: Mat
   const upcomingLiguilla = useMemo(() => {
     const liguillaPhases = ['Cuartos de Final', 'Octavos de Final', 'Semifinal', 'Final', 'Tercer Lugar'];
     return seasonMatches.filter(
-      m => liguillaPhases.includes(m.phase ?? '') && m.status === 'Programado'
+      m => liguillaPhases.includes(m.phase ?? '') && (m.status === 'Programado' || m.status === 'Pendiente')
     ).sort((a, b) => {
       const dateA = a.scheduled_date ?? '9999';
       const dateB = b.scheduled_date ?? '9999';
