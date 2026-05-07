@@ -85,19 +85,21 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
     allMatches.filter((m) => m.season_id === selectedSeasonId),
     [allMatches, selectedSeasonId]);
 
-  const standings = useMemo(() =>
-    calcularPosiciones(
-      seasonMatches.filter((m) => 
-        ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? '') &&
-        (!m.phase || m.phase === 'Fase Regular') &&
-        (m.jornada != null ? m.jornada <= 18 : true)
-      ) as MatchForStandings[]
-    ),
+  const regularMatches = useMemo(() =>
+    seasonMatches.filter((m) => !m.phase || m.phase === 'Fase Regular'),
     [seasonMatches]);
 
-  // Leaders for selected season
+  const standings = useMemo(() =>
+    calcularPosiciones(
+      regularMatches.filter((m) => 
+        ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status ?? '')
+      ) as MatchForStandings[]
+    ),
+    [regularMatches]);
+
+  // Leaders for selected season (Fase Regular only)
   const leaders = useMemo(() => {
-    const matchIds = new Set(seasonMatches.map((m) => m.id));
+    const matchIds = new Set(regularMatches.map((m) => m.id));
     const map: Record<number, { id: number; nombre: string; puntos: number; triples: number; team_id: number }> = {};
     for (const s of allStats) {
       if (!matchIds.has(s.match_id) || !s.played) continue;
@@ -108,11 +110,11 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
       map[p.id].triples += s.triples ?? 0;
     }
     return Object.values(map).filter((l) => l.puntos > 0).sort((a, b) => b.puntos - a.puntos).slice(0, 10);
-  }, [allStats, seasonMatches]);
+  }, [allStats, regularMatches]);
 
-  // Top tripleros for selected season
+  // Top tripleros for selected season (Fase Regular only)
   const tripleros = useMemo(() => {
-    const matchIds = new Set(seasonMatches.map((m) => m.id));
+    const matchIds = new Set(regularMatches.map((m) => m.id));
     const map: Record<number, { id: number; nombre: string; puntos: number; triples: number; team_id: number }> = {};
     for (const s of allStats) {
       if (!matchIds.has(s.match_id) || !s.played) continue;
@@ -123,11 +125,11 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
       map[p.id].triples += s.triples ?? 0;
     }
     return Object.values(map).filter((l) => l.triples > 0).sort((a, b) => b.triples - a.triples).slice(0, 10);
-  }, [allStats, seasonMatches]);
+  }, [allStats, regularMatches]);
 
-  // Season-level record (best single game scorers and tripler for this season)
+  // Season-level record (best single game scorers and tripler for this season, Fase Regular only)
   const seasonRecords = useMemo(() => {
-    const matchIds = new Set(seasonMatches.map((m) => m.id));
+    const matchIds = new Set(regularMatches.map((m) => m.id));
     let bestPuntos: { nombre: string; valor: number; equipo: string; jornada: number | null } | null = null;
     let bestTriples: { nombre: string; valor: number; equipo: string; jornada: number | null } | null = null;
 
@@ -138,7 +140,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
       
       const team = teams.find((t) => t.id === s.team_id);
       const teamName = team?.name ?? '?';
-      const m = seasonMatches.find((match) => match.id === s.match_id);
+      const m = regularMatches.find((match) => match.id === s.match_id);
 
       if (s.points && (!bestPuntos || s.points > bestPuntos.valor)) {
         bestPuntos = { nombre: p.name, valor: s.points, equipo: teamName, jornada: m?.jornada ?? null };
@@ -148,7 +150,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
       }
     }
     return { bestPuntos, bestTriples };
-  }, [allStats, seasonMatches, teams]);
+  }, [allStats, regularMatches, teams]);
 
   const jornadasDropdown = useMemo(() => {
     const js = new Set(seasonMatches.map((m) => m.jornada).filter(Boolean));
@@ -430,7 +432,7 @@ function LeadersTable({ data, type, color, teams }: { data: { id: number; nombre
 
 function TeamStatsTab({ seasonId, teams, allPlayers, allStats, seasonMatches }: { seasonId: number | null; teams: TeamData[]; allPlayers: PlayerData[]; allStats: PlayerStats[]; seasonMatches: MatchData[] }) {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
-  const [phaseFilter, setPhaseFilter] = useState<'all' | 'Fase Regular' | 'Liguilla'>('all');
+  const [phaseFilter, setPhaseFilter] = useState<'all' | 'Fase Regular' | 'Liguilla'>('Fase Regular');
 
   const activeTeams = useMemo(() => teams.filter((t) => t.season_id === seasonId), [teams, seasonId]);
 

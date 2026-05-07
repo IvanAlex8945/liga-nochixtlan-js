@@ -40,7 +40,7 @@ export default function TeamDetailModal({ team, seasonId, seasonName, seasonMatc
   const [players, setPlayers] = useState<Player[]>([]);
   const [eligibility, setEligibility] = useState<{ jugador_id: number; nombre: string; asistencias: number; elegible: boolean; min_requerido: number }[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [phase, setPhase] = useState<Phase>('Ambas');
+  const [phase, setPhase] = useState<Phase>('Fase Regular');
 
   useEffect(() => {
     let cancelled = false;
