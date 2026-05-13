@@ -13,11 +13,24 @@ if (!serviceKey) {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://fnjvvbelrleamywyxoaq.supabase.co';
 const supabase = createClient(supabaseUrl, serviceKey);
 
-const adminsToCreate = [
-  { email: 'admin1@liganochixtlan.com', password: 'Liganochixtlan2026+', role: 'Mesa Directiva' },
-  { email: 'admin2@liganochixtlan.com', password: 'Liganochixtlan2026', role: 'Mesa Directiva' },
-  { email: 'admin3@liganochixtlan.com', password: 'Liganochixtlan2026+', role: 'Mesa Directiva' }
+const adminEmails = [
+  'admin1@liganochixtlan.com',
+  'admin2@liganochixtlan.com',
+  'admin3@liganochixtlan.com',
 ];
+
+const defaultPassword = process.env.ADMIN_DEFAULT_PASSWORD;
+
+if (!defaultPassword) {
+  console.error('❌ Define ADMIN_DEFAULT_PASSWORD antes de ejecutar este script.');
+  process.exit(1);
+}
+
+const adminsToCreate = adminEmails.map((email) => ({
+  email,
+  password: defaultPassword,
+  role: 'Mesa Directiva',
+}));
 
 async function run() {
   console.log("⚙️  Creando administradores iniciales...\n");
