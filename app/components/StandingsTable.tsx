@@ -25,7 +25,11 @@ export default function StandingsTable({ data, onTeamClick }: Props) {
       align: 'center',
       render: (pos: number) => {
         const medal: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
-        return <Text style={{ fontSize: 13 }}>{medal[pos] ?? `${pos}°`}</Text>;
+        return (
+          <span className={`position-badge${pos <= 3 ? ` position-badge--top-${pos}` : ''}`}>
+            <Text style={{ fontSize: 13, color: 'inherit' }}>{medal[pos] ?? `${pos}°`}</Text>
+          </span>
+        );
       },
     },
     {
@@ -39,8 +43,7 @@ export default function StandingsTable({ data, onTeamClick }: Props) {
             onClick={() => onTeamClick(row)}
             style={{
               background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-              color: '#FAAD14', fontWeight: 600, fontSize: 13, textDecoration: 'underline',
-              textDecorationColor: 'rgba(250,173,20,0.4)', textUnderlineOffset: 3,
+              color: '#f7d774', fontWeight: 700, fontSize: 13, textDecoration: 'none',
             }}
           >
             {v}
@@ -77,7 +80,19 @@ export default function StandingsTable({ data, onTeamClick }: Props) {
     {
       title: 'Pts', dataIndex: 'Pts', key: 'Pts', width: 55, align: 'center',
       render: (v: number) => (
-        <Tag color="#FAAD14" style={{ color: '#000', fontWeight: 700, fontSize: 13, border: 'none', minWidth: 34, textAlign: 'center' }}>
+        <Tag
+          style={{
+            color: '#131313',
+            fontWeight: 800,
+            fontSize: 13,
+            border: '1px solid rgba(255,215,112,0.24)',
+            minWidth: 42,
+            textAlign: 'center',
+            borderRadius: 999,
+            background: 'linear-gradient(180deg, #f7d774, #d9a83d)',
+            boxShadow: '0 10px 24px rgba(239,159,39,0.22)',
+          }}
+        >
           {v}
         </Tag>
       ),
@@ -86,13 +101,14 @@ export default function StandingsTable({ data, onTeamClick }: Props) {
 
   return (
     <Table
+      className="standings-table"
       dataSource={rows}
       columns={columns}
       rowKey="key"
       size="small"
       pagination={false}
       scroll={{ x: 560 }}
-      rowClassName={(_, i) => (i === 0 ? 'row-leader' : '')}
+      rowClassName={(_, i) => `standings-row${i === 0 ? ' row-leader' : ''}`}
       locale={{ emptyText: <Text style={{ color: '#555' }}>Sin partidos registrados</Text> }}
     />
   );

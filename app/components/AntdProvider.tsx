@@ -23,16 +23,16 @@ export default function AntdProvider({ children }: { children: React.ReactNode }
             colorBgBase: '#141414',
             colorTextBase: '#FFFFFF',
             fontFamily:
-              "'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
-            borderRadius: 8,
+              'var(--font-sora), "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif',
+            borderRadius: 16,
           },
           components: {
             Table: {
-              colorBgContainer: '#1a1a1a',
-              colorBorderSecondary: '#2a2a2a',
-              headerBg: '#111111',
-              headerColor: '#FAAD14',
-              rowHoverBg: '#242424',
+              colorBgContainer: 'rgba(13, 17, 23, 0.68)',
+              colorBorderSecondary: 'rgba(255, 209, 102, 0.14)',
+              headerBg: 'rgba(255, 255, 255, 0.06)',
+              headerColor: '#f7d774',
+              rowHoverBg: 'rgba(255, 255, 255, 0.07)',
             },
             Menu: {
               darkItemBg: '#0d0d0d',
@@ -40,8 +40,8 @@ export default function AntdProvider({ children }: { children: React.ReactNode }
               darkItemSelectedColor: '#000',
             },
             Card: {
-              colorBgContainer: '#1a1a1a',
-              colorBorderSecondary: '#2a2a2a',
+              colorBgContainer: 'rgba(13, 17, 23, 0.72)',
+              colorBorderSecondary: 'rgba(255, 209, 102, 0.14)',
             },
             Button: {
               colorPrimaryHover: '#ffc53d',

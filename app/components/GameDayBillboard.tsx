@@ -1,13 +1,11 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Typography, Button, message } from 'antd';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Button, message } from 'antd';
 import { DownloadOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 dayjs.locale('es');
-
-const { Text } = Typography;
 
 /* ── Types ───────────────────────────────────────────────── */
 interface TeamData { id: number; name: string; }
@@ -402,6 +400,10 @@ export default function GameDayBillboard({ seasonMatches }: { seasonMatches: Mat
   const timeStr = match.time_str ?? 'Hora por confirmar';
   const court = match.court ?? 'Cancha Bicentenario';
   const gameLabel = info.totalGames > 1 ? `Juego ${info.gameNumber} de ${info.totalGames}` : 'Partido Único';
+  const homeWins = match.home_team_id === info.teamA_id ? info.winsA : info.winsB;
+  const awayWins = match.away_team_id === info.teamA_id ? info.winsA : info.winsB;
+  const homeLeader = homeWins > awayWins;
+  const awayLeader = awayWins > homeWins;
 
   return (
     <div style={{ maxWidth: 540, margin: '24px auto 12px', padding: '0 16px', perspective: 1000 }}>
@@ -413,7 +415,7 @@ export default function GameDayBillboard({ seasonMatches }: { seasonMatches: Mat
         onMouseLeave={() => setRotation({ x: 0, y: 0 })}
         style={{
           transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`,
-          background: `linear-gradient(215deg, #0a0a0a, #1a1a1a, #050505)`,
+          background: `linear-gradient(215deg, rgba(10,10,10,0.88), rgba(26,26,26,0.78), rgba(5,5,5,0.92))`,
           border: `1px solid ${phaseConfig.accent}44`,
           borderRadius: 24,
           overflow: 'hidden',
@@ -457,7 +459,10 @@ export default function GameDayBillboard({ seasonMatches }: { seasonMatches: Mat
         <div style={{ padding: '30px 20px 20px', position: 'relative', zIndex: 2 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Team A */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div
+              className={`billboard-score-card${homeLeader ? ' billboard-score-card--leader' : ''}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 16 }}
+            >
               <AvatarBadge name={match.home_team?.name ?? 'L'} teamId={match.home_team_id} size={56} />
               <div style={{ color: '#fff', fontSize: 24, fontWeight: 900, textTransform: 'uppercase' }}>
                 {match.home_team?.name ?? 'Local'}
@@ -472,7 +477,10 @@ export default function GameDayBillboard({ seasonMatches }: { seasonMatches: Mat
             </div>
 
             {/* Team B */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16 }}>
+            <div
+              className={`billboard-score-card${awayLeader ? ' billboard-score-card--leader' : ''}`}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16 }}
+            >
               <div style={{ color: '#fff', fontSize: 24, fontWeight: 900, textTransform: 'uppercase', textAlign: 'right' }}>
                 {match.away_team?.name ?? 'Visitante'}
               </div>
