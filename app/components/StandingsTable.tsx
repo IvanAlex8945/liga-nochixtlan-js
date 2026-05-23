@@ -13,6 +13,17 @@ interface Props {
   onTeamClick?: (team: TeamStats) => void;
 }
 
+function NumberCell({ value, color }: { value: number | string; color?: string }) {
+  return (
+    <span
+      className="table-number"
+      style={{ color: color ?? 'inherit' }}
+    >
+      {value}
+    </span>
+  );
+}
+
 export default function StandingsTable({ data, onTeamClick }: Props) {
   const rows: TeamRow[] = data.map((t, i) => ({ ...t, pos: i + 1, key: t.id }));
 
@@ -37,12 +48,14 @@ export default function StandingsTable({ data, onTeamClick }: Props) {
       dataIndex: 'equipo',
       key: 'equipo',
       ellipsis: true,
+      width: 260,
       render: (v: string, row: TeamRow) =>
         onTeamClick ? (
           <button
+            className="team-name-button"
             onClick={() => onTeamClick(row)}
             style={{
-              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left',
               color: '#f7d774', fontWeight: 700, fontSize: 13, textDecoration: 'none',
             }}
           >
@@ -52,29 +65,27 @@ export default function StandingsTable({ data, onTeamClick }: Props) {
           <Text strong style={{ fontSize: 13 }}>{v}</Text>
         ),
     },
-    { title: 'PJ', dataIndex: 'PJ', key: 'PJ', width: 44, align: 'center' },
+    { title: 'PJ', dataIndex: 'PJ', key: 'PJ', width: 44, align: 'center', render: (v: number) => <NumberCell value={v} /> },
     {
       title: 'PG', dataIndex: 'PG', key: 'PG', width: 44, align: 'center',
-      render: (v: number) => <Text style={{ color: '#52c41a' }}>{v}</Text>,
+      render: (v: number) => <NumberCell value={v} color="#52c41a" />,
     },
     {
       title: 'PP', dataIndex: 'PP', key: 'PP', width: 44, align: 'center',
-      render: (v: number) => <Text style={{ color: '#ff4d4f' }}>{v}</Text>,
+      render: (v: number) => <NumberCell value={v} color="#ff4d4f" />,
     },
     {
       title: 'WO', dataIndex: 'WO', key: 'WO', width: 44, align: 'center',
       render: (v: number) => v > 0
-        ? <Text style={{ color: '#faad14' }}>{v}</Text>
-        : <Text style={{ color: '#444' }}>0</Text>,
+        ? <NumberCell value={v} color="#faad14" />
+        : <NumberCell value="0" color="#666" />,
     },
-    { title: 'PF', dataIndex: 'PF', key: 'PF', width: 50, align: 'center' },
-    { title: 'PC', dataIndex: 'PC', key: 'PC', width: 50, align: 'center' },
+    { title: 'PF', dataIndex: 'PF', key: 'PF', width: 50, align: 'center', render: (v: number) => <NumberCell value={v} /> },
+    { title: 'PC', dataIndex: 'PC', key: 'PC', width: 50, align: 'center', render: (v: number) => <NumberCell value={v} /> },
     {
       title: 'DP', dataIndex: 'DP', key: 'DP', width: 55, align: 'center',
       render: (v: number) => (
-        <Text style={{ color: v > 0 ? '#52c41a' : v < 0 ? '#ff4d4f' : '#666' }}>
-          {v > 0 ? `+${v}` : v}
-        </Text>
+        <NumberCell value={v > 0 ? `+${v}` : v} color={v > 0 ? '#52c41a' : v < 0 ? '#ff4d4f' : '#666'} />
       ),
     },
     {
@@ -108,6 +119,7 @@ export default function StandingsTable({ data, onTeamClick }: Props) {
       size="small"
       pagination={false}
       scroll={{ x: 560 }}
+      tableLayout="fixed"
       rowClassName={(_, i) => `standings-row${i === 0 ? ' row-leader' : ''}`}
       locale={{ emptyText: <Text style={{ color: '#555' }}>Sin partidos registrados</Text> }}
     />

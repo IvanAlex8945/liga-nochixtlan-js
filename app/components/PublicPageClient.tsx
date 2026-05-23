@@ -174,6 +174,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
 
   return (
     <main className="public-glass-shell" style={{ minHeight: '100vh', padding: '0 0 80px' }}>
+      <GoldParticles />
       <div className="premium-orb premium-orb--left" />
       <div className="premium-orb premium-orb--right" />
       <div className="premium-orb premium-orb--bottom" />
@@ -183,9 +184,6 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
         <Title className="premium-title" level={1} style={{ color: '#fff5d4', margin: '18px 0 4px', fontSize: 'clamp(2.6rem, 7vw, 4.8rem)', lineHeight: 0.9 }}>
           Liga Nochixtlan
         </Title>
-        <Text style={{ color: 'rgba(245, 241, 232, 0.76)', fontSize: 14, display: 'block', maxWidth: 620, margin: '0 auto' }}>
-          Posiciones, lideres, estadisticas y calendario con una presentacion mas editorial, limpia y premium.
-        </Text>
 
         {selectedSeason ? (
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -199,12 +197,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
 
         <div className="premium-section-card" style={{ marginTop: 22, padding: 18, textAlign: 'left' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div>
-              <div className="premium-section-label">Centro de Temporada</div>
-              <Text className="premium-helper-text" style={{ display: 'block', maxWidth: 500 }}>
-                Cambia de torneo o categoria sin salir de la vista publica.
-              </Text>
-            </div>
+            <div className="premium-section-label" style={{ marginBottom: 0 }}>Temporada</div>
             <a
               href="/admin"
               className="premium-button"
@@ -258,9 +251,6 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
               label: <TabLabel icon="🏆" text="Posiciones" />,
               children: (
                 <GlassSectionCard
-                  label="Tabla General"
-                  title="Clasificacion con acabado espejo"
-                  description="La tabla principal prioriza jerarquia visual, contraste limpio y lectura rapida en movil."
                   action={(
                     <Button icon={<FilePdfOutlined />} onClick={handlePDF} disabled={standings.length === 0} className="premium-button">
                       Reporte PDF
@@ -272,9 +262,6 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
                   ) : (
                     <>
                       <StandingsTable data={standings} onTeamClick={setSelectedTeam} />
-                      <div className="premium-helper-text" style={{ marginTop: 12 }}>
-                        Haz clic en un equipo para ver el detalle. Victoria +3, derrota +1, W.O. ganado +3, W.O. perdido 0 y doble W.O. = 0.
-                      </div>
                     </>
                   )}
                 </GlassSectionCard>
@@ -286,9 +273,6 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
               children: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                   <GlassSectionCard
-                    label="Puntos y Triples"
-                    title={`Jugadores que estan marcando el ritmo${selectedSeason ? ` en ${selectedSeason.name}` : ''}`}
-                    description="Top de anotadores y tripleros con el mismo lenguaje visual premium de la tabla principal."
                   >
                     <div style={sectionGridStyle}>
                       <div>
@@ -333,11 +317,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
               key: 'team-stats',
               label: <TabLabel icon="📊" text="Estadisticas" />,
               children: (
-                <GlassSectionCard
-                  label="Equipos"
-                  title="Acumulado por roster"
-                  description="Filtra por equipo y fase para revisar el volumen real de triples y puntos."
-                >
+                <GlassSectionCard>
                   <TeamStatsTab
                     seasonId={selectedSeasonId}
                     teams={teams}
@@ -352,11 +332,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
               key: 'bracket',
               label: <TabLabel icon="🔥" text="Liguilla" />,
               children: (
-                <GlassSectionCard
-                  label="Cruces"
-                  title="Camino hacia la final"
-                  description="La liguilla vive dentro de un contenedor mas sobrio para que el bracket respire."
-                >
+                <GlassSectionCard>
                   <LiguillaBracketTab seasonMatches={seasonMatches as unknown as Parameters<typeof LiguillaBracketTab>[0]['seasonMatches']} />
                 </GlassSectionCard>
               ),
@@ -365,11 +341,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
               key: 'calendar',
               label: <TabLabel icon="📅" text="Calendario" />,
               children: (
-                <GlassSectionCard
-                  label="Agenda"
-                  title="Partidos y fechas"
-                  description="Calendario agrupado por fase con tarjetas glass para mantener consistencia visual."
-                >
+                <GlassSectionCard>
                   <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                     <Text className="premium-helper-text">Filtrar por jornada:</Text>
                     <Select
@@ -422,32 +394,55 @@ function TabLabel({ icon, text }: { icon: string; text: string }) {
 }
 
 function GlassSectionCard({
-  label,
-  title,
-  description,
   children,
   action,
 }: {
-  label: string;
-  title: string;
-  description: string;
   children: ReactNode;
   action?: ReactNode;
 }) {
   return (
     <section className="premium-section-card" style={{ padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 18 }}>
-        <div>
-          <div className="premium-section-label">{label}</div>
-          <Title className="premium-title" level={3} style={{ color: '#fff2cf', margin: '0 0 6px', fontSize: 'clamp(1.6rem, 4vw, 2.2rem)' }}>
-            {title}
-          </Title>
-          <Text className="premium-helper-text">{description}</Text>
+      {action ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+          {action}
         </div>
-        {action}
-      </div>
+      ) : null}
       {children}
     </section>
+  );
+}
+
+function GoldParticles() {
+  const particles = [
+    { left: '6%', top: '18%', size: 4, delay: '0s', duration: '10s' },
+    { left: '14%', top: '38%', size: 5, delay: '1.6s', duration: '12s' },
+    { left: '22%', top: '68%', size: 3, delay: '0.8s', duration: '9s' },
+    { left: '34%', top: '22%', size: 4, delay: '2.4s', duration: '11s' },
+    { left: '47%', top: '54%', size: 6, delay: '1.1s', duration: '13s' },
+    { left: '58%', top: '15%', size: 4, delay: '0.4s', duration: '10s' },
+    { left: '66%', top: '42%', size: 5, delay: '2.2s', duration: '12s' },
+    { left: '74%', top: '72%', size: 3, delay: '1.4s', duration: '9s' },
+    { left: '84%', top: '28%', size: 4, delay: '2.8s', duration: '11s' },
+    { left: '92%', top: '58%', size: 5, delay: '0.9s', duration: '12s' },
+  ];
+
+  return (
+    <div className="gold-particles" aria-hidden="true">
+      {particles.map((particle, index) => (
+        <span
+          key={index}
+          className="gold-particle"
+          style={{
+            left: particle.left,
+            top: particle.top,
+            width: particle.size,
+            height: particle.size,
+            animationDelay: particle.delay,
+            animationDuration: particle.duration,
+          }}
+        />
+      ))}
+    </div>
   );
 }
 
