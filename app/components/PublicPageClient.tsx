@@ -414,16 +414,25 @@ function GlassSectionCard({
 
 function GoldParticles() {
   const particles = [
-    { left: '6%', top: '18%', size: 4, delay: '0s', duration: '10s' },
-    { left: '14%', top: '38%', size: 5, delay: '1.6s', duration: '12s' },
-    { left: '22%', top: '68%', size: 3, delay: '0.8s', duration: '9s' },
-    { left: '34%', top: '22%', size: 4, delay: '2.4s', duration: '11s' },
-    { left: '47%', top: '54%', size: 6, delay: '1.1s', duration: '13s' },
-    { left: '58%', top: '15%', size: 4, delay: '0.4s', duration: '10s' },
-    { left: '66%', top: '42%', size: 5, delay: '2.2s', duration: '12s' },
-    { left: '74%', top: '72%', size: 3, delay: '1.4s', duration: '9s' },
-    { left: '84%', top: '28%', size: 4, delay: '2.8s', duration: '11s' },
-    { left: '92%', top: '58%', size: 5, delay: '0.9s', duration: '12s' },
+    { left: '4%', top: '14%', size: 5, delay: '0s', duration: '10s' },
+    { left: '8%', top: '52%', size: 4, delay: '1.3s', duration: '12s' },
+    { left: '12%', top: '28%', size: 6, delay: '2.1s', duration: '11s' },
+    { left: '16%', top: '72%', size: 4, delay: '0.6s', duration: '9s' },
+    { left: '22%', top: '18%', size: 5, delay: '1.8s', duration: '10s' },
+    { left: '27%', top: '44%', size: 7, delay: '0.9s', duration: '13s' },
+    { left: '33%', top: '66%', size: 4, delay: '2.8s', duration: '12s' },
+    { left: '39%', top: '24%', size: 5, delay: '1.1s', duration: '11s' },
+    { left: '45%', top: '56%', size: 8, delay: '2.5s', duration: '14s' },
+    { left: '51%', top: '12%', size: 5, delay: '0.4s', duration: '10s' },
+    { left: '57%', top: '36%', size: 6, delay: '1.7s', duration: '12s' },
+    { left: '63%', top: '74%', size: 4, delay: '2.2s', duration: '10s' },
+    { left: '69%', top: '22%', size: 5, delay: '0.8s', duration: '11s' },
+    { left: '74%', top: '48%', size: 7, delay: '2.9s', duration: '13s' },
+    { left: '79%', top: '66%', size: 4, delay: '1.5s', duration: '9s' },
+    { left: '84%', top: '16%', size: 6, delay: '2.4s', duration: '12s' },
+    { left: '88%', top: '58%', size: 5, delay: '0.7s', duration: '11s' },
+    { left: '93%', top: '34%', size: 7, delay: '1.9s', duration: '13s' },
+    { left: '96%', top: '78%', size: 4, delay: '2.7s', duration: '10s' },
   ];
 
   return (

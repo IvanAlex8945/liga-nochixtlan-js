@@ -32,12 +32,12 @@ export default function StandingsTable({ data, onTeamClick }: Props) {
       title: '#',
       dataIndex: 'pos',
       key: 'pos',
-      width: 36,
+      width: 54,
       align: 'center',
       render: (pos: number) => {
         const medal: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
         return (
-          <span className={`position-badge${pos <= 3 ? ` position-badge--top-${pos}` : ''}`}>
+          <span className={`position-badge${pos <= 3 ? ` position-badge--top-${pos}` : ''}${pos >= 10 ? ' position-badge--double' : ''}`}>
             <Text style={{ fontSize: 13, color: 'inherit' }}>{medal[pos] ?? `${pos}°`}</Text>
           </span>
         );
