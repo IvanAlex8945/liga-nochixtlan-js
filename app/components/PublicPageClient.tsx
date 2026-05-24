@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { startTransition, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Tabs, Typography, Tag, Select, Button, FloatButton } from 'antd';
 import { FilePdfOutlined } from '@ant-design/icons';
 import StandingsTable from './StandingsTable';
@@ -390,6 +390,24 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
   );
 }
 
+function useIsCoarsePointer() {
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const mediaQuery = window.matchMedia('(pointer: coarse)');
+    const update = () => setIsCoarsePointer(mediaQuery.matches);
+
+    update();
+    mediaQuery.addEventListener('change', update);
+
+    return () => mediaQuery.removeEventListener('change', update);
+  }, []);
+
+  return isCoarsePointer;
+}
+
 function TabLabel({ icon, text }: { icon: string; text: string }) {
   return <span style={{ fontWeight: 700 }}>{icon} {text}</span>;
 }
@@ -579,6 +597,7 @@ function TeamStatsTab({
 }) {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [phaseFilter, setPhaseFilter] = useState<'all' | 'Fase Regular' | 'Liguilla'>('Fase Regular');
+  const isCoarsePointer = useIsCoarsePointer();
 
   const activeTeams = useMemo(() => teams.filter((t) => t.season_id === seasonId), [teams, seasonId]);
 
@@ -625,7 +644,7 @@ function TeamStatsTab({
             value={selectedTeamId}
             onChange={(v) => setSelectedTeamId(v as number | null)}
             options={activeTeams.map((t) => ({ label: t.name, value: t.id }))}
-            showSearch
+            showSearch={!isCoarsePointer}
             filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
           />
         </div>
