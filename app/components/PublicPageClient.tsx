@@ -257,6 +257,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
                     </Button>
                   )}
                 >
+                  <MobileLandscapeHint />
                   {standings.length === 0 ? (
                     <Text style={{ color: '#7e7c76', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos registrados</Text>
                   ) : (
@@ -409,6 +410,15 @@ function GlassSectionCard({
       ) : null}
       {children}
     </section>
+  );
+}
+
+function MobileLandscapeHint() {
+  return (
+    <div className="mobile-landscape-hint" role="note" aria-label="Sugerencia de visualizacion">
+      <span className="mobile-landscape-hint__icon" aria-hidden="true">↻</span>
+      <span>Para una mejor visualizacion en celular, gira tu dispositivo a horizontal.</span>
+    </div>
   );
 }
 
