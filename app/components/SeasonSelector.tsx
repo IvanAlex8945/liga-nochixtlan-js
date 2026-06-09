@@ -45,7 +45,7 @@ export default function SeasonSelector({ value, onChange, style }: Props) {
         options={options}
         style={{ minWidth: 240 }}
         placeholder="Seleccionar temporada"
-        dropdownStyle={{ background: '#1a1a1a', borderColor: '#333' }}
+        styles={{ popup: { root: { background: '#1a1a1a', borderColor: '#333' } } }}
         showSearch
         filterOption={(input, opt) =>
           (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())

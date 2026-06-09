@@ -17,6 +17,7 @@ const adminEmails = [
   'admin1@liganochixtlan.com',
   'admin2@liganochixtlan.com',
   'admin3@liganochixtlan.com',
+  'captura@liganochixtlan.com',
 ];
 
 const defaultPassword = process.env.ADMIN_DEFAULT_PASSWORD;

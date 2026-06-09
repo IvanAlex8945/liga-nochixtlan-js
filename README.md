@@ -105,6 +105,9 @@ El backend utiliza **Supabase**. Crea un archivo `.env` o `.env.local` en el dir
 ```env
 NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key_de_supabase
+CLOUDINARY_CLOUD_NAME=tu_cloud_name
+CLOUDINARY_API_KEY=tu_api_key
+CLOUDINARY_API_SECRET=tu_api_secret
 ```
 
 ### 4. Ejecución en Entorno de Desarrollo

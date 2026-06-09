@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Form,
   Radio,
@@ -96,7 +96,7 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
   };
 
   return (
-    <Spin spinning={saving} tip="Guardando...">
+    <Spin spinning={saving} description="Guardando...">
       <Form layout="vertical">
         {/* ── Tipo de resultado ─────────────────────────────── */}
         <Form.Item label="Tipo de resultado">
@@ -121,7 +121,7 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
           <Alert
             type={resultType === 'WO_Doble' ? 'error' : 'warning'}
             showIcon
-            message={scoreLabels[resultType]}
+            title={scoreLabels[resultType]}
             style={{ marginBottom: 16 }}
           />
         )}
@@ -206,6 +206,10 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
               players={homeLineup}
               disableStats={disableStats}
               onChange={setHomeLineup}
+              onOpenVerify={(player) => {
+                if (!player.verify_token) return;
+                window.open(`/verificar/${player.verify_token}`, '_blank', 'noopener,noreferrer');
+              }}
             />
           </Col>
           <Col xs={24} md={12}>
@@ -214,6 +218,10 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
               players={awayLineup}
               disableStats={disableStats}
               onChange={setAwayLineup}
+              onOpenVerify={(player) => {
+                if (!player.verify_token) return;
+                window.open(`/verificar/${player.verify_token}`, '_blank', 'noopener,noreferrer');
+              }}
             />
           </Col>
         </Row>

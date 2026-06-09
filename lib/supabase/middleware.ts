@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { buildAccessSnapshot, canAccessPath } from '@/lib/access-control'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -57,19 +58,31 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+  const pathname = request.nextUrl.pathname
 
   // Proteger la ruta de administración
-  if (!user && request.nextUrl.pathname.startsWith('/admin')) {
+  if (!user && pathname.startsWith('/admin')) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
   // Si el usuario ya está logueado y va al login, enviarlo directo al admin
-  if (user && request.nextUrl.pathname === '/login') {
+  if (user && pathname === '/login') {
     const url = request.nextUrl.clone()
-    url.pathname = '/admin'
+    const access = buildAccessSnapshot(user.email)
+    url.pathname = access.role ? '/admin' : '/no-access'
     return NextResponse.redirect(url)
+  }
+
+  if (user && pathname.startsWith('/admin')) {
+    const access = buildAccessSnapshot(user.email)
+
+    if (!canAccessPath(pathname, access.role)) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/no-access'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

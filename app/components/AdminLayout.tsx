@@ -10,22 +10,33 @@ import {
   EditOutlined,
   CheckSquareOutlined,
   DashboardOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
+
+import { useAdminAccess } from '@/app/components/AdminAccessProvider';
+import { getVisibleAdminModules, type AdminModuleKey } from '@/lib/access-control';
 
 const { Sider, Content } = Layout;
 
-const menuItems = [
-  { key: '/admin', icon: <DashboardOutlined />, label: 'Dashboard' },
-  { key: '/admin/seasons', icon: <TrophyOutlined />, label: 'Temporadas' },
-  { key: '/admin/teams', icon: <TeamOutlined />, label: 'Equipos' },
-  { key: '/admin/calendar', icon: <CalendarOutlined />, label: 'Calendario' },
-  { key: '/admin/capture', icon: <EditOutlined />, label: 'Captura' },
-  { key: '/admin/eligibility', icon: <CheckSquareOutlined />, label: 'Elegibilidad' },
-];
+const moduleIcons: Record<AdminModuleKey, React.ReactNode> = {
+  dashboard: <DashboardOutlined />,
+  seasons: <TrophyOutlined />,
+  teams: <TeamOutlined />,
+  calendar: <CalendarOutlined />,
+  capture: <EditOutlined />,
+  eligibility: <CheckSquareOutlined />,
+  access: <SafetyCertificateOutlined />,
+};
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const access = useAdminAccess();
+  const menuItems = getVisibleAdminModules(access.permissions).map((module) => ({
+    key: module.path,
+    icon: moduleIcons[module.key],
+    label: module.navLabel,
+  }));
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#141414' }}>
@@ -40,6 +51,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span style={{ fontSize: 28 }}>🏀</span>
           <div style={{ color: '#FAAD14', fontWeight: 700, fontSize: 13, marginTop: 4 }}>
             Liga Admin
+          </div>
+          <div style={{ color: '#666', fontSize: 11, marginTop: 6 }}>
+            {access.roleLabel}
           </div>
           <div style={{ marginTop: 12 }}>
             <Link href="/" style={{ color: '#888', fontSize: 12, border: '1px solid #333', padding: '4px 10px', borderRadius: 4, display: 'inline-block' }}>

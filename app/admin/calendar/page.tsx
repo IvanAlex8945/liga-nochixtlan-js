@@ -366,7 +366,11 @@ export default function CalendarPage() {
           <Form.Item name="time_str" label="Horario">
             <Select options={TIMES.map((t) => ({ label: t, value: t }))} />
           </Form.Item>
-          <Form.Item name="scheduled_date" label="Fecha">
+          <Form.Item
+            name="scheduled_date"
+            label="Fecha"
+            getValueProps={(value) => ({ value: value ?? '' })}
+          >
             <input type="date" style={{ width: '100%', padding: '6px 11px', background: '#141414', border: '1px solid #424242', borderRadius: 6, color: '#fff', colorScheme: 'dark' }} />
           </Form.Item>
         </Form>

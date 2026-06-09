@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Form, Input, Button, Typography, message, Card } from 'antd';
+import { App, Form, Input, Button, Typography, Card } from 'antd';
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const { message } = App.useApp();
 
   const handleLogin = async (values: Record<string, string>) => {
     setLoading(true);
@@ -55,7 +56,7 @@ export default function LoginPage() {
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
           zIndex: 1
         }}
-        bodyStyle={{ padding: '32px 24px' }}
+        styles={{ body: { padding: '32px 24px' } }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: 48, lineHeight: 1, marginBottom: 8 }}>🏀</div>

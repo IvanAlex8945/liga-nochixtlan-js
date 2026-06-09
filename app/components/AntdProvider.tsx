@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ConfigProvider, theme } from 'antd';
+import { App, ConfigProvider, theme } from 'antd';
 import esES from 'antd/locale/es_ES';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -49,7 +49,7 @@ export default function AntdProvider({ children }: { children: React.ReactNode }
           },
         }}
       >
-        {children}
+        <App>{children}</App>
       </ConfigProvider>
     </QueryClientProvider>
   );

@@ -21,6 +21,46 @@ interface Match {
   away_team: { id: number; name: string };
 }
 
+interface PlayerCredential {
+  player_id: number;
+  credential_code: string;
+  verify_token: string;
+  status: string;
+}
+
+interface PlayerRecord {
+  id: number;
+  name: string;
+  number: number | null;
+  team_id: number;
+  photo_thumb_url?: string | null;
+  photo_url?: string | null;
+}
+
+async function fetchTeamCredentials(playerIds: number[], seasonId: number) {
+  if (playerIds.length === 0) {
+    return [] as PlayerCredential[];
+  }
+
+  const params = new URLSearchParams();
+  params.set('seasonId', String(seasonId));
+  for (const playerId of playerIds) {
+    params.append('playerId', String(playerId));
+  }
+
+  const response = await fetch(`/api/admin/team-credentials?${params.toString()}`);
+  const payload = (await response.json()) as {
+    credentials?: PlayerCredential[];
+    error?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? 'No se pudieron consultar las credenciales del equipo.');
+  }
+
+  return payload.credentials ?? [];
+}
+
 export default function CapturePage() {
   const [seasonId, setSeasonId] = useState<number | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
@@ -56,23 +96,47 @@ export default function CapturePage() {
     enabled: !!selectedMatch,
     queryFn: async () => {
       const [playersRes, statsRes] = await Promise.all([
-        supabase.from('players').select('id, name, number, team_id')
+        supabase.from('players').select('id, name, number, team_id, photo_thumb_url, photo_url')
           .eq('team_id', selectedMatch!.home_team.id).eq('is_active', true).order('number'),
         supabase.from('player_match_stats').select('*').eq('match_id', selectedMatch!.id)
       ]);
       
-      let playersData = playersRes.data ?? [];
+      let playersData = (playersRes.data ?? []) as PlayerRecord[];
+      let eligibilityMap = new Map<number, { elegible: boolean; asistencias: number; min: number }>();
       if (selectedMatch?.phase && selectedMatch.phase !== 'Fase Regular') {
         const { results } = await calcularElegibilidad(supabase, selectedMatch.home_team.id, seasonId!);
         const eligibleSet = new Set(results.filter(r => r.elegible).map(r => r.jugador_id));
+        eligibilityMap = new Map(
+          results.map((result) => [
+            result.jugador_id,
+            { elegible: result.elegible, asistencias: result.asistencias, min: result.min_requerido },
+          ])
+        );
         playersData = playersData.filter(p => eligibleSet.has(p.id));
       }
 
+      const credentials = await fetchTeamCredentials(
+        playersData.map((player) => player.id),
+        seasonId!
+      );
+
+      const credentialMap = new Map<number, PlayerCredential>(
+        credentials.map((credential) => [credential.player_id, credential])
+      );
       const stats = statsRes.data ?? [];
       return playersData.map((p) => {
         const stat = stats.find((s) => s.player_id === p.id);
+        const credential = credentialMap.get(p.id);
+        const eligibility = eligibilityMap.get(p.id);
         return { 
           player_id: p.id, team_id: p.team_id, name: p.name, number: p.number, 
+          photo_thumb_url: p.photo_thumb_url ?? null,
+          photo_url: p.photo_url ?? null,
+          credential_code: credential?.credential_code ?? null,
+          verify_token: credential?.verify_token ?? null,
+          credential_status: credential?.status ?? null,
+          eligibility_label: eligibility ? `${eligibility.asistencias}/${eligibility.min}` : null,
+          is_eligible: eligibility ? eligibility.elegible : null,
           played: stat ? stat.played : false, 
           points: stat ? stat.points : 0, 
           triples: stat ? stat.triples : 0 
@@ -86,23 +150,47 @@ export default function CapturePage() {
     enabled: !!selectedMatch,
     queryFn: async () => {
       const [playersRes, statsRes] = await Promise.all([
-        supabase.from('players').select('id, name, number, team_id')
+        supabase.from('players').select('id, name, number, team_id, photo_thumb_url, photo_url')
           .eq('team_id', selectedMatch!.away_team.id).eq('is_active', true).order('number'),
         supabase.from('player_match_stats').select('*').eq('match_id', selectedMatch!.id)
       ]);
       
-      let playersData = playersRes.data ?? [];
+      let playersData = (playersRes.data ?? []) as PlayerRecord[];
+      let eligibilityMap = new Map<number, { elegible: boolean; asistencias: number; min: number }>();
       if (selectedMatch?.phase && selectedMatch.phase !== 'Fase Regular') {
         const { results } = await calcularElegibilidad(supabase, selectedMatch.away_team.id, seasonId!);
         const eligibleSet = new Set(results.filter(r => r.elegible).map(r => r.jugador_id));
+        eligibilityMap = new Map(
+          results.map((result) => [
+            result.jugador_id,
+            { elegible: result.elegible, asistencias: result.asistencias, min: result.min_requerido },
+          ])
+        );
         playersData = playersData.filter(p => eligibleSet.has(p.id));
       }
 
+      const credentials = await fetchTeamCredentials(
+        playersData.map((player) => player.id),
+        seasonId!
+      );
+
+      const credentialMap = new Map<number, PlayerCredential>(
+        credentials.map((credential) => [credential.player_id, credential])
+      );
       const stats = statsRes.data ?? [];
       return playersData.map((p) => {
         const stat = stats.find((s) => s.player_id === p.id);
+        const credential = credentialMap.get(p.id);
+        const eligibility = eligibilityMap.get(p.id);
         return { 
           player_id: p.id, team_id: p.team_id, name: p.name, number: p.number, 
+          photo_thumb_url: p.photo_thumb_url ?? null,
+          photo_url: p.photo_url ?? null,
+          credential_code: credential?.credential_code ?? null,
+          verify_token: credential?.verify_token ?? null,
+          credential_status: credential?.status ?? null,
+          eligibility_label: eligibility ? `${eligibility.asistencias}/${eligibility.min}` : null,
+          is_eligible: eligibility ? eligibility.elegible : null,
           played: stat ? stat.played : false, 
           points: stat ? stat.points : 0, 
           triples: stat ? stat.triples : 0 
@@ -121,6 +209,13 @@ export default function CapturePage() {
     <AdminLayout>
       <div style={{ marginBottom: 16 }}>
         <Title level={4} style={{ color: '#FAAD14', marginBottom: 12 }}>✍️ Captura de Resultado</Title>
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          title="Fase 5: pase de lista rápido"
+          description="Marca presentes desde la cédula digital del equipo. Usa 'Abrir' solo cuando necesites confirmar identidad o vigencia de una credencial."
+        />
         <SeasonSelector value={seasonId} onChange={(id) => { setSeasonId(id); setSelectedMatchId(null); setSelectedJornada(null); }} />
       </div>
 
@@ -175,7 +270,7 @@ export default function CapturePage() {
             </Tag>
           </div>
           {loadingHome || loadingAway ? (
-            <Spin tip="Cargando cédulas..." />
+            <Spin description="Cargando cédulas..." />
           ) : (
             <CaptureForm
               key={selectedMatch.id}
