@@ -185,13 +185,13 @@ function drawDorsal(context: CanvasRenderingContext2D, input: CredentialRenderIn
 }
 
 function drawSeasonFields(context: CanvasRenderingContext2D, input: CredentialRenderInput) {
-  const year = extractSeasonYear(input.seasonName);
+  const period = extractSeasonPeriod(input.seasonName);
   const issued = formatIssuedAt(input.issuedAt).toUpperCase();
 
-  drawGoldText(context, year, {
+  drawGoldText(context, period, {
     x: 544,
     y: 691,
-    fontSize: 38,
+    fontSize: 34,
     fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
     maxWidth: 190,
   });
@@ -204,10 +204,10 @@ function drawSeasonFields(context: CanvasRenderingContext2D, input: CredentialRe
     maxWidth: 250,
   });
 
-  drawGoldText(context, year, {
+  drawGoldText(context, period, {
     x: 544,
     y: 813,
-    fontSize: 38,
+    fontSize: 34,
     fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
     maxWidth: 190,
   });
@@ -257,16 +257,16 @@ function drawOfficialDocument(context: CanvasRenderingContext2D, credentialCode:
 }
 
 function drawFooterSeason(context: CanvasRenderingContext2D, seasonName: string) {
-  const year = extractSeasonYear(seasonName);
+  const period = extractSeasonPeriod(seasonName);
 
   context.save();
-  context.font = '700 26px "Arial Narrow", Impact, system-ui, sans-serif';
+  context.font = '700 22px "Arial Narrow", Impact, system-ui, sans-serif';
   context.textAlign = 'left';
   context.textBaseline = 'middle';
   context.fillStyle = COLORS.cyan;
   context.shadowColor = 'rgba(69,244,210,0.55)';
   context.shadowBlur = 10;
-  drawTrackedText(context, year, 1352, 940, 4);
+  drawTrackedText(context, period, 1336, 940, 2);
   context.restore();
 }
 
@@ -556,4 +556,20 @@ function formatIssuedAt(value: string) {
 function extractSeasonYear(value: string) {
   const match = value.match(/\b(20\d{2})\b/);
   return match?.[1] ?? String(new Date().getFullYear());
+}
+
+function extractSeasonPeriod(value: string) {
+  const range = value.match(/\b(20\d{2})\s*[-/]\s*(20\d{2})\b/);
+
+  if (range) {
+    return `${range[1]}-${range[2]}`;
+  }
+
+  const year = Number(extractSeasonYear(value));
+
+  if (Number.isFinite(year)) {
+    return `${year}-${year + 1}`;
+  }
+
+  return value;
 }
