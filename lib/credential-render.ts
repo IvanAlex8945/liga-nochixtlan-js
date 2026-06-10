@@ -266,7 +266,7 @@ function drawFooterSeason(context: CanvasRenderingContext2D, seasonName: string)
   context.fillStyle = COLORS.cyan;
   context.shadowColor = 'rgba(69,244,210,0.55)';
   context.shadowBlur = 10;
-  drawTrackedText(context, period, 1346, 938, 2);
+  drawTrackedText(context, period, 1346, 935, 2);
   context.restore();
 }
 
