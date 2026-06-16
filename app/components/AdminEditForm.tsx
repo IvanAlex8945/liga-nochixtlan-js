@@ -9,17 +9,18 @@
 import { useState } from 'react';
 import {
   Modal, Form, Select, InputNumber, Button, Typography, Alert, Tag,
-  Popconfirm, message, Divider,
+  Popconfirm, Divider, App,
 } from 'antd';
 import { EditOutlined, WarningOutlined } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { checkSchedulingConflicts, SchedulingMatch, SchedulingTeam } from '@/lib/scheduling';
 import { supabase } from '@/lib/supabase';
 
 const { Text } = Typography;
 
 export interface EditableMatch {
   id: number;
-  jornada: number;
+  jornada: number | null;
   phase: string;
   status: string;
   home_score: number | null;
@@ -29,6 +30,7 @@ export interface EditableMatch {
   court?: string | null;
   time_str?: string | null;
   scheduled_date?: string | null;
+  vuelta?: 'ida' | 'vuelta' | 'liguilla' | null;
   home_team?: { id: number; name: string };
   away_team?: { id: number; name: string };
 }
@@ -51,7 +53,12 @@ const STATUSES = [
 const COURTS = ['Cancha Bicentenario', 'Cancha Techada', 'Cancha III'];
 const TIMES = ['06:00 PM', '06:30 PM', '07:00 PM', '07:30 PM', '08:00 PM', '08:30 PM', '09:00 PM', '09:30 PM', '10:00 PM', '10:30 PM', '11:00 PM'];
 
+function isRegularPhase(phase?: string | null) {
+  return !phase || phase === 'Fase Regular';
+}
+
 export default function AdminEditForm({ match, onClose, onSaved }: Props) {
+  const { message: messageApi, modal } = App.useApp();
   const [form] = Form.useForm();
   const qc = useQueryClient();
   const [currentStatus, setCurrentStatus] = useState(match.status);
@@ -64,12 +71,14 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
   const editMatch = useMutation({
     mutationFn: async (values: {
       status: string;
+      jornada: number | null;
       home_score: number | null;
       away_score: number | null;
       phase: string;
       court: string | null;
       time_str: string | null;
       scheduled_date: string | null;
+      forceScheduleWarnings?: boolean;
     }) => {
       // Auto-assign W.O. scores
       let hs = values.home_score ?? null;
@@ -80,11 +89,68 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
       if (values.status === 'Programado' || values.status === 'Pendiente') { hs = null; as_ = null; }
 
       const dateVal = values.scheduled_date ? values.scheduled_date : null;
+      const { data: matchMeta } = await supabase
+        .from('matches')
+        .select('season_id')
+        .eq('id', match.id)
+        .single();
+
+      if (matchMeta?.season_id) {
+        const [{ data: seasonMatches, error: matchesError }, { data: seasonTeams, error: teamsError }] = await Promise.all([
+          supabase
+            .from('matches')
+            .select('id, home_team_id, away_team_id, scheduled_date, time_str, court')
+            .eq('season_id', matchMeta.season_id),
+          supabase
+            .from('teams')
+            .select('id, name, match_frequency_days, preferred_time_notes')
+            .eq('season_id', matchMeta.season_id),
+        ]);
+        if (matchesError) throw matchesError;
+        if (teamsError) throw teamsError;
+
+        const scheduleCheck = checkSchedulingConflicts({
+          matches: (seasonMatches ?? []) as SchedulingMatch[],
+          teams: (seasonTeams ?? []) as SchedulingTeam[],
+          homeTeamId: match.home_team_id,
+          awayTeamId: match.away_team_id,
+          scheduledDate: dateVal,
+          timeStr: values.time_str,
+          court: values.court,
+          excludeMatchId: match.id,
+        });
+        if (scheduleCheck.blocking.length > 0) {
+          throw new Error(scheduleCheck.blocking.join(' '));
+        }
+        if (scheduleCheck.warnings.length > 0 && !values.forceScheduleWarnings) {
+          throw new Error(`Revisa estas alertas de programación: ${scheduleCheck.warnings.join(' ')}`);
+        }
+      }
+
+      if (values.phase === 'Fase Regular' && !isRegularPhase(match.phase) && matchMeta?.season_id) {
+        const { data: existingRegularMatches, error: validationError } = await supabase
+          .from('matches')
+          .select('id, phase, vuelta')
+          .eq('season_id', matchMeta.season_id)
+          .in('home_team_id', [match.home_team_id, match.away_team_id])
+          .in('away_team_id', [match.home_team_id, match.away_team_id])
+          .neq('id', match.id);
+
+        if (validationError) throw validationError;
+        const existingRegularPhaseMatches = (existingRegularMatches ?? []).filter((existing) => isRegularPhase(existing.phase));
+        if (existingRegularPhaseMatches.length >= 2) {
+          throw new Error('No se puede cambiar este partido a Fase Regular: esa pareja ya tiene ida y vuelta registrados.');
+        }
+        if (match.vuelta && existingRegularPhaseMatches.some((existing) => existing.vuelta === match.vuelta)) {
+          throw new Error(`No se puede cambiar este partido a Fase Regular: ya existe un partido de ${match.vuelta} para esta pareja.`);
+        }
+      }
 
       const { error } = await supabase
         .from('matches')
         .update({
           status: values.status,
+          jornada: values.jornada ?? null,
           home_score: hs,
           away_score: as_,
           phase: values.phase,
@@ -106,13 +172,6 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
       if (activePhase && activePhase !== 'Fase Regular') {
         const teamA = match.home_team_id;
         const teamB = match.away_team_id;
-
-        // Fetch season of this match
-        const { data: matchMeta } = await supabase
-          .from('matches')
-          .select('season_id')
-          .eq('id', match.id)
-          .single();
 
         if (matchMeta?.season_id) {
           const { data: seriesMatches } = await supabase
@@ -159,18 +218,87 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
       qc.invalidateQueries({ queryKey: ['matches'] });
       qc.invalidateQueries({ queryKey: ['matches-programmed'] });
       qc.invalidateQueries({ queryKey: ['stats'] });
-      message.success('Partido actualizado. Las posiciones se han recalculado automáticamente.');
+      messageApi.success('Partido actualizado. Las posiciones se han recalculado automáticamente.');
       onSaved();
     },
-    onError: (e: Error) => message.error(e.message),
+    onError: (e: Error) => messageApi.error(e.message),
   });
 
   const handleOk = () => {
     if (!confirmed) {
-      message.warning('Marca la casilla de confirmación antes de guardar.');
+      messageApi.warning('Marca la casilla de confirmación antes de guardar.');
       return;
     }
     form.submit();
+  };
+
+  const handleFinish = async (values: {
+    status: string;
+    jornada: number | null;
+    home_score: number | null;
+    away_score: number | null;
+    phase: string;
+    court: string | null;
+    time_str: string | null;
+    scheduled_date: string | null;
+  }) => {
+    const dateVal = values.scheduled_date ? values.scheduled_date : null;
+    const { data: matchMeta } = await supabase
+      .from('matches')
+      .select('season_id')
+      .eq('id', match.id)
+      .single();
+
+    if (!matchMeta?.season_id) {
+      editMatch.mutate(values);
+      return;
+    }
+
+    const [{ data: seasonMatches }, { data: seasonTeams }] = await Promise.all([
+      supabase
+        .from('matches')
+        .select('id, home_team_id, away_team_id, scheduled_date, time_str, court')
+        .eq('season_id', matchMeta.season_id),
+      supabase
+        .from('teams')
+        .select('id, name, match_frequency_days, preferred_time_notes')
+        .eq('season_id', matchMeta.season_id),
+    ]);
+
+    const scheduleCheck = checkSchedulingConflicts({
+      matches: (seasonMatches ?? []) as SchedulingMatch[],
+      teams: (seasonTeams ?? []) as SchedulingTeam[],
+      homeTeamId: match.home_team_id,
+      awayTeamId: match.away_team_id,
+      scheduledDate: dateVal,
+      timeStr: values.time_str,
+      court: values.court,
+      excludeMatchId: match.id,
+    });
+
+    if (scheduleCheck.blocking.length > 0) {
+      messageApi.error(scheduleCheck.blocking.join(' '));
+      return;
+    }
+
+    if (scheduleCheck.warnings.length > 0) {
+      modal.confirm({
+        title: 'Revisar programación',
+        content: (
+          <div>
+            {scheduleCheck.warnings.map((warning) => (
+              <div key={warning} style={{ marginBottom: 6 }}>{warning}</div>
+            ))}
+          </div>
+        ),
+        okText: 'Continuar',
+        cancelText: 'Cancelar',
+        onOk: () => editMatch.mutate({ ...values, forceScheduleWarnings: true }),
+      });
+      return;
+    }
+
+    editMatch.mutate(values);
   };
 
   const homeName = match.home_team?.name ?? `Equipo #${match.home_team_id}`;
@@ -185,7 +313,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
       title={
         <span>
           <EditOutlined style={{ color: '#FAAD14', marginRight: 8 }} />
-          Editar Partido J{match.jornada}: <b>{homeName}</b> vs <b>{awayName}</b>
+          Editar Partido J{match.jornada ?? '?'}: <b>{homeName}</b> vs <b>{awayName}</b>
         </span>
       }
       onCancel={onClose}
@@ -198,7 +326,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
         type="warning"
         icon={<WarningOutlined />}
         showIcon
-        message="Guardafuegos Arquitectónico"
+        title="Guardafuegos Arquitectónico"
         description={
           <span>
             Las modificaciones aquí hechas afectarán el flujo de Posiciones. <br/>
@@ -213,15 +341,16 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
         layout="vertical"
         initialValues={{
           status: match.status,
+          jornada: match.jornada,
           home_score: match.home_score,
           away_score: match.away_score,
           phase: match.phase,
           court: match.court,
           time_str: match.time_str,
           // Extract just the YYYY-MM-DD for the input type="date"
-          scheduled_date: match.scheduled_date ? match.scheduled_date.split('T')[0] : undefined,
+          scheduled_date: match.scheduled_date ? match.scheduled_date.split('T')[0] : '',
         }}
-        onFinish={(v) => editMatch.mutate(v)}
+        onFinish={handleFinish}
         onValuesChange={(changed) => {
           if (changed.status) setCurrentStatus(changed.status);
         }}
@@ -231,6 +360,9 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
         </Form.Item>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <Form.Item label="Jornada" name="jornada" style={{ flex: '1 1 90px' }}>
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="Por definir" />
+          </Form.Item>
           <Form.Item label="Fase" name="phase" style={{ flex: '1 1 120px' }}>
             <Select options={[
               { label: 'Fase Regular', value: 'Fase Regular' },
@@ -241,7 +373,12 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
               { label: 'Final', value: 'Final' },
             ]} />
           </Form.Item>
-          <Form.Item label="Fecha" name="scheduled_date" style={{ flex: '1 1 120px' }}>
+          <Form.Item
+            label="Fecha"
+            name="scheduled_date"
+            style={{ flex: '1 1 120px' }}
+            getValueProps={(value) => ({ value: value ?? '' })}
+          >
             <input type="date" style={{ width: '100%', padding: '4px 11px', background: '#141414', border: '1px solid #424242', borderRadius: 6, color: '#fff', colorScheme: 'dark', height: 32 }} />
           </Form.Item>
         </div>
@@ -261,7 +398,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
             <Alert
               type="info"
               showIcon
-              message="Marcador Vinculado"
+              title="Marcador Vinculado"
               description="El resultado global se suma automáticamente desde las estadísticas de los jugadores. Para alterar este resultado, debes modificar los puntos individuales en el módulo 'Captura'."
               style={{ marginBottom: 16 }}
             />
@@ -295,7 +432,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
           <Alert
             type="info"
             showIcon
-            message={
+            title={
               currentStatus === 'WO Local'
                 ? `Marcador automático: ${homeName} 0 – ${awayName} 20`
                 : currentStatus === 'WO Visitante'
@@ -310,7 +447,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
           <Alert
             type="error"
             showIcon
-            message={`⚠️ Al cambiar a '${currentStatus}' se eliminarán las estadísticas de jugadores de este partido`}
+            title={`⚠️ Al cambiar a '${currentStatus}' se eliminarán las estadísticas de jugadores de este partido`}
             style={{ marginBottom: 12 }}
           />
         )}
@@ -320,7 +457,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
           <Alert
             type="error"
             showIcon
-            message={`🚫 Guardafuegos: Este partido es de ${match.phase}. Editar puede invalidar la eliminatoria.`}
+            title={`🚫 Guardafuegos: Este partido es de ${match.phase}. Editar puede invalidar la eliminatoria.`}
             description="Solo continúa si este resultado fue capturado incorrectamente."
             style={{ marginBottom: 12 }}
           />

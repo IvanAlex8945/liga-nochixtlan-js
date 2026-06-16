@@ -14,7 +14,7 @@ const { Title, Text } = Typography;
 
 interface Match {
   id: number;
-  jornada: number;
+  jornada: number | null;
   status: string;
   phase?: string;
   home_team: { id: number; name: string };
@@ -86,7 +86,7 @@ export default function CapturePage() {
     },
   });
 
-  const jornadas = Array.from(new Set(matches.map(m => m.jornada))).sort((a, b) => a - b);
+  const jornadas = Array.from(new Set(matches.map(m => m.jornada).filter((j): j is number => typeof j === 'number'))).sort((a, b) => a - b);
   const filteredMatches = selectedJornada ? matches.filter(m => m.jornada === selectedJornada) : matches;
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId);

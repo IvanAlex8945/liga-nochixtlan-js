@@ -1,21 +1,38 @@
 'use client';
 import React, { useState, useMemo } from 'react';
-import { Modal, Table, Button, Select, InputNumber, Space, DatePicker, message, Tag, Segmented } from 'antd';
+import { Modal, Table, Button, Select, InputNumber, Space, DatePicker, Tag, Segmented, App } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { checkSchedulingConflicts, SchedulingTeam } from '@/lib/scheduling';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 const COURTS = ['Cancha Bicentenario', 'Cancha Techada', 'Cancha III'];
 const TIMES = ['06:00 PM', '06:30 PM', '07:00 PM', '07:30 PM', '08:00 PM', '08:30 PM', '09:00 PM', '09:30 PM', '10:00 PM', '10:30 PM', '11:00 PM'];
 
-interface Team { id: number; name: string; }
+const statusColor: Record<string, string> = {
+  Programado: 'blue',
+  Pendiente: 'gold',
+  Jugado: 'green',
+  'WO Local': 'orange',
+  'WO Visitante': 'orange',
+  'WO Doble': 'red',
+};
+
+const vueltaLabel: Record<string, string> = {
+  ida: 'Ida',
+  vuelta: 'Vuelta',
+  liguilla: 'Liguilla',
+};
+
+interface Team extends SchedulingTeam { id: number; name: string; }
 interface MatchData {
   id?: number;
   home_team_id: number;
   away_team_id: number;
   phase: string;
   status?: string;
+  vuelta?: 'ida' | 'vuelta' | 'liguilla' | null;
   jornada?: number | null;
   scheduled_date?: string | null;
   time_str?: string | null;
@@ -28,6 +45,11 @@ interface MissingMatch {
   pairLabel: string;
   pairKey: string;
   reason: string;
+}
+interface RegisteredMatchRow extends MatchData {
+  key: string;
+  homeName: string;
+  awayName: string;
 }
 interface PairAudit {
   key: string;
@@ -42,29 +64,8 @@ interface PairAudit {
   notes: string;
   orderedMatches: MatchData[];
 }
-interface ComparisonRow {
-  key: string;
-  pairLabel: string;
-  firstLeg: MatchData | null;
-  secondLeg: MatchData | null;
-  expectedHome: Team | null;
-  expectedAway: Team | null;
-  status: 'listo' | 'faltante' | 'conflicto';
-  note: string;
-}
-interface JornadaMirrorRow {
-  key: string;
-  firstJornada: number;
-  secondJornada: number | null;
-  firstMatch: MatchData | null;
-  secondMatch: MatchData | null;
-  expectedHome: Team | null;
-  expectedAway: Team | null;
-  status: 'listo' | 'faltante' | 'extra' | 'sin-segunda';
-  note: string;
-}
 interface RowState { jornada?: number; court?: string | null; time_str?: string | null; scheduled_date?: dayjs.Dayjs | null; }
-interface MutationVars { home_team_id: number; away_team_id: number; jornada: number; court: string | null; time_str: string | null; scheduled_date: string | null; }
+interface MutationVars { home_team_id: number; away_team_id: number; jornada: number; court: string | null; time_str: string | null; scheduled_date: string | null; vuelta: 'ida' | 'vuelta'; reserveMirror?: boolean; forceScheduleWarnings?: boolean; }
 
 interface MissingMatchesModalProps {
   open: boolean;
@@ -74,10 +75,33 @@ interface MissingMatchesModalProps {
   matches: MatchData[];
 }
 
+function isRegularPhase(phase?: string | null) {
+  return !phase || phase === 'Fase Regular';
+}
+
+function isSamePair(match: Pick<MatchData, 'home_team_id' | 'away_team_id'>, homeTeamId: number, awayTeamId: number) {
+  return (
+    (match.home_team_id === homeTeamId && match.away_team_id === awayTeamId) ||
+    (match.home_team_id === awayTeamId && match.away_team_id === homeTeamId)
+  );
+}
+
+function sortMatchesBySchedule(a: MatchData, b: MatchData) {
+  const jornadaA = a.jornada ?? 9999;
+  const jornadaB = b.jornada ?? 9999;
+  if (jornadaA !== jornadaB) return jornadaA - jornadaB;
+  return (a.id ?? 0) - (b.id ?? 0);
+}
+
 export default function MissingMatchesModal({ open, onClose, seasonId, teams, matches }: MissingMatchesModalProps) {
+  const { message: messageApi, modal } = App.useApp();
   const qc = useQueryClient();
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
-  const [viewMode, setViewMode] = useState<'jornadas' | 'comparativa' | 'faltantes' | 'conflictos' | 'completos'>('jornadas');
+  const [viewMode, setViewMode] = useState<'faltantes' | 'registrados' | 'conflictos'>('faltantes');
+  const [teamFilterIds, setTeamFilterIds] = useState<number[]>([]);
+  const [vueltaFilter, setVueltaFilter] = useState<'all' | 'ida' | 'vuelta'>('all');
+  const [missingStateFilter, setMissingStateFilter] = useState<'all' | 'pending_no_date' | 'scheduled_no_result' | 'played'>('all');
+  const [courtFilter, setCourtFilter] = useState<'all' | string>('all');
   const teamsById = useMemo(
     () => Object.fromEntries(teams.map((team) => [team.id, team])),
     [teams]
@@ -176,15 +200,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
             away: audit.teamB,
             pairLabel: audit.pairLabel,
             pairKey: audit.key,
-            reason: 'No existe ningún juego entre estos equipos.',
-          });
-          faltantes.push({
-            key: `${audit.key}-vuelta`,
-            home: audit.teamB,
-            away: audit.teamA,
-            pairLabel: audit.pairLabel,
-            pairKey: audit.key,
-            reason: 'No existe ningún juego entre estos equipos.',
+            reason: 'No existe ningún juego entre estos equipos. Al crear la ida se reservará la vuelta espejo.',
           });
           return;
         }
@@ -206,178 +222,141 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
     return faltantes;
   }, [pairAudit]);
 
+  const applyPairFilters = (homeId: number, awayId: number, vuelta?: 'ida' | 'vuelta', match?: MatchData | null) => {
+    const passTeam = teamFilterIds.length === 0 || teamFilterIds.includes(homeId) || teamFilterIds.includes(awayId);
+    const passVuelta = vueltaFilter === 'all' || vuelta === vueltaFilter;
+    const passCourt = courtFilter === 'all' || match?.court === courtFilter;
+    let passState = true;
+    if (missingStateFilter === 'pending_no_date') {
+      passState = !match || (match.status === 'Pendiente' && !match.scheduled_date);
+    } else if (missingStateFilter === 'scheduled_no_result') {
+      passState = Boolean(match && match.status === 'Programado');
+    } else if (missingStateFilter === 'played') {
+      passState = Boolean(match && ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(match.status ?? ''));
+    }
+    return passTeam && passVuelta && passCourt && passState;
+  };
+
+  const filteredMissingMatches = missingMatches.filter((record) => {
+    const vuelta = record.key.endsWith('-ida') ? 'ida' : 'vuelta';
+    return applyPairFilters(record.home.id, record.away.id, vuelta, null);
+  });
+
+  const registeredMatches = useMemo<RegisteredMatchRow[]>(() => {
+    return matches
+      .filter((match) => isRegularPhase(match.phase))
+      .map((match) => ({
+        ...match,
+        key: String(match.id ?? `${match.home_team_id}-${match.away_team_id}-${match.jornada ?? 'na'}`),
+        homeName: teamsById[match.home_team_id]?.name ?? `#${match.home_team_id}`,
+        awayName: teamsById[match.away_team_id]?.name ?? `#${match.away_team_id}`,
+      }))
+      .sort(sortMatchesBySchedule);
+  }, [matches, teamsById]);
+
+  const filteredRegisteredMatches = registeredMatches.filter((match) => (
+    applyPairFilters(
+      match.home_team_id,
+      match.away_team_id,
+      match.vuelta === 'ida' || match.vuelta === 'vuelta' ? match.vuelta : undefined,
+      match
+    )
+  ));
+
   const conflictingPairs = useMemo(
     () => pairAudit.filter((audit) => audit.status === 'conflicto'),
     [pairAudit]
   );
 
-  const completePairs = useMemo(
-    () => pairAudit.filter((audit) => audit.status === 'completo'),
-    [pairAudit]
-  );
-
-  const comparisonRows = useMemo<ComparisonRow[]>(() => {
-    return pairAudit.map((audit) => {
-      const firstLeg = audit.orderedMatches[0] ?? null;
-      const secondLeg = audit.orderedMatches[1] ?? null;
-
-      if (!firstLeg) {
-        return {
-          key: audit.key,
-          pairLabel: audit.pairLabel,
-          firstLeg: null,
-          secondLeg: null,
-          expectedHome: audit.teamA,
-          expectedAway: audit.teamB,
-          status: 'faltante',
-          note: 'No existe primera vuelta todavía.',
-        };
-      }
-
-      const expectedHome = firstLeg.away_team_id === audit.teamA.id ? audit.teamA : audit.teamB;
-      const expectedAway = expectedHome.id === audit.teamA.id ? audit.teamB : audit.teamA;
-
-      if (!secondLeg) {
-        return {
-          key: audit.key,
-          pairLabel: audit.pairLabel,
-          firstLeg,
-          secondLeg: null,
-          expectedHome,
-          expectedAway,
-          status: 'faltante',
-          note: 'Falta programar el espejo de la primera vuelta.',
-        };
-      }
-
-      const secondIsMirror = secondLeg.home_team_id === expectedHome.id && secondLeg.away_team_id === expectedAway.id;
-      const hasExtraMatches = audit.orderedMatches.length > 2;
-
-      let status: ComparisonRow['status'] = 'listo';
-      let note = 'Segunda vuelta correcta.';
-
-      if (!secondIsMirror) {
-        status = 'conflicto';
-        note = 'La segunda vuelta no respeta el espejo de la primera.';
-      } else if (hasExtraMatches) {
-        status = 'conflicto';
-        note = 'Existe el espejo, pero además hay partidos extra para esta pareja.';
-      }
-
-      return {
-        key: audit.key,
-        pairLabel: audit.pairLabel,
-        firstLeg,
-        secondLeg,
-        expectedHome,
-        expectedAway,
-        status,
-        note,
-      };
-    });
-  }, [pairAudit]);
-
-  const regularMatches = useMemo(
-    () => matches.filter((m) => m.phase === 'Fase Regular'),
-    [matches]
-  );
-
-  const regularJornadas = useMemo(
-    () => Array.from(new Set(regularMatches.map((m) => m.jornada).filter((j): j is number => typeof j === 'number'))).sort((a, b) => a - b),
-    [regularMatches]
-  );
-
-  const jornadaMirrorRows = useMemo<JornadaMirrorRow[]>(() => {
-    const rows: JornadaMirrorRow[] = [];
-    const half = Math.ceil(regularJornadas.length / 2);
-    const firstLegJornadas = regularJornadas.slice(0, half);
-    const secondLegJornadas = regularJornadas.slice(half);
-
-    firstLegJornadas.forEach((firstJornada, index) => {
-      const secondJornada = secondLegJornadas[index] ?? null;
-      const firstMatches = regularMatches
-        .filter((m) => m.jornada === firstJornada)
-        .sort((a, b) => {
-          const homeA = teamsById[a.home_team_id]?.name ?? '';
-          const homeB = teamsById[b.home_team_id]?.name ?? '';
-          if (homeA !== homeB) return homeA.localeCompare(homeB);
-          const awayA = teamsById[a.away_team_id]?.name ?? '';
-          const awayB = teamsById[b.away_team_id]?.name ?? '';
-          return awayA.localeCompare(awayB);
-        });
-
-      const secondMatches = secondJornada === null
-        ? []
-        : regularMatches.filter((m) => m.jornada === secondJornada);
-
-      const usedSecondMatchIds = new Set<number>();
-
-      firstMatches.forEach((firstMatch, matchIndex) => {
-        const expectedHome = teamsById[firstMatch.away_team_id] ?? null;
-        const expectedAway = teamsById[firstMatch.home_team_id] ?? null;
-        const matchedSecond = secondMatches.find((candidate) => {
-          if (candidate.id && usedSecondMatchIds.has(candidate.id)) return false;
-          return candidate.home_team_id === firstMatch.away_team_id && candidate.away_team_id === firstMatch.home_team_id;
-        }) ?? null;
-
-        if (matchedSecond?.id) usedSecondMatchIds.add(matchedSecond.id);
-
-        rows.push({
-          key: `${firstJornada}-${secondJornada ?? 'na'}-${firstMatch.id ?? matchIndex}`,
-          firstJornada,
-          secondJornada,
-          firstMatch,
-          secondMatch: matchedSecond,
-          expectedHome,
-          expectedAway,
-          status: secondJornada === null
-            ? 'sin-segunda'
-            : matchedSecond
-              ? 'listo'
-              : 'faltante',
-          note: secondJornada === null
-            ? 'Todavía no existe una jornada espejo para esta jornada.'
-            : matchedSecond
-              ? 'El espejo está capturado en la jornada correspondiente.'
-              : 'Falta capturar el espejo de este partido en la jornada correspondiente.',
-        });
-      });
-
-      secondMatches
-        .filter((match) => !match.id || !usedSecondMatchIds.has(match.id))
-        .forEach((extraMatch, extraIndex) => {
-          rows.push({
-            key: `${firstJornada}-${secondJornada ?? 'na'}-extra-${extraMatch.id ?? extraIndex}`,
-            firstJornada,
-            secondJornada,
-            firstMatch: null,
-            secondMatch: extraMatch,
-            expectedHome: null,
-            expectedAway: null,
-            status: 'extra',
-            note: 'Existe en la jornada espejo, pero no encontró partido base en la primera vuelta.',
-          });
-        });
-    });
-
-    return rows;
-  }, [regularJornadas, regularMatches, teamsById]);
+  const filteredConflictingPairs = conflictingPairs.filter((audit) => {
+    const representative = audit.orderedMatches[0] ?? null;
+    return applyPairFilters(audit.teamA.id, audit.teamB.id, representative?.vuelta === 'ida' || representative?.vuelta === 'vuelta' ? representative.vuelta : undefined, representative);
+  });
 
   const createMissingMatch = useMutation({
     mutationFn: async (vars: MutationVars) => {
-      const { error } = await supabase.from('matches').insert({
-        season_id: seasonId,
-        phase: 'Fase Regular',
-        status: 'Programado',
-        ...vars
+      const scheduleCheck = checkSchedulingConflicts({
+        matches,
+        teams,
+        homeTeamId: vars.home_team_id,
+        awayTeamId: vars.away_team_id,
+        scheduledDate: vars.scheduled_date,
+        timeStr: vars.time_str,
+        court: vars.court,
       });
+      if (scheduleCheck.blocking.length > 0) {
+        throw new Error(scheduleCheck.blocking.join(' '));
+      }
+      if (scheduleCheck.warnings.length > 0 && !vars.forceScheduleWarnings) {
+        throw new Error(`Revisa estas alertas de programación: ${scheduleCheck.warnings.join(' ')}`);
+      }
+
+      const existingRegularMatches = matches
+        .filter((match) => isRegularPhase(match.phase) && isSamePair(match, vars.home_team_id, vars.away_team_id))
+        .sort(sortMatchesBySchedule);
+
+      if (existingRegularMatches.length >= 2) {
+        throw new Error('No se puede crear otro partido: esta pareja ya tiene ida y vuelta registrados.');
+      }
+
+      if (existingRegularMatches.some((match) => match.vuelta === vars.vuelta)) {
+        throw new Error(`Ya existe un partido de ${vars.vuelta} para esta pareja.`);
+      }
+
+      if (vars.reserveMirror && existingRegularMatches.length > 0) {
+        throw new Error('No se puede reservar ida y vuelta porque esta pareja ya tiene un partido registrado.');
+      }
+
+      if (!vars.reserveMirror && existingRegularMatches.length === 1) {
+        const firstLeg = existingRegularMatches[0];
+        const respectsMirror = vars.home_team_id === firstLeg.away_team_id && vars.away_team_id === firstLeg.home_team_id;
+        if (!respectsMirror) {
+          throw new Error('Este cruce no respeta el espejo de la ida. Corrige la localía antes de programarlo.');
+        }
+      }
+
+      const matchVars = { ...vars };
+      const reserveMirror = matchVars.reserveMirror;
+      delete matchVars.reserveMirror;
+      delete matchVars.forceScheduleWarnings;
+      const rows = reserveMirror
+        ? [
+            {
+              season_id: seasonId,
+              phase: 'Fase Regular',
+              status: 'Programado',
+              ...matchVars,
+            },
+            {
+              season_id: seasonId,
+              phase: 'Fase Regular',
+              status: 'Pendiente',
+              home_team_id: vars.away_team_id,
+              away_team_id: vars.home_team_id,
+              jornada: null,
+              court: null,
+              time_str: null,
+              scheduled_date: null,
+              vuelta: 'vuelta',
+            },
+          ]
+        : [
+            {
+              season_id: seasonId,
+              phase: 'Fase Regular',
+              status: 'Programado',
+              ...matchVars,
+            },
+          ];
+
+      const { error } = await supabase.from('matches').insert(rows);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['matches'] });
-      message.success('Partido programado con éxito');
+      messageApi.success('Partido programado con éxito');
     },
-    onError: (e: Error) => message.error(e.message),
+    onError: (e: Error) => messageApi.error(e.message),
   });
 
   const updateRowState = (key: string, field: keyof RowState, value: unknown) => {
@@ -393,18 +372,54 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
   const attemptCreate = (record: MissingMatch) => {
     const s = rowStates[record.key] || { jornada: nextSuggestedJornada };
     if (!s.jornada) {
-      message.error('Debes proporcionar una jornada.');
+      messageApi.error('Debes proporcionar una jornada.');
       return;
     }
     
-    createMissingMatch.mutate({
+    const vars: MutationVars = {
       home_team_id: record.home.id,
       away_team_id: record.away.id,
       jornada: s.jornada,
       court: s.court || null,
       time_str: s.time_str || null,
       scheduled_date: s.scheduled_date ? s.scheduled_date.format('YYYY-MM-DD') : null,
+      vuelta: record.key.endsWith('-ida') ? 'ida' : 'vuelta',
+      reserveMirror: record.key.endsWith('-ida'),
+    };
+
+    const scheduleCheck = checkSchedulingConflicts({
+      matches,
+      teams,
+      homeTeamId: vars.home_team_id,
+      awayTeamId: vars.away_team_id,
+      scheduledDate: vars.scheduled_date,
+      timeStr: vars.time_str,
+      court: vars.court,
     });
+
+    if (scheduleCheck.blocking.length > 0) {
+      messageApi.error(scheduleCheck.blocking.join(' '));
+      return;
+    }
+
+    if (scheduleCheck.warnings.length > 0) {
+      modal.confirm({
+        title: 'Revisar programación',
+        content: (
+          <div>
+            {scheduleCheck.warnings.map((warning) => (
+              <div key={warning} style={{ marginBottom: 6 }}>{warning}</div>
+            ))}
+          </div>
+        ),
+        okText: 'Continuar',
+        cancelText: 'Cancelar',
+        onOk: () => createMissingMatch.mutate({ ...vars, forceScheduleWarnings: true }),
+      });
+      return;
+    }
+
+    createMissingMatch.mutate(vars);
   };
 
   const missingColumns = [
@@ -453,7 +468,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
       title: 'Cancha y Hora',
       key: 'court_time',
       render: (_: unknown, record: MissingMatch) => (
-        <Space direction="vertical" size={2}>
+        <Space orientation="vertical" size={2}>
           <Select 
             placeholder="Cancha"
             allowClear
@@ -524,144 +539,35 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
     },
   ];
 
-  const formatMatchLine = (match: MatchData | null, teamsById: Record<number, Team>) => {
-    if (!match) return 'Sin partido';
-    const home = teamsById[match.home_team_id]?.name ?? `#${match.home_team_id}`;
-    const away = teamsById[match.away_team_id]?.name ?? `#${match.away_team_id}`;
-    const jornada = match.jornada ? `J${match.jornada}` : 'J?';
-    const status = match.status ?? 'Sin estatus';
-    const dateBits = [
-      match.scheduled_date ? dayjs(match.scheduled_date).format('DD/MM') : null,
-      match.time_str ?? null,
-      match.court ?? null,
-    ].filter(Boolean);
-    return `${jornada}: ${home} vs ${away} (${status})${dateBits.length ? ` · ${dateBits.join(' · ')}` : ''}`;
-  };
-
-  const comparisonColumns = [
+  const registeredColumns = [
     {
-      title: 'Pareja',
-      key: 'pair',
-      render: (_: unknown, record: ComparisonRow) => (
+      title: 'Partido',
+      key: 'match',
+      render: (_: unknown, record: RegisteredMatchRow) => (
         <div>
-          <b>{record.pairLabel}</b>
+          <b>{record.homeName}</b> <span style={{ color: '#777' }}>vs</span> <b>{record.awayName}</b>
           <div style={{ marginTop: 6 }}>
-            <Tag color={record.status === 'listo' ? 'green' : record.status === 'faltante' ? 'gold' : 'red'}>
-              {record.status === 'listo' ? 'Espejo correcto' : record.status === 'faltante' ? 'Falta espejo' : 'Revisar'}
-            </Tag>
+            <Tag>{record.vuelta ? vueltaLabel[record.vuelta] ?? record.vuelta : 'Sin vuelta'}</Tag>
+            <Tag color={statusColor[record.status ?? ''] ?? 'default'}>{record.status ?? 'Sin estatus'}</Tag>
           </div>
         </div>
-      ),
-      width: 180,
-    },
-    {
-      title: 'Primera Vuelta',
-      key: 'firstLeg',
-      render: (_: unknown, record: ComparisonRow) => (
-        <span style={{ fontSize: 12, color: '#ccc' }}>
-          {formatMatchLine(record.firstLeg, teamsById)}
-        </span>
       ),
       width: 280,
     },
     {
-      title: 'Segunda Vuelta Capturada',
-      key: 'secondLeg',
-      render: (_: unknown, record: ComparisonRow) => (
-        <span style={{ fontSize: 12, color: '#ccc' }}>
-          {formatMatchLine(record.secondLeg, teamsById)}
-        </span>
-      ),
-      width: 280,
-    },
-    {
-      title: 'Espejo Esperado',
-      key: 'expectedMirror',
-      render: (_: unknown, record: ComparisonRow) => (
-        <div style={{ fontSize: 12, color: '#fff' }}>
-          {record.expectedHome && record.expectedAway
-            ? `${record.expectedHome.name} vs ${record.expectedAway.name}`
-            : 'Pendiente de definir'}
-          <div style={{ color: '#888', marginTop: 6 }}>{record.note}</div>
-        </div>
-      ),
+      title: 'Programación',
+      key: 'schedule',
+      render: (_: unknown, record: RegisteredMatchRow) => {
+        const bits = [
+          record.jornada ? `J${record.jornada}` : 'Jornada por definir',
+          record.scheduled_date ? dayjs(record.scheduled_date).format('DD/MM/YYYY') : 'Fecha por definir',
+          record.time_str ?? 'Hora por definir',
+          record.court ?? 'Cancha por definir',
+        ];
+        return <span style={{ color: '#ccc', fontSize: 12 }}>{bits.join(' · ')}</span>;
+      },
     },
   ];
-
-  const jornadaMirrorColumns = [
-    {
-      title: 'Jornadas Espejo',
-      key: 'jornadas',
-      render: (_: unknown, record: JornadaMirrorRow) => (
-        <div>
-          <b>J{record.firstJornada}</b>
-          <span style={{ color: '#888' }}> vs </span>
-          <b>{record.secondJornada ? `J${record.secondJornada}` : 'Sin espejo'}</b>
-          <div style={{ marginTop: 6 }}>
-            <Tag color={
-              record.status === 'listo'
-                ? 'green'
-                : record.status === 'faltante'
-                  ? 'gold'
-                  : record.status === 'extra'
-                    ? 'red'
-                    : 'default'
-            }>
-              {record.status === 'listo'
-                ? 'Correcto'
-                : record.status === 'faltante'
-                  ? 'Faltante'
-                  : record.status === 'extra'
-                    ? 'Extra'
-                    : 'Sin jornada espejo'}
-            </Tag>
-          </div>
-        </div>
-      ),
-      width: 170,
-    },
-    {
-      title: 'Partido Primera Vuelta',
-      key: 'firstMatch',
-      render: (_: unknown, record: JornadaMirrorRow) => (
-        <span style={{ fontSize: 12, color: '#ccc' }}>
-          {formatMatchLine(record.firstMatch, teamsById)}
-        </span>
-      ),
-      width: 290,
-    },
-    {
-      title: 'Partido Segunda Vuelta',
-      key: 'secondMatch',
-      render: (_: unknown, record: JornadaMirrorRow) => (
-        <span style={{ fontSize: 12, color: '#ccc' }}>
-          {formatMatchLine(record.secondMatch, teamsById)}
-        </span>
-      ),
-      width: 290,
-    },
-    {
-      title: 'Espejo Esperado',
-      key: 'expected',
-      render: (_: unknown, record: JornadaMirrorRow) => (
-        <div style={{ fontSize: 12 }}>
-          <div style={{ color: '#fff' }}>
-            {record.expectedHome && record.expectedAway
-              ? `${record.expectedHome.name} vs ${record.expectedAway.name}`
-              : 'Sin referencia'}
-          </div>
-          <div style={{ color: '#888', marginTop: 6 }}>{record.note}</div>
-        </div>
-      ),
-    },
-  ];
-
-  const jornadaMirrorSummary = useMemo(() => ({
-    total: jornadaMirrorRows.length,
-    ready: jornadaMirrorRows.filter((row) => row.status === 'listo').length,
-    missing: jornadaMirrorRows.filter((row) => row.status === 'faltante').length,
-    extra: jornadaMirrorRows.filter((row) => row.status === 'extra').length,
-  }), [jornadaMirrorRows]);
 
   const summaryBox = (label: string, value: number, color: string) => (
     <div
@@ -680,75 +586,98 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
 
   return (
     <Modal
-      title={<span style={{ color: '#FAAD14' }}>🔍 Revisión de Partidos Faltantes</span>}
+      title={<span style={{ color: '#FAAD14' }}>Partidos Faltantes</span>}
       open={open}
       onCancel={onClose}
       footer={null}
       width={1080}
-      destroyOnClose
+      destroyOnHidden
     >
-      <div style={{ marginBottom: 16, color: '#ccc', lineHeight: 1.5 }}>
-        La revisión compara cada pareja de equipos activos en <b>Fase Regular</b>. Sólo se pueden programar aquí los faltantes seguros.
-        Si una pareja ya tiene 2 juegos mal capturados o más de 2 juegos, se manda a <b>Conflictos</b> para evitar triplicar partidos.
+      <div style={{ marginBottom: 14, color: '#aaa', lineHeight: 1.5 }}>
+        Revisión de cruces de fase regular por pareja de equipos. Los partidos con conflicto se separan para evitar duplicados.
       </div>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-        {summaryBox('Cruces por jornada', jornadaMirrorSummary.total, '#1677ff')}
-        {summaryBox('Espejos correctos', jornadaMirrorSummary.ready, '#52c41a')}
-        {summaryBox('Espejos faltantes', jornadaMirrorSummary.missing, '#faad14')}
-        {summaryBox('Partidos extra', jornadaMirrorSummary.extra, '#ff4d4f')}
-        {summaryBox('Faltantes seguros', missingMatches.length, '#faad14')}
-        {summaryBox('Parejas con conflicto', conflictingPairs.length, '#ff4d4f')}
-        {summaryBox('Parejas completas', completePairs.length, '#52c41a')}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+        {summaryBox('Faltantes', filteredMissingMatches.length, '#faad14')}
+        {summaryBox('Registrados', filteredRegisteredMatches.length, '#1677ff')}
+        {summaryBox('Conflictos', filteredConflictingPairs.length, '#ff4d4f')}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, marginBottom: 14 }}>
+        <Select
+          mode="multiple"
+          allowClear
+          maxTagCount="responsive"
+          placeholder="Equipo"
+          value={teamFilterIds}
+          onChange={setTeamFilterIds}
+          options={teams.map((team) => ({ label: team.name, value: team.id }))}
+          optionFilterProp="label"
+        />
+        <Select
+          value={vueltaFilter}
+          onChange={setVueltaFilter}
+          options={[
+            { label: 'Todas las vueltas', value: 'all' },
+            { label: 'Ida', value: 'ida' },
+            { label: 'Vuelta', value: 'vuelta' },
+          ]}
+        />
+        <Select
+          value={missingStateFilter}
+          onChange={setMissingStateFilter}
+          options={[
+            { label: 'Todos los estados', value: 'all' },
+            { label: 'Pendiente sin fecha', value: 'pending_no_date' },
+            { label: 'Programado sin resultado', value: 'scheduled_no_result' },
+            { label: 'Jugado', value: 'played' },
+          ]}
+        />
+        <Select
+          value={courtFilter}
+          onChange={setCourtFilter}
+          options={[
+            { label: 'Todas las canchas', value: 'all' },
+            ...COURTS.map((court) => ({ label: court, value: court })),
+          ]}
+        />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <Segmented
           value={viewMode}
-          onChange={(value) => setViewMode(value as 'jornadas' | 'comparativa' | 'faltantes' | 'conflictos' | 'completos')}
+          onChange={(value) => setViewMode(value as 'faltantes' | 'registrados' | 'conflictos')}
           options={[
-            { label: `Jornadas Espejo (${jornadaMirrorRows.length})`, value: 'jornadas' },
-            { label: `Comparativa (${comparisonRows.length})`, value: 'comparativa' },
-            { label: `Faltantes (${missingMatches.length})`, value: 'faltantes' },
-            { label: `Conflictos (${conflictingPairs.length})`, value: 'conflictos' },
-            { label: `Completos (${completePairs.length})`, value: 'completos' },
+            { label: `Faltantes (${filteredMissingMatches.length})`, value: 'faltantes' },
+            { label: `Registrados (${filteredRegisteredMatches.length})`, value: 'registrados' },
+            { label: `Conflictos (${filteredConflictingPairs.length})`, value: 'conflictos' },
           ]}
         />
         <Tag color="gold" style={{ alignSelf: 'center', padding: '4px 10px' }}>
           Jornada sugerida para nuevos juegos: J{nextSuggestedJornada}
         </Tag>
       </div>
-      {viewMode === 'jornadas' ? (
-        <Table<JornadaMirrorRow>
-          dataSource={jornadaMirrorRows}
-          columns={jornadaMirrorColumns}
-          pagination={{ pageSize: 20 }}
-          locale={{ emptyText: 'No hay jornadas regulares suficientes para comparar.' }}
-          scroll={{ x: 1100, y: 500 }}
-          size="small"
-        />
-      ) : viewMode === 'comparativa' ? (
-        <Table<ComparisonRow>
-          dataSource={comparisonRows}
-          columns={comparisonColumns}
-          pagination={{ pageSize: 15 }}
-          locale={{ emptyText: 'No hay parejas para comparar.' }}
-          scroll={{ x: 1080, y: 500 }}
-          size="small"
-        />
-      ) : viewMode === 'faltantes' ? (
+      {viewMode === 'faltantes' ? (
         <Table<MissingMatch>
-          dataSource={missingMatches}
+          dataSource={filteredMissingMatches}
           columns={missingColumns}
           pagination={{ pageSize: 15 }}
           locale={{ emptyText: 'No hay faltantes seguros por programar.' }}
           scroll={{ x: 960, y: 500 }}
           size="small"
         />
+      ) : viewMode === 'registrados' ? (
+        <Table<RegisteredMatchRow>
+          dataSource={filteredRegisteredMatches}
+          columns={registeredColumns}
+          pagination={{ pageSize: 15 }}
+          locale={{ emptyText: 'No hay partidos registrados con esos filtros.' }}
+          scroll={{ x: 760, y: 500 }}
+          size="small"
+        />
       ) : (
         <Table<PairAudit>
-          dataSource={viewMode === 'conflictos' ? conflictingPairs : completePairs}
+          dataSource={filteredConflictingPairs}
           columns={pairColumns}
           pagination={{ pageSize: 15 }}
-          locale={{ emptyText: viewMode === 'conflictos' ? 'No hay conflictos detectados.' : 'No hay parejas completas todavía.' }}
+          locale={{ emptyText: 'No hay conflictos detectados.' }}
           scroll={{ x: 960, y: 500 }}
           size="small"
         />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Modal, Button, Checkbox, Select, Typography, message } from 'antd';
+import { Modal, Button, Checkbox, Select, Typography, App } from 'antd';
 import { calcularPosiciones, MatchForStandings, TeamStats } from '@/lib/standings';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ const { Title, Text } = Typography;
 
 interface Match {
   id: number;
-  jornada: number;
+  jornada: number | null;
   phase: string;
   home_team_id: number;
   away_team_id: number;
@@ -34,6 +34,7 @@ export default function LiguillaModal({
   matches: Match[];
   teams: unknown[];
 }) {
+  const { message: messageApi } = App.useApp();
   const qc = useQueryClient();
   const [step, setStep] = useState(1);
   const [formatCuartos, setFormatCuartos] = useState<'1' | '3'>('1');
@@ -69,23 +70,29 @@ export default function LiguillaModal({
     try {
       const { error } = await supabase.from('matches').insert(matchesArray);
       if (error) throw error;
-      message.success('Partidos de liguilla inyectados al calendario.');
+      messageApi.success('Partidos de liguilla inyectados al calendario.');
       qc.invalidateQueries({ queryKey: ['matches'] });
       onClose();
     } catch (err: unknown) {
       if (err instanceof Error) {
-        message.error(err.message);
+        messageApi.error(err.message);
       } else {
-        message.error('Ocurrió un error inesperado al insertar partidos.');
+        messageApi.error('Ocurrió un error inesperado al insertar partidos.');
       }
     } finally {
       setLoading(false);
     }
   };
 
+  const getNextJornada = () => {
+    const jornadas = matches.map((m) => m.jornada).filter((j): j is number => typeof j === 'number');
+    const maxJornada = jornadas.length > 0 ? Math.max(...jornadas) : 10;
+    return maxJornada + 1;
+  };
+
   const generateCuartos = () => {
     if (top8.length < 8) {
-      message.error('No hay suficientes equipos (se necesitan 8) para arrancar la liguilla.');
+      messageApi.error('No hay suficientes equipos (se necesitan 8) para arrancar la liguilla.');
       return;
     }
 
@@ -97,8 +104,7 @@ export default function LiguillaModal({
     ];
 
     const toInsert: Record<string, unknown>[] = [];
-    const maxJornada = matches.length > 0 ? Math.max(...matches.map(m => m.jornada)) : 10;
-    const nextJornada = maxJornada + 1;
+    const nextJornada = getNextJornada();
 
     matchPairs.forEach(pair => {
       const loop = formatCuartos === '3' ? 3 : 1;
@@ -108,6 +114,7 @@ export default function LiguillaModal({
           jornada: loop === 1 ? nextJornada : nextJornada + (i - 1),
           phase: 'Cuartos de Final',
           status: 'Programado',
+          vuelta: 'liguilla',
           home_team_id: i === 2 ? pair.a.id : pair.h.id, // Game 2 the away team is home
           away_team_id: i === 2 ? pair.h.id : pair.a.id,
         });
@@ -119,7 +126,7 @@ export default function LiguillaModal({
 
   const generateSemis = () => {
     if (selectedSemisTeamIds.length !== 4) {
-      message.error('Debes seleccionar exactamente 4 equipos vencedores para arrancar la Semifinal.');
+      messageApi.error('Debes seleccionar exactamente 4 equipos vencedores para arrancar la Semifinal.');
       return;
     }
 
@@ -142,8 +149,7 @@ export default function LiguillaModal({
     ];
 
     const toInsert: Record<string, unknown>[] = [];
-    const maxJornada = matches.length > 0 ? Math.max(...matches.map(m => m.jornada)) : 10;
-    const nextJornada = maxJornada + 1;
+    const nextJornada = getNextJornada();
 
     matchPairs.forEach(pair => {
       const loop = formatSemis === '3' ? 3 : 1;
@@ -153,6 +159,7 @@ export default function LiguillaModal({
           jornada: loop === 1 ? nextJornada : nextJornada + (i - 1),
           phase: 'Semifinal',
           status: 'Programado',
+          vuelta: 'liguilla',
           home_team_id: i === 2 ? pair.a.id : pair.h.id,
           away_team_id: i === 2 ? pair.h.id : pair.a.id,
         });
@@ -164,7 +171,7 @@ export default function LiguillaModal({
 
   const generateFinals = () => {
     if (selectedFinalistsIds.length !== 2) {
-      message.error('Debes seleccionar exactamente 2 equipos vencedores para arrancar la Final.');
+      messageApi.error('Debes seleccionar exactamente 2 equipos vencedores para arrancar la Final.');
       return;
     }
 
@@ -178,12 +185,12 @@ export default function LiguillaModal({
     const losersArray = Array.from(allSemiTeamIds); // Estos van a 3er lugar
 
     const toInsert: Record<string, unknown>[] = [];
-    const maxJornada = matches.length > 0 ? Math.max(...matches.map(m => m.jornada)) : 10;
-    const nextJornada = maxJornada + 1;
+    const nextJornada = getNextJornada();
 
     // Gran Final
     toInsert.push({
       season_id: seasonId, jornada: nextJornada, phase: 'Final', status: 'Programado',
+      vuelta: 'liguilla',
       home_team_id: selectedFinalistsIds[0], away_team_id: selectedFinalistsIds[1],
     });
 
@@ -191,6 +198,7 @@ export default function LiguillaModal({
     if (losersArray.length === 2) {
       toInsert.push({
         season_id: seasonId, jornada: nextJornada, phase: 'Tercer Lugar', status: 'Programado',
+        vuelta: 'liguilla',
         home_team_id: losersArray[0], away_team_id: losersArray[1],
       });
     }

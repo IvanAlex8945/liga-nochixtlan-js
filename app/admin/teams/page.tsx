@@ -48,6 +48,8 @@ interface Team {
   permissions_used: number;
   defaults_count: number;
   season_id: number;
+  match_frequency_days?: number | null;
+  preferred_time_notes?: string | null;
 }
 
 interface Player {
@@ -664,6 +666,8 @@ export default function TeamsPage() {
     mutationFn: async (values: Partial<Team>) => {
       const payload = {
         ...values,
+        match_frequency_days: values.match_frequency_days ? Number(values.match_frequency_days) : null,
+        preferred_time_notes: values.preferred_time_notes?.trim() || null,
         season_id: seasonId!,
         status: values.status ?? 'Activo',
       };
@@ -1254,6 +1258,12 @@ export default function TeamsPage() {
           </Form.Item>
           <Form.Item name="defaults_count" label="W.O. acumulados">
             <Input type="number" min={0} />
+          </Form.Item>
+          <Form.Item name="match_frequency_days" label="Frecuencia mínima sugerida (días)">
+            <Input type="number" min={1} placeholder="Sin restricción" />
+          </Form.Item>
+          <Form.Item name="preferred_time_notes" label="Notas de horario / preferencia">
+            <Input.TextArea rows={3} placeholder="Ej. Prefiere viernes después de 8 PM; equipo de fuera." />
           </Form.Item>
         </Form>
       </Modal>
