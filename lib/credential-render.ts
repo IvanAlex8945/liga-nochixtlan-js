@@ -15,8 +15,28 @@ export interface CredentialRenderInput {
 
 const CARD_WIDTH = 1586;
 const CARD_HEIGHT = 992;
-const TEMPLATE_SRC = '/credentials/base_credencial_bueno.png';
-let templateImagePromise: Promise<HTMLImageElement> | null = null;
+const TEMPLATE_BY_CATEGORY = {
+  femenil: '/credentials/credencial_base_femenil.png',
+  libre: '/credentials/base_credencial_bueno.png',
+  tercera: '/credentials/credencial_base_tercera.png',
+} as const;
+const templateImagePromises = new Map<string, Promise<HTMLImageElement>>();
+
+interface CredentialLayout {
+  categoryCenterY: number;
+  fieldLeftX: number;
+  fieldRightX: number;
+  footerPeriodX: number;
+  footerPeriodY: number;
+  lowerFieldsY: number;
+  nameBoxHeight: number;
+  nameBoxY: number;
+  photoY: number;
+  qrBoxX: number;
+  qrBoxY: number;
+  teamCenterY: number;
+  upperFieldsY: number;
+}
 
 const COLORS = {
   accent: '#F5A623',
@@ -38,35 +58,40 @@ export async function renderCredentialImage(input: CredentialRenderInput) {
     throw new Error('No se pudo preparar la credencial digital.');
   }
 
-  const template = await loadCredentialTemplate();
+  const layout = getCredentialLayout(input.category);
+  const template = await loadCredentialTemplate(input.category);
   context.drawImage(template, 0, 0, CARD_WIDTH, CARD_HEIGHT);
 
-  await drawPlayerPhoto(context, input);
+  await drawPlayerPhoto(context, input, layout);
   drawStatusBadge(context, input.statusLabel);
-  drawPlayerName(context, input.playerName);
+  drawPlayerName(context, input.playerName, layout);
   drawCenteredGoldText(context, input.teamName, {
     centerX: 796,
-    centerY: 424,
+    centerY: layout.teamCenterY,
     fontSize: 56,
     maxWidth: 650,
   });
   drawCenteredGoldText(context, input.category || 'Libre', {
     centerX: 798,
-    centerY: 557,
+    centerY: layout.categoryCenterY,
     fontSize: 56,
     maxWidth: 520,
   });
   drawDorsal(context, input);
-  drawSeasonFields(context, input);
-  await drawQr(context, input.verifyUrl);
+  drawSeasonFields(context, input, layout);
+  await drawQr(context, input.verifyUrl, layout);
   drawOfficialDocument(context, input.credentialCode);
-  drawFooterSeason(context, input.seasonName);
+  drawFooterSeason(context, input.seasonName, layout);
 
   return canvas.toDataURL('image/png');
 }
 
-async function drawPlayerPhoto(context: CanvasRenderingContext2D, input: CredentialRenderInput) {
-  const photoBox = { x: 64, y: 173, width: 318, height: 363, radius: 8 };
+async function drawPlayerPhoto(
+  context: CanvasRenderingContext2D,
+  input: CredentialRenderInput,
+  layout: CredentialLayout
+) {
+  const photoBox = { x: 64, y: layout.photoY, width: 318, height: 363, radius: 8 };
 
   context.save();
   roundRect(context, photoBox.x, photoBox.y, photoBox.width, photoBox.height, photoBox.radius);
@@ -140,11 +165,20 @@ function drawStatusBadge(context: CanvasRenderingContext2D, statusLabel: string)
   context.restore();
 }
 
-function drawPlayerName(context: CanvasRenderingContext2D, playerName: string) {
+function drawPlayerName(
+  context: CanvasRenderingContext2D,
+  playerName: string,
+  layout: CredentialLayout
+) {
   const name = playerName.trim().toUpperCase();
-  const box = { x: 456, y: 222, width: 690, height: 102 };
-  const lines = fitTextLines(context, name, box.width, 74, 42, 2);
-  const lineHeight = lines.fontSize * 1.06;
+  const box = {
+    x: 456,
+    y: layout.nameBoxY,
+    width: 690,
+    height: layout.nameBoxHeight,
+  };
+  const lines = fitPlayerName(context, name, box.width, box.height);
+  const lineHeight = lines.fontSize * 1.02;
   const firstY = box.y + box.height / 2 - ((lines.text.length - 1) * lineHeight) / 2;
 
   context.save();
@@ -163,65 +197,66 @@ function drawPlayerName(context: CanvasRenderingContext2D, playerName: string) {
 
 function drawDorsal(context: CanvasRenderingContext2D, input: CredentialRenderInput) {
   const numberText = input.number !== null ? String(input.number) : '--';
-  const team = input.teamName.toUpperCase();
 
   context.save();
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   drawGoldText(context, numberText, {
     x: 220,
-    y: 746,
-    fontSize: numberText.length > 2 ? 120 : 176,
+    y: 764,
+    fontSize: numberText.length > 2 ? 128 : 188,
     fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
     maxWidth: 270,
   });
-
-  context.font = '900 36px "Arial Narrow", Impact, system-ui, sans-serif';
-  context.fillStyle = COLORS.accent;
-  context.shadowColor = 'rgba(245,166,35,0.55)';
-  context.shadowBlur = 8;
-  context.fillText(truncateText(context, team, 300), 220, 834);
   context.restore();
 }
 
-function drawSeasonFields(context: CanvasRenderingContext2D, input: CredentialRenderInput) {
+function drawSeasonFields(
+  context: CanvasRenderingContext2D,
+  input: CredentialRenderInput,
+  layout: CredentialLayout
+) {
   const period = extractSeasonPeriod(input.seasonName);
   const issued = formatIssuedAt(input.issuedAt).toUpperCase();
 
   drawGoldText(context, period, {
-    x: 544,
-    y: 691,
+    x: layout.fieldLeftX,
+    y: layout.upperFieldsY,
     fontSize: 34,
     fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
     maxWidth: 190,
   });
 
   drawGoldText(context, issued, {
-    x: 894,
-    y: 691,
+    x: layout.fieldRightX,
+    y: layout.upperFieldsY,
     fontSize: 38,
     fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
     maxWidth: 250,
   });
 
   drawGoldText(context, period, {
-    x: 544,
-    y: 813,
+    x: layout.fieldLeftX,
+    y: layout.lowerFieldsY,
     fontSize: 34,
     fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
     maxWidth: 190,
   });
 
   drawGoldText(context, input.credentialCode.toUpperCase(), {
-    x: 894,
-    y: 813,
+    x: layout.fieldRightX,
+    y: layout.lowerFieldsY,
     fontSize: 35,
     fontFamily: '"Arial Narrow", Impact, ui-monospace, monospace',
     maxWidth: 260,
   });
 }
 
-async function drawQr(context: CanvasRenderingContext2D, verifyUrl: string) {
+async function drawQr(
+  context: CanvasRenderingContext2D,
+  verifyUrl: string,
+  layout: CredentialLayout
+) {
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
     margin: 1,
     width: 286,
@@ -231,12 +266,14 @@ async function drawQr(context: CanvasRenderingContext2D, verifyUrl: string) {
     },
   });
   const qrImage = await loadImage(qrDataUrl);
+  const qrImageX = layout.qrBoxX + 8;
+  const qrImageY = layout.qrBoxY + 10;
 
   context.save();
-  roundRect(context, 1224, 228, 293, 322, 10);
+  roundRect(context, layout.qrBoxX, layout.qrBoxY, 293, 322, 10);
   context.fillStyle = COLORS.white;
   context.fill();
-  context.drawImage(qrImage, 1232, 238, 276, 276);
+  context.drawImage(qrImage, qrImageX, qrImageY, 276, 276);
   context.restore();
 }
 
@@ -244,7 +281,7 @@ function drawOfficialDocument(context: CanvasRenderingContext2D, credentialCode:
   const shortCode = credentialCode.replace(/[^A-Z0-9]/gi, '').slice(-10).toUpperCase();
 
   context.save();
-  drawBarcode(context, 1216, 713, 300, 68, credentialCode);
+  drawBarcode(context, 1216, 700, 300, 68, credentialCode);
 
   context.font = '900 26px "Arial Narrow", Impact, ui-monospace, monospace';
   context.textAlign = 'center';
@@ -252,11 +289,15 @@ function drawOfficialDocument(context: CanvasRenderingContext2D, credentialCode:
   context.fillStyle = COLORS.accent;
   context.shadowColor = 'rgba(245,166,35,0.5)';
   context.shadowBlur = 8;
-  drawTrackedText(context, shortCode, 1366 - measureTrackedText(context, shortCode, 6) / 2, 816, 6);
+  drawTrackedText(context, shortCode, 1366 - measureTrackedText(context, shortCode, 6) / 2, 793, 6);
   context.restore();
 }
 
-function drawFooterSeason(context: CanvasRenderingContext2D, seasonName: string) {
+function drawFooterSeason(
+  context: CanvasRenderingContext2D,
+  seasonName: string,
+  layout: CredentialLayout
+) {
   const period = extractSeasonPeriod(seasonName);
 
   context.save();
@@ -266,7 +307,7 @@ function drawFooterSeason(context: CanvasRenderingContext2D, seasonName: string)
   context.fillStyle = COLORS.cyan;
   context.shadowColor = 'rgba(69,244,210,0.55)';
   context.shadowBlur = 10;
-  drawTrackedText(context, period, 1346, 935, 2);
+  drawTrackedText(context, period, layout.footerPeriodX, layout.footerPeriodY, 2);
   context.restore();
 }
 
@@ -376,29 +417,32 @@ function drawBarcode(
   }
 }
 
-function fitTextLines(
+function fitPlayerName(
   context: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,
-  startSize: number,
-  minSize: number,
-  maxLines: number
+  maxHeight: number
 ) {
-  let fontSize = startSize;
-
-  while (fontSize >= minSize) {
+  for (let fontSize = 74; fontSize >= 46; fontSize -= 2) {
     context.font = `900 ${fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
-    const lines = wrapText(context, text, maxWidth);
 
-    if (lines.length <= maxLines) {
-      return { fontSize, text: lines };
+    if (context.measureText(text).width <= maxWidth) {
+      return { fontSize, text: [text] };
     }
-
-    fontSize -= 2;
   }
 
-  context.font = `900 ${minSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
-  return { fontSize: minSize, text: wrapText(context, text, maxWidth).slice(0, maxLines) };
+  for (let fontSize = 52; fontSize >= 34; fontSize -= 2) {
+    context.font = `900 ${fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
+    const lines = wrapText(context, text, maxWidth);
+    const requiredHeight = lines.length * fontSize * 1.02;
+
+    if (lines.length <= 2 && requiredHeight <= maxHeight - 6) {
+      return { fontSize, text: lines };
+    }
+  }
+
+  context.font = '900 34px "Arial Narrow", Impact, system-ui, sans-serif';
+  return { fontSize: 34, text: wrapText(context, text, maxWidth).slice(0, 2) };
 }
 
 function wrapText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
@@ -525,9 +569,90 @@ function loadImage(src: string) {
   });
 }
 
-function loadCredentialTemplate() {
-  templateImagePromise ??= loadImage(TEMPLATE_SRC);
-  return templateImagePromise;
+function loadCredentialTemplate(category: string) {
+  const templateSrc = getCredentialTemplateSrc(category);
+  const cachedTemplate = templateImagePromises.get(templateSrc);
+
+  if (cachedTemplate) {
+    return cachedTemplate;
+  }
+
+  const templatePromise = loadImage(templateSrc);
+  templateImagePromises.set(templateSrc, templatePromise);
+  return templatePromise;
+}
+
+function getCredentialTemplateSrc(category: string) {
+  const normalizedCategory = normalizeCategory(category);
+
+  if (
+    normalizedCategory === '3ra' ||
+    normalizedCategory.includes('tercera') ||
+    normalizedCategory.includes('3a fuerza') ||
+    normalizedCategory.includes('3ra fuerza')
+  ) {
+    return TEMPLATE_BY_CATEGORY.tercera;
+  }
+
+  if (
+    normalizedCategory === 'femenil' ||
+    normalizedCategory.includes('femenil') ||
+    normalizedCategory.includes('femenina')
+  ) {
+    return TEMPLATE_BY_CATEGORY.femenil;
+  }
+
+  return TEMPLATE_BY_CATEGORY.libre;
+}
+
+function getCredentialLayout(category: string): CredentialLayout {
+  const normalizedCategory = normalizeCategory(category);
+  const isFemenil =
+    normalizedCategory === 'femenil' ||
+    normalizedCategory.includes('femenil') ||
+    normalizedCategory.includes('femenina');
+
+  if (isFemenil) {
+    return {
+      categoryCenterY: 532,
+      fieldLeftX: 544,
+      fieldRightX: 894,
+      footerPeriodX: 1380,
+      footerPeriodY: 919,
+      lowerFieldsY: 793,
+      nameBoxHeight: 92,
+      nameBoxY: 214,
+      photoY: 183,
+      qrBoxX: 1216,
+      qrBoxY: 240,
+      teamCenterY: 402,
+      upperFieldsY: 671,
+    };
+  }
+
+  return {
+    categoryCenterY: 557,
+    fieldLeftX: 544,
+    fieldRightX: 894,
+    footerPeriodX: 1346,
+    footerPeriodY: 935,
+    lowerFieldsY: 813,
+    nameBoxHeight: 102,
+    nameBoxY: 222,
+    photoY: 173,
+    qrBoxX: 1224,
+    qrBoxY: 228,
+    teamCenterY: 424,
+    upperFieldsY: 691,
+  };
+}
+
+function normalizeCategory(category: string) {
+  return category
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 function getInitials(name: string) {
