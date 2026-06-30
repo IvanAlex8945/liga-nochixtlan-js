@@ -11,6 +11,7 @@ import 'dayjs/locale/es';
 import { generateEligibilityPDF } from '@/lib/pdfReport';
 import GameDayBillboard from './GameDayBillboard';
 import { LiguillaBracketTab } from './LiguillaBracket';
+import { buildTeamEncounters, isPlayedStatus, isRegularPhase, type TeamEncounter } from '@/lib/public-team-matches';
 
 dayjs.locale('es');
 
@@ -43,7 +44,9 @@ export interface MatchData {
   away_score?: number | null;
   home_team?: TeamData;
   away_team?: TeamData;
+  vuelta?: 'ida' | 'vuelta' | 'liguilla' | null;
   scheduled_date?: string | null;
+  played_date?: string | null;
   time_str?: string | null;
   court?: string | null;
 }
@@ -326,6 +329,15 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
                     allStats={allStats}
                     seasonMatches={seasonMatches}
                   />
+                </GlassSectionCard>
+              ),
+            },
+            {
+              key: 'team-matches',
+              label: <TabLabel icon="📋" text="Partidos de mi equipo" />,
+              children: (
+                <GlassSectionCard>
+                  <TeamMatchesTab seasonId={selectedSeasonId} teams={teams} matches={seasonMatches} />
                 </GlassSectionCard>
               ),
             },
@@ -702,6 +714,83 @@ function TeamStatsTab({
       )}
     </div>
   );
+}
+
+function formatTeamMatchDate(match: MatchData) {
+  if (!match.scheduled_date) return 'Sin fecha aún';
+  const date = dayjs(match.scheduled_date).format('DD MMM YYYY');
+  return `${date}${match.time_str ? ` · ${match.time_str} hrs` : ''}${match.court ? ` · ${match.court}` : ''}`;
+}
+
+function teamMatchResult(match: MatchData, teamId: number) {
+  const isHome = match.home_team_id === teamId;
+  const pointsFor = isHome ? match.home_score : match.away_score;
+  const pointsAgainst = isHome ? match.away_score : match.home_score;
+  if (typeof pointsFor !== 'number' || typeof pointsAgainst !== 'number') {
+    return { text: match.status ?? 'Resultado pendiente', color: '#f7d774' };
+  }
+  const label = pointsFor > pointsAgainst ? 'Ganaron' : pointsFor < pointsAgainst ? 'Perdieron' : 'Empate';
+  return { text: `${pointsFor} - ${pointsAgainst} · ${label}`, color: pointsFor > pointsAgainst ? '#95de64' : pointsFor < pointsAgainst ? '#ff9c9d' : '#f7d774' };
+}
+
+function TeamMatchesTab({ seasonId, teams, matches }: { seasonId: number | null; teams: TeamData[]; matches: MatchData[] }) {
+  const [teamId, setTeamId] = useState<number | null>(null);
+  const isCoarsePointer = useIsCoarsePointer();
+  const activeTeams = useMemo(() => teams.filter((team) => team.season_id === seasonId).sort((a, b) => a.name.localeCompare(b.name)), [seasonId, teams]);
+  const encounters = useMemo(() => teamId ? buildTeamEncounters(teamId, activeTeams, matches) : [], [activeTeams, matches, teamId]);
+  const pending = encounters.filter((item) => !item.match || !isPlayedStatus(item.match.status));
+  const played = encounters.filter((item): item is TeamEncounter<MatchData> & { match: MatchData } => Boolean(item.match && isPlayedStatus(item.match.status)))
+    .sort((a, b) => dayjs(b.match.played_date ?? b.match.scheduled_date ?? '1900-01-01').valueOf() - dayjs(a.match.played_date ?? a.match.scheduled_date ?? '1900-01-01').valueOf());
+  const playoffs = teamId ? matches.filter((match) => !isRegularPhase(match.phase) && (match.home_team_id === teamId || match.away_team_id === teamId)) : [];
+
+  if (!seasonId) return <Text style={{ color: '#7e7c76' }}>Selecciona una temporada arriba.</Text>;
+  return (
+    <div>
+      <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Selecciona tu equipo:</Text>
+      <Select className="premium-select" style={{ width: '100%', maxWidth: 440, marginBottom: 18 }} placeholder="Seleccionar equipo" value={teamId} onChange={setTeamId}
+        options={activeTeams.map((team) => ({ label: team.name, value: team.id }))} showSearch={!isCoarsePointer}
+        filterOption={(input, option) => (option?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())} />
+      {!teamId ? <Text style={{ color: '#7e7c76', display: 'block', textAlign: 'center', padding: 32 }}>Selecciona tu equipo para ver sus partidos.</Text> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <EncounterList title="Partidos que faltan" encounters={pending} teamId={teamId} />
+          <EncounterList title="Partidos ya jugados" encounters={played} teamId={teamId} showResult />
+          {playoffs.length > 0 && <PlayoffList matches={playoffs} teamId={teamId} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EncounterList({ title, encounters, teamId, showResult = false }: { title: string; encounters: TeamEncounter<MatchData>[]; teamId: number; showResult?: boolean }) {
+  return (
+    <div>
+      <div className="premium-section-label">{title}</div>
+      {encounters.length === 0 ? <Text style={{ color: '#7e7c76' }}>No hay partidos en esta sección.</Text> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+          {encounters.map((encounter) => {
+            const result = showResult && encounter.match ? teamMatchResult(encounter.match, teamId) : null;
+            return <div key={encounter.key} className="premium-calendar-card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div><div style={{ color: '#fff5dd', fontWeight: 700 }}>{encounter.opponent.name}</div><div style={{ color: 'rgba(245, 241, 232, 0.58)', fontSize: 12, marginTop: 4 }}>{encounter.leg === 'ida' ? 'Primer enfrentamiento' : 'Segundo enfrentamiento'}</div></div>
+              <div style={{ color: result?.color ?? 'rgba(245, 241, 232, 0.7)', fontSize: 12, textAlign: 'right' }}>{result?.text ?? (encounter.match ? formatTeamMatchDate(encounter.match) : 'Por programar · Aún no registrado')}</div>
+            </div>;
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlayoffList({ matches, teamId }: { matches: MatchData[]; teamId: number }) {
+  return <div><div className="premium-section-label">Liguilla</div><div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+    {matches.map((match) => {
+      const opponent = match.home_team_id === teamId ? match.away_team : match.home_team;
+      const result = isPlayedStatus(match.status) ? teamMatchResult(match, teamId) : null;
+      return <div key={match.id} className="premium-calendar-card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div><div style={{ color: '#fff5dd', fontWeight: 700 }}>{opponent?.name ?? 'Rival por definir'}</div><div style={{ color: 'rgba(245, 241, 232, 0.58)', fontSize: 12 }}>{match.phase ?? 'Liguilla'}</div></div>
+        <div style={{ color: result?.color ?? 'rgba(245, 241, 232, 0.7)', fontSize: 12 }}>{result?.text ?? formatTeamMatchDate(match)}</div>
+      </div>;
+    })}
+  </div></div>;
 }
 
 const thS: CSSProperties = { textAlign: 'center' };
