@@ -274,6 +274,7 @@ export default function CapturePage() {
           ) : (
             <CaptureForm
               key={selectedMatch.id}
+              seasonId={seasonId}
               match={selectedMatch}
               homePlayers={homePlayers}
               awayPlayers={awayPlayers}

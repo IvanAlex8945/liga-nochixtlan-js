@@ -17,12 +17,6 @@ const statusMap: Record<ResultType, string> = {
   WO_Doble: 'WO Doble',
 };
 
-const scoreMap: Record<ResultType, { home: number | null; away: number | null }> = {
-  Normal: { home: null, away: null },
-  WO_Local: { home: 0, away: 20 },      // local forfeits → visitante wins
-  WO_Visitante: { home: 20, away: 0 },  // away forfeits → local wins
-  WO_Doble: { home: 0, away: 0 },
-};
 
 export async function saveMatchResult(
   supabase: SupabaseClient,
@@ -34,9 +28,11 @@ export async function saveMatchResult(
   // Usa los puntos capturados tal cual
   const processLineup = (lineup: LineupRow[]): LineupRow[] => lineup;
 
-  // Calcula el score basándose en los puntos asignados
-  const homeScore = homeLineup.reduce((s, r) => s + (r.points ?? 0), 0);
-  const awayScore = awayLineup.reduce((s, r) => s + (r.points ?? 0), 0);
+  // Los marcadores, incluidos los WO, se conservan tal como fueron capturados.
+  const getScore = (lineup: LineupRow[]) =>
+    lineup.reduce((sum, row) => sum + (row.played ? row.points ?? 0 : 0), 0);
+  const homeScore = getScore(homeLineup);
+  const awayScore = getScore(awayLineup);
 
   // Update match
   const { error: matchErr } = await supabase
@@ -52,7 +48,14 @@ export async function saveMatchResult(
   if (matchErr) throw new Error(`Error al guardar partido: ${matchErr.message}`);
 
   // Delete previous stats
-  await supabase.from('player_match_stats').delete().eq('match_id', matchId);
+  const { error: deleteStatsErr } = await supabase
+    .from('player_match_stats')
+    .delete()
+    .eq('match_id', matchId);
+
+  if (deleteStatsErr) {
+    throw new Error(`Error al limpiar estadísticas anteriores: ${deleteStatsErr.message}`);
+  }
 
   // Insert new stats (only attended players)
   const processed = [
@@ -136,4 +139,3 @@ export async function saveMatchResult(
     }
   }
 }
-

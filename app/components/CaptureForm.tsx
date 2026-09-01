@@ -16,6 +16,7 @@ import {
 import { SaveOutlined } from '@ant-design/icons';
 import PlayerAttendanceTable, { PlayerRow } from './PlayerAttendanceTable';
 import { saveMatchResult, ResultType } from '@/lib/saveMatch';
+import { invalidatePublicCache } from '@/lib/public-cache-client';
 import { supabase } from '@/lib/supabase';
 
 const { Text } = Typography;
@@ -27,6 +28,7 @@ interface MatchInfo {
 }
 
 interface Props {
+  seasonId: number | null;
   match: MatchInfo;
   homePlayers: PlayerRow[];
   awayPlayers: PlayerRow[];
@@ -43,7 +45,19 @@ const scoreLabels: Record<ResultType, string> = {
 
 const btnStyle: React.CSSProperties = { flex: '1 1 120px', height: 44, fontSize: 14 };
 
-export default function CaptureForm({ match, homePlayers, awayPlayers, initialResultType = 'Normal', onSaved }: Props) {
+const getLineupScore = (lineup: PlayerRow[]) =>
+  lineup.reduce((acc, player) => acc + (player.played ? Number(player.points) || 0 : 0), 0);
+
+const getLineupForSave = (lineup: PlayerRow[]) =>
+  lineup.map((row) => ({
+    player_id: row.player_id,
+    team_id: row.team_id,
+    played: row.played,
+    points: row.played ? Number(row.points) || 0 : 0,
+    triples: row.played ? Number(row.triples) || 0 : 0,
+  }));
+
+export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers, initialResultType = 'Normal', onSaved }: Props) {
   const [resultType, setResultType] = useState<ResultType>(initialResultType);
   const [homeLineup, setHomeLineup] = useState<PlayerRow[]>(homePlayers);
   const [awayLineup, setAwayLineup] = useState<PlayerRow[]>(awayPlayers);
@@ -52,8 +66,8 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
   const isWO = resultType !== 'Normal';
   const disableStats = false;
 
-  const homeScore = homeLineup.reduce((acc, p) => acc + (Number(p.points) || 0), 0);
-  const awayScore = awayLineup.reduce((acc, p) => acc + (Number(p.points) || 0), 0);
+  const homeScore = getLineupScore(homeLineup);
+  const awayScore = getLineupScore(awayLineup);
 
   const getScoreColor = (score1: number, score2: number) => {
     if (score1 > score2) return '#52c41a'; // Green for winning
@@ -71,21 +85,10 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
         supabase,
         match.id,
         resultType,
-        homeLineup.map((r) => ({
-          player_id: r.player_id,
-          team_id: r.team_id,
-          played: r.played,
-          points: r.points,
-          triples: r.triples,
-        })),
-        awayLineup.map((r) => ({
-          player_id: r.player_id,
-          team_id: r.team_id,
-          played: r.played,
-          points: r.points,
-          triples: r.triples,
-        }))
+        getLineupForSave(homeLineup),
+        getLineupForSave(awayLineup)
       );
+      await invalidatePublicCache({ seasonId });
       message.success('Resultado guardado correctamente');
       onSaved?.();
     } catch (err: unknown) {
@@ -199,8 +202,8 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
         </div>
 
         {/* ── Tablas de asistencia ──────────────────────────── */}
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
+        <Row gutter={[16, 20]}>
+          <Col xs={24}>
             <PlayerAttendanceTable
               title={`🏠 ${match.home_team.name}`}
               players={homeLineup}
@@ -212,7 +215,7 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
               }}
             />
           </Col>
-          <Col xs={24} md={12}>
+          <Col xs={24}>
             <PlayerAttendanceTable
               title={`✈️ ${match.away_team.name}`}
               players={awayLineup}
@@ -225,6 +228,23 @@ export default function CaptureForm({ match, homePlayers, awayPlayers, initialRe
             />
           </Col>
         </Row>
+
+        <div className="capture-final-score">
+          <Text strong className="capture-final-score-label">
+            Resultado actual
+          </Text>
+          <div className="capture-final-score-board">
+            <Text className="capture-final-score-team">{match.home_team.name}</Text>
+            <Text strong className="capture-final-score-number" style={{ color: homeColor }}>
+              {homeScore}
+            </Text>
+            <Text className="capture-final-score-separator">-</Text>
+            <Text strong className="capture-final-score-number" style={{ color: awayColor }}>
+              {awayScore}
+            </Text>
+            <Text className="capture-final-score-team">{match.away_team.name}</Text>
+          </div>
+        </div>
 
         {/* ── Botón guardar ─────────────────────────────────── */}
         <Button

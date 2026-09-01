@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { Table, Checkbox, InputNumber, Typography, Button, Space, Tag } from 'antd';
 
+import { formatPlayerNumber } from '@/lib/player-number';
+
 const { Text } = Typography;
 
 export interface PlayerRow {
@@ -54,12 +56,29 @@ export default function PlayerAttendanceTable({
 
   const presentes = rows.filter((row) => row.played).length;
   const vigentes = rows.filter((row) => row.credential_status === 'active').length;
+  const scoringRows = rows
+    .map((row) => ({
+      ...row,
+      points: Number(row.points) || 0,
+      triples: Number(row.triples) || 0,
+    }))
+    .filter((row) => row.played && row.points > 0);
+  const totalPoints = scoringRows.reduce((acc, row) => acc + row.points, 0);
+  const scoringRowsWithRunning = scoringRows.reduce<Array<PlayerRow & { runningPoints: number }>>(
+    (acc, row) => {
+      const previous = acc.at(-1)?.runningPoints ?? 0;
+      acc.push({ ...row, runningPoints: previous + row.points });
+      return acc;
+    },
+    []
+  );
 
   const cols = [
     {
       title: '',
       key: 'photo',
-      width: 68,
+      width: 76,
+      fixed: 'left' as const,
       align: 'center' as const,
       render: (_: unknown, row: PlayerRow) => (
         <div
@@ -106,18 +125,21 @@ export default function PlayerAttendanceTable({
       title: '#',
       dataIndex: 'number',
       key: 'number',
-      width: 40,
+      width: 58,
+      fixed: 'left' as const,
       align: 'center' as const,
-      render: (v: number | null) => <Text style={{ color: '#888', fontSize: 12 }}>{v ?? '-'}</Text>,
+      render: (v: number | null) => <Text strong style={{ color: '#f7d774', fontSize: 16 }}>{formatPlayerNumber(v)}</Text>,
     },
     {
       title: 'Jugador',
       dataIndex: 'name',
       key: 'name',
+      width: 280,
+      fixed: 'left' as const,
       ellipsis: true,
       render: (v: string, row: PlayerRow) => (
         <div>
-          <Text style={{ fontSize: 13 }}>{v}</Text>
+          <Text strong style={{ fontSize: 15 }}>{v}</Text>
           <Space size={[4, 4]} wrap style={{ display: 'flex', marginTop: 4 }}>
             {row.credential_status === 'active' ? (
               <Tag color="green" style={{ marginInlineEnd: 0 }}>Vigente</Tag>
@@ -136,7 +158,7 @@ export default function PlayerAttendanceTable({
     {
       title: '✓',
       key: 'played',
-      width: 44,
+      width: 64,
       align: 'center' as const,
       render: (_: unknown, row: PlayerRow, idx: number) => (
         <Checkbox
@@ -150,11 +172,11 @@ export default function PlayerAttendanceTable({
     {
       title: 'Verif',
       key: 'verify',
-      width: 82,
+      width: 96,
       align: 'center' as const,
       render: (_: unknown, row: PlayerRow) => (
         <Button
-          size="small"
+          size="middle"
           disabled={!row.verify_token || !onOpenVerify}
           onClick={() => onOpenVerify?.(row)}
         >
@@ -163,9 +185,9 @@ export default function PlayerAttendanceTable({
       ),
     },
     {
-      title: 'Pts',
+      title: 'Puntos',
       key: 'points',
-      width: 70,
+      width: 118,
       align: 'center' as const,
       render: (_: unknown, row: PlayerRow, idx: number) => (
         <InputNumber
@@ -174,15 +196,15 @@ export default function PlayerAttendanceTable({
           value={row.points}
           disabled={disableStats || !row.played}
           onChange={(v) => update(idx, { points: v ?? 0 })}
-          style={{ width: 60 }}
-          size="small"
+          style={{ width: 88 }}
+          size="middle"
         />
       ),
     },
     {
-      title: 'Tri',
+      title: '3PT',
       key: 'triples',
-      width: 60,
+      width: 112,
       align: 'center' as const,
       render: (_: unknown, row: PlayerRow, idx: number) => (
         <InputNumber
@@ -191,8 +213,8 @@ export default function PlayerAttendanceTable({
           value={row.triples}
           disabled={disableStats || !row.played}
           onChange={(v) => update(idx, { triples: v ?? 0 })}
-          style={{ width: 52 }}
-          size="small"
+          style={{ width: 82 }}
+          size="middle"
         />
       ),
     }
@@ -234,12 +256,14 @@ export default function PlayerAttendanceTable({
         </Space>
       </div>
       <Table
+        className="capture-attendance-table"
         dataSource={rows}
         columns={cols}
         rowKey="player_id"
-        size="small"
+        size="middle"
         pagination={false}
-        scroll={{ x: 540 }}
+        sticky
+        scroll={{ x: 860 }}
         rowClassName={(row) =>
           !row.played
             ? ''
@@ -248,6 +272,38 @@ export default function PlayerAttendanceTable({
               : ''
         }
       />
+      <div className="capture-team-score-summary">
+        <div className="capture-team-score-header">
+          <Text strong>Registro de puntos</Text>
+          <Text strong className="capture-team-score-total">
+            Total: {totalPoints}
+          </Text>
+        </div>
+        {scoringRows.length > 0 ? (
+          <div className="capture-team-score-list">
+            {scoringRowsWithRunning.map((row) => (
+              <div className="capture-team-score-row" key={row.player_id}>
+                <Text className="capture-team-score-player">
+                  {formatPlayerNumber(row.number)} - {row.name}
+                </Text>
+                <Text className="capture-team-score-points">
+                  {row.points} pts
+                </Text>
+                <Text className="capture-team-score-triples">
+                  {row.triples} 3PT
+                </Text>
+                <Text className="capture-team-score-running">
+                  Acum. {row.runningPoints}
+                </Text>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Text type="secondary" className="capture-team-score-empty">
+            Aun no hay puntos capturados para este equipo.
+          </Text>
+        )}
+      </div>
     </div>
   );
 }
