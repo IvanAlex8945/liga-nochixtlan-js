@@ -56,22 +56,6 @@ export default function PlayerAttendanceTable({
 
   const presentes = rows.filter((row) => row.played).length;
   const vigentes = rows.filter((row) => row.credential_status === 'active').length;
-  const scoringRows = rows
-    .map((row) => ({
-      ...row,
-      points: Number(row.points) || 0,
-      triples: Number(row.triples) || 0,
-    }))
-    .filter((row) => row.played && row.points > 0);
-  const totalPoints = scoringRows.reduce((acc, row) => acc + row.points, 0);
-  const scoringRowsWithRunning = scoringRows.reduce<Array<PlayerRow & { runningPoints: number }>>(
-    (acc, row) => {
-      const previous = acc.at(-1)?.runningPoints ?? 0;
-      acc.push({ ...row, runningPoints: previous + row.points });
-      return acc;
-    },
-    []
-  );
 
   const cols = [
     {
@@ -272,38 +256,6 @@ export default function PlayerAttendanceTable({
               : ''
         }
       />
-      <div className="capture-team-score-summary">
-        <div className="capture-team-score-header">
-          <Text strong>Registro de puntos</Text>
-          <Text strong className="capture-team-score-total">
-            Total: {totalPoints}
-          </Text>
-        </div>
-        {scoringRows.length > 0 ? (
-          <div className="capture-team-score-list">
-            {scoringRowsWithRunning.map((row) => (
-              <div className="capture-team-score-row" key={row.player_id}>
-                <Text className="capture-team-score-player">
-                  {formatPlayerNumber(row.number)} - {row.name}
-                </Text>
-                <Text className="capture-team-score-points">
-                  {row.points} pts
-                </Text>
-                <Text className="capture-team-score-triples">
-                  {row.triples} 3PT
-                </Text>
-                <Text className="capture-team-score-running">
-                  Acum. {row.runningPoints}
-                </Text>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <Text type="secondary" className="capture-team-score-empty">
-            Aun no hay puntos capturados para este equipo.
-          </Text>
-        )}
-      </div>
     </div>
   );
 }

@@ -75,26 +75,29 @@ const sectionGridStyle: CSSProperties = {
 };
 
 export default function PublicPageClient({ seasons, teams, allPlayers, allMatches, allStats }: Props) {
+  const activeSeasons = useMemo(() => seasons.filter((season) => season.is_active), [seasons]);
   const [activeTab, setActiveTab] = useState('standings');
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(
-    seasons.find((s) => s.is_active)?.id ?? seasons[0]?.id ?? null
+    activeSeasons[0]?.id ?? null
   );
   const [selectedTeam, setSelectedTeam] = useState<TeamStats | null>(null);
   const [jornadaFilter, setJornadaFilter] = useState<number | 'all'>('all');
 
-  const selectedSeason = seasons.find((s) => s.id === selectedSeasonId) ?? null;
+  const selectedSeason =
+    activeSeasons.find((s) => s.id === selectedSeasonId) ?? activeSeasons[0] ?? null;
+  const effectiveSeasonId = selectedSeason?.id ?? null;
 
   const categories = useMemo(() =>
-    [...new Set(seasons.map((s) => s.category))].filter(Boolean),
-    [seasons]);
+    [...new Set(activeSeasons.map((s) => s.category))].filter(Boolean),
+    [activeSeasons]);
 
   const seasonOptions = useMemo(() =>
-    seasons.map((s) => ({ label: `${s.name}${s.is_active ? ' ✓' : ''}`, value: s.id })),
-    [seasons]);
+    activeSeasons.map((s) => ({ label: s.name, value: s.id })),
+    [activeSeasons]);
 
   const seasonMatches = useMemo(() =>
-    allMatches.filter((m) => m.season_id === selectedSeasonId),
-    [allMatches, selectedSeasonId]);
+    allMatches.filter((m) => m.season_id === effectiveSeasonId),
+    [allMatches, effectiveSeasonId]);
 
   const regularMatches = useMemo(() =>
     seasonMatches.filter((m) => !m.phase || m.phase === 'Fase Regular'),
@@ -213,7 +216,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
             <Select
               className="premium-select"
-              value={selectedSeasonId}
+              value={effectiveSeasonId}
               onChange={(value) => startTransition(() => setSelectedSeasonId(value))}
               options={seasonOptions}
               style={{ width: 280, textAlign: 'left' }}
@@ -228,7 +231,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
                   className={`premium-tag${selectedSeason?.category === cat ? ' premium-tag--active' : ''}`}
                   style={{ cursor: 'pointer', marginInlineEnd: 0 }}
                   onClick={() => {
-                    const found = seasons.find((s) => s.category === cat && s.is_active) ?? seasons.find((s) => s.category === cat);
+                    const found = activeSeasons.find((s) => s.category === cat);
                     if (found) startTransition(() => setSelectedSeasonId(found.id));
                   }}
                 >
@@ -323,7 +326,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
               children: (
                 <GlassSectionCard>
                   <TeamStatsTab
-                    seasonId={selectedSeasonId}
+                    seasonId={effectiveSeasonId}
                     teams={teams}
                     allPlayers={allPlayers}
                     allStats={allStats}
@@ -337,7 +340,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
               label: <TabLabel icon="📋" text="Partidos de mi equipo" />,
               children: (
                 <GlassSectionCard>
-                  <TeamMatchesTab seasonId={selectedSeasonId} teams={teams} matches={seasonMatches} />
+                  <TeamMatchesTab seasonId={effectiveSeasonId} teams={teams} matches={seasonMatches} />
                 </GlassSectionCard>
               ),
             },

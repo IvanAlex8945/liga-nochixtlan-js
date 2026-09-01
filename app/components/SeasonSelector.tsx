@@ -9,6 +9,7 @@ const { Text } = Typography;
 interface Props {
   value: number | null;
   onChange: (id: number) => void;
+  includeInactive?: boolean;
   style?: React.CSSProperties;
 }
 
@@ -19,14 +20,20 @@ export interface SeasonOption {
   is_active: boolean;
 }
 
-export default function SeasonSelector({ value, onChange, style }: Props) {
+export default function SeasonSelector({ value, onChange, includeInactive = false, style }: Props) {
   const { data: seasons = [] } = useQuery<SeasonOption[]>({
-    queryKey: ['all-seasons'],
+    queryKey: ['seasons-selector', includeInactive ? 'all' : 'active'],
     queryFn: async () => {
-      const { data } = await supabase
+      let query = supabase
         .from('seasons')
         .select('id, name, category, is_active')
         .order('id', { ascending: false });
+
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data } = await query;
       return data ?? [];
     },
   });
