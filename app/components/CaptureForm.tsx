@@ -57,6 +57,25 @@ const getLineupForSave = (lineup: PlayerRow[]) =>
     triples: row.played ? Number(row.triples) || 0 : 0,
   }));
 
+function TeamRunningScore({
+  label,
+  score,
+  color,
+}: {
+  label: string;
+  score: number;
+  color: string;
+}) {
+  return (
+    <div className="capture-team-running-score">
+      <Text className="capture-team-running-score-label">{label}</Text>
+      <Text strong className="capture-team-running-score-number" style={{ color }}>
+        Acumulado: {score}
+      </Text>
+    </div>
+  );
+}
+
 export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers, initialResultType = 'Normal', onSaved }: Props) {
   const [resultType, setResultType] = useState<ResultType>(initialResultType);
   const [homeLineup, setHomeLineup] = useState<PlayerRow[]>(homePlayers);
@@ -214,6 +233,11 @@ export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers,
                 window.open(`/verificar/${player.verify_token}`, '_blank', 'noopener,noreferrer');
               }}
             />
+            <TeamRunningScore
+              label={match.home_team.name}
+              score={homeScore}
+              color={homeColor}
+            />
           </Col>
           <Col xs={24}>
             <PlayerAttendanceTable
@@ -226,25 +250,13 @@ export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers,
                 window.open(`/verificar/${player.verify_token}`, '_blank', 'noopener,noreferrer');
               }}
             />
+            <TeamRunningScore
+              label={match.away_team.name}
+              score={awayScore}
+              color={awayColor}
+            />
           </Col>
         </Row>
-
-        <div className="capture-final-score">
-          <Text strong className="capture-final-score-label">
-            Resultado actual
-          </Text>
-          <div className="capture-final-score-board">
-            <Text className="capture-final-score-team">{match.home_team.name}</Text>
-            <Text strong className="capture-final-score-number" style={{ color: homeColor }}>
-              {homeScore}
-            </Text>
-            <Text className="capture-final-score-separator">-</Text>
-            <Text strong className="capture-final-score-number" style={{ color: awayColor }}>
-              {awayScore}
-            </Text>
-            <Text className="capture-final-score-team">{match.away_team.name}</Text>
-          </div>
-        </div>
 
         {/* ── Botón guardar ─────────────────────────────────── */}
         <Button
