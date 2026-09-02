@@ -7,6 +7,7 @@ export interface SchedulingTeam {
 
 export interface SchedulingMatch {
   id?: number | null;
+  jornada?: number | null;
   home_team_id: number;
   away_team_id: number;
   scheduled_date?: string | null;
@@ -20,6 +21,7 @@ interface SchedulingCheckInput {
   homeTeamId: number;
   awayTeamId: number;
   scheduledDate?: string | null;
+  jornada?: number | null;
   timeStr?: string | null;
   court?: string | null;
   excludeMatchId?: number | null;
@@ -60,30 +62,43 @@ function involvesTeam(match: SchedulingMatch, teamId: number) {
   return match.home_team_id === teamId || match.away_team_id === teamId;
 }
 
+function getScheduleContextLabel(date: string | null, jornada?: number | null) {
+  if (date) return `el ${date}`;
+  if (typeof jornada === 'number') return `en la J${jornada}`;
+  return null;
+}
+
+function isSameScheduleSlot(match: SchedulingMatch, date: string | null, jornada?: number | null) {
+  const matchDate = normalizeDate(match.scheduled_date);
+  if (date && matchDate) return matchDate === date;
+  if (typeof jornada === 'number' && typeof match.jornada === 'number') return match.jornada === jornada;
+  return false;
+}
+
 export function checkSchedulingConflicts(input: SchedulingCheckInput): SchedulingCheckResult {
   const date = normalizeDate(input.scheduledDate);
   const newTime = parseTimeToMinutes(input.timeStr);
+  const contextLabel = getScheduleContextLabel(date, input.jornada);
   const blocking: string[] = [];
   const warnings: string[] = [];
   const teamIds = [input.homeTeamId, input.awayTeamId];
 
   const comparableMatches = input.matches.filter((match) => {
     if (input.excludeMatchId && match.id === input.excludeMatchId) return false;
-    return Boolean(match.scheduled_date);
+    return Boolean(match.scheduled_date) || typeof match.jornada === 'number';
   });
 
-  if (date && input.timeStr) {
+  if (contextLabel && input.timeStr) {
     for (const match of comparableMatches) {
-      const matchDate = normalizeDate(match.scheduled_date);
-      if (matchDate !== date || match.time_str !== input.timeStr) continue;
+      if (!isSameScheduleSlot(match, date, input.jornada) || match.time_str !== input.timeStr) continue;
 
       const overlappingTeam = teamIds.find((teamId) => involvesTeam(match, teamId));
       if (overlappingTeam) {
-        blocking.push(`${teamName(input.teams, overlappingTeam)} ya tiene partido el ${date} a las ${input.timeStr}.`);
+        blocking.push(`${teamName(input.teams, overlappingTeam)} ya tiene partido ${contextLabel} a las ${input.timeStr}.`);
       }
 
       if (input.court && match.court === input.court) {
-        blocking.push(`${input.court} ya está ocupada el ${date} a las ${input.timeStr}.`);
+        blocking.push(`${input.court} ya está ocupada ${contextLabel} a las ${input.timeStr}.`);
       }
     }
   }
