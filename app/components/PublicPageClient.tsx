@@ -60,13 +60,26 @@ export interface PlayerStats {
   players?: PlayerData | null;
 }
 
-interface Props {
+interface DirectDataProps {
   seasons: Season[];
   teams: TeamData[];
   allPlayers: PlayerData[];
   allMatches: MatchData[];
   allStats: PlayerStats[];
 }
+
+interface InitialDataProps {
+  seasons: Season[];
+  initialSeasonId: number | null;
+  initialData: {
+    teams: TeamData[];
+    players: PlayerData[];
+    matches: MatchData[];
+    stats: PlayerStats[];
+  };
+}
+
+type Props = DirectDataProps | InitialDataProps;
 
 const sectionGridStyle: CSSProperties = {
   display: 'grid',
@@ -78,11 +91,17 @@ function sortTeamsByName(teams: TeamData[]) {
   return [...teams].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
-export default function PublicPageClient({ seasons, teams, allPlayers, allMatches, allStats }: Props) {
+export default function PublicPageClient(props: Props) {
+  const { seasons } = props;
+  const usesInitialData = 'initialData' in props;
+  const teams = usesInitialData ? props.initialData.teams : props.teams;
+  const allPlayers = usesInitialData ? props.initialData.players : props.allPlayers;
+  const allMatches = usesInitialData ? props.initialData.matches : props.allMatches;
+  const allStats = usesInitialData ? props.initialData.stats : props.allStats;
   const activeSeasons = useMemo(() => seasons.filter((season) => season.is_active), [seasons]);
   const [activeTab, setActiveTab] = useState('standings');
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(
-    activeSeasons[0]?.id ?? null
+    usesInitialData ? props.initialSeasonId : activeSeasons[0]?.id ?? null
   );
   const [selectedTeam, setSelectedTeam] = useState<TeamStats | null>(null);
   const [jornadaFilter, setJornadaFilter] = useState<number | 'all'>('all');
@@ -175,9 +194,9 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
   }, [seasonMatches]);
 
   const calendarTeamOptions = useMemo(() =>
-    sortTeamsByName(teams.filter((team) => team.season_id === selectedSeasonId))
+    sortTeamsByName(teams.filter((team) => team.season_id === effectiveSeasonId))
       .map((team) => ({ label: team.name, value: team.id })),
-    [selectedSeasonId, teams]);
+    [effectiveSeasonId, teams]);
 
   const handlePDF = () => {
     if (!selectedSeason) return;
@@ -406,7 +425,7 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
                         onChange={(value) => startTransition(() => setCalendarViewFilter(value))}
                         style={{ width: 190 }}
                         options={[
-                          { label: 'Proximos partidos', value: 'upcoming' },
+                          { label: 'Próximos partidos', value: 'upcoming' },
                           { label: 'Todos, con pasados', value: 'all' },
                         ]}
                       />
