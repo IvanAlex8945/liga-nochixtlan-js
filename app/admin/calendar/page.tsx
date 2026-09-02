@@ -7,9 +7,10 @@ import {
 import { PlusOutlined, DeleteOutlined, EditOutlined, WhatsAppOutlined, CopyOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import AdminEditForm, { EditableMatch } from '@/app/components/AdminEditForm';
+import { invalidatePublicCache } from '@/lib/public-cache-client';
 import { checkSchedulingConflicts, SchedulingTeam } from '@/lib/scheduling';
 import LiguillaModal from './LiguillaModal';
 import MissingMatchesModal from './MissingMatchesModal';
@@ -121,6 +122,11 @@ function sortMatchesBySchedule(a: Match, b: Match) {
   return a.id - b.id;
 }
 
+function getFirstLegJornadaCount(teamCount: number) {
+  if (teamCount < 2) return 0;
+  return teamCount % 2 === 0 ? teamCount - 1 : teamCount;
+}
+
 function shuffleTeamIds(teamIds: number[]) {
   const shuffled = [...teamIds];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -128,6 +134,10 @@ function shuffleTeamIds(teamIds: number[]) {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled;
+}
+
+function sortTeamsByName<T extends { name: string }>(teams: T[]) {
+  return [...teams].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 export default function CalendarPage() {
@@ -167,7 +177,8 @@ export default function CalendarPage() {
         .from('teams')
         .select('id, name, match_frequency_days, preferred_time_notes')
         .eq('season_id', seasonId!)
-        .eq('status', 'Activo');
+        .eq('status', 'Activo')
+        .order('name', { ascending: true });
       return data ?? [];
     },
   });
@@ -212,6 +223,7 @@ export default function CalendarPage() {
         homeTeamId: v.home_team_id,
         awayTeamId: v.away_team_id,
         scheduledDate,
+        jornada: v.jornada,
         timeStr: v.time_str,
         court: v.court,
       });
@@ -234,6 +246,7 @@ export default function CalendarPage() {
         }
 
         if (existingRegularMatches.length === 0) {
+          const mirrorJornada = v.jornada + getFirstLegJornadaCount(teams.length);
           const matchValues = { ...v };
           delete matchValues.forceMirrorMismatch;
           delete matchValues.forceScheduleWarnings;
@@ -248,7 +261,7 @@ export default function CalendarPage() {
             },
             {
               season_id: seasonId!,
-              jornada: null,
+              jornada: mirrorJornada,
               phase,
               status: 'Pendiente',
               home_team_id: v.away_team_id,
@@ -306,8 +319,9 @@ export default function CalendarPage() {
       if (error) throw error;
       return 1;
     },
-    onSuccess: (count) => {
+    onSuccess: async (count) => {
       qc.invalidateQueries({ queryKey: ['matches'] });
+      await invalidatePublicCache({ seasonId });
       messageApi.success(count === 2 ? 'Partido de ida creado y vuelta reservada' : 'Partido creado');
       setModalOpen(false);
       form.resetFields();
@@ -333,6 +347,7 @@ export default function CalendarPage() {
       homeTeamId: values.home_team_id,
       awayTeamId: values.away_team_id,
       scheduledDate,
+      jornada: values.jornada,
       timeStr: values.time_str,
       court: values.court,
     });
@@ -470,7 +485,7 @@ export default function CalendarPage() {
       for (const roundMatches of firstLegRounds) {
         newMatches.push(...roundMatches.map((match): GeneratedMatch => ({
           season_id: match.season_id,
-          jornada: null,
+          jornada: (match.jornada ?? 0) + numRounds,
           phase: match.phase,
           status: 'Pendiente',
           home_team_id: match.away_team_id,
@@ -485,13 +500,21 @@ export default function CalendarPage() {
       if (error) throw error;
       return newMatches.length;
     },
-    onSuccess: (count) => { qc.invalidateQueries({ queryKey: ['matches'] }); messageApi.success(`Se generaron ${count} partidos automáticamente`); },
+    onSuccess: async (count) => {
+      qc.invalidateQueries({ queryKey: ['matches'] });
+      await invalidatePublicCache({ seasonId });
+      messageApi.success(`Se generaron ${count} partidos automáticamente`);
+    },
     onError: (e: Error) => messageApi.error(e.message),
   });
 
   const deleteMatch = useMutation({
     mutationFn: async (id: number) => { const { error } = await supabase.from('matches').delete().eq('id', id); if (error) throw error; },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['matches'] }); messageApi.success('Partido eliminado'); },
+    onSuccess: async () => {
+      qc.invalidateQueries({ queryKey: ['matches'] });
+      await invalidatePublicCache({ seasonId });
+      messageApi.success('Partido eliminado');
+    },
     onError: (e: Error) => messageApi.error(e.message),
   });
 
@@ -562,7 +585,8 @@ export default function CalendarPage() {
     },
   ];
 
-  const teamOptions = teams.map((t) => ({ label: t.name, value: t.id }));
+  const sortedTeams = useMemo(() => sortTeamsByName(teams), [teams]);
+  const teamOptions = sortedTeams.map((t) => ({ label: t.name, value: t.id }));
 
   const uniqueJornadas = Array.from(new Set(matches.map(m => m.jornada).filter((j): j is number => typeof j === 'number'))).sort((a,b) => a - b);
   const regularMatches = matches.filter((match) => isRegularPhase(match.phase));
@@ -582,6 +606,28 @@ export default function CalendarPage() {
   const regularProgressPercent = totalRegularMatchesExpected > 0
     ? Math.min(100, Math.round((completedRegularMatches.length / totalRegularMatchesExpected) * 100))
     : 0;
+  const regularPairAudit = (() => {
+    let missing = 0;
+    let conflicts = 0;
+
+    for (let i = 0; i < teams.length; i++) {
+      for (let j = i + 1; j < teams.length; j++) {
+        const teamA = teams[i];
+        const teamB = teams[j];
+        const matchesBetween = regularMatches.filter((match) => isSamePair(match, teamA.id, teamB.id));
+        const homeByA = matchesBetween.filter((match) => match.home_team_id === teamA.id).length;
+        const homeByB = matchesBetween.filter((match) => match.home_team_id === teamB.id).length;
+
+        if (matchesBetween.length < 2) {
+          missing += 2 - matchesBetween.length;
+        } else if (matchesBetween.length > 2 || homeByA !== 1 || homeByB !== 1) {
+          conflicts++;
+        }
+      }
+    }
+
+    return { missing, conflicts };
+  })();
 
   const progressBox = (label: string, value: string, helper: string, color: string) => (
     <div
@@ -659,6 +705,7 @@ export default function CalendarPage() {
         homeTeamId: match.home_team_id,
         awayTeamId: match.away_team_id,
         scheduledDate: assistantDate,
+        jornada: assistantJornada,
         timeStr: time,
         court,
         excludeMatchId: match.id,
@@ -718,6 +765,7 @@ export default function CalendarPage() {
           homeTeamId: originalMatch.home_team_id,
           awayTeamId: originalMatch.away_team_id,
           scheduledDate: suggestion.scheduled_date,
+          jornada: suggestion.jornada,
           timeStr: suggestion.time_str,
           court: suggestion.court,
           excludeMatchId: suggestion.matchId,
@@ -748,8 +796,9 @@ export default function CalendarPage() {
       }
       return accepted.length;
     },
-    onSuccess: (count) => {
+    onSuccess: async (count) => {
       qc.invalidateQueries({ queryKey: ['matches'] });
+      await invalidatePublicCache({ seasonId });
       messageApi.success(`Se programaron ${count} partido(s).`);
       setAssistantOpen(false);
       setAssistantSuggestions([]);
@@ -1220,6 +1269,18 @@ export default function CalendarPage() {
                 teams.length >= 2 ? `${teams.length} equipos activos` : 'Sin suficientes equipos activos',
                 '#faad14'
               )}
+              {progressBox(
+                'Faltantes reales',
+                String(regularPairAudit.missing),
+                'Cruces de ida/vuelta todavía no registrados',
+                '#ff7875'
+              )}
+              {progressBox(
+                'Conflictos',
+                String(regularPairAudit.conflicts),
+                'Parejas con localía duplicada o más de 2 juegos',
+                '#13c2c2'
+              )}
             </div>
           </div>
 
@@ -1537,7 +1598,6 @@ export default function CalendarPage() {
           onClose={() => setLiguillaModalOpen(false)}
           seasonId={seasonId}
           matches={matches}
-          teams={teams}
         />
       )}
       {seasonId && missingModalOpen && (

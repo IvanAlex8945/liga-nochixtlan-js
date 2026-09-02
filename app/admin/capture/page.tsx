@@ -37,6 +37,21 @@ interface PlayerRecord {
   photo_url?: string | null;
 }
 
+function getPlayerNumberSortValue(number: PlayerRecord['number']) {
+  if (number === null || number === undefined) return Number.POSITIVE_INFINITY;
+  const numericValue = Number(number);
+  return Number.isFinite(numericValue) ? numericValue : Number.POSITIVE_INFINITY;
+}
+
+function sortPlayersByNumber(players: PlayerRecord[]) {
+  return [...players].sort((a, b) => {
+    const numberA = getPlayerNumberSortValue(a.number);
+    const numberB = getPlayerNumberSortValue(b.number);
+    if (numberA !== numberB) return numberA - numberB;
+    return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+  });
+}
+
 async function fetchTeamCredentials(playerIds: number[], seasonId: number) {
   if (playerIds.length === 0) {
     return [] as PlayerCredential[];
@@ -101,7 +116,7 @@ export default function CapturePage() {
         supabase.from('player_match_stats').select('*').eq('match_id', selectedMatch!.id)
       ]);
       
-      let playersData = (playersRes.data ?? []) as PlayerRecord[];
+      let playersData = sortPlayersByNumber((playersRes.data ?? []) as PlayerRecord[]);
       let eligibilityMap = new Map<number, { elegible: boolean; asistencias: number; min: number }>();
       if (selectedMatch?.phase && selectedMatch.phase !== 'Fase Regular') {
         const { results } = await calcularElegibilidad(supabase, selectedMatch.home_team.id, seasonId!);
@@ -112,7 +127,7 @@ export default function CapturePage() {
             { elegible: result.elegible, asistencias: result.asistencias, min: result.min_requerido },
           ])
         );
-        playersData = playersData.filter(p => eligibleSet.has(p.id));
+        playersData = sortPlayersByNumber(playersData.filter(p => eligibleSet.has(p.id)));
       }
 
       const credentials = await fetchTeamCredentials(
@@ -155,7 +170,7 @@ export default function CapturePage() {
         supabase.from('player_match_stats').select('*').eq('match_id', selectedMatch!.id)
       ]);
       
-      let playersData = (playersRes.data ?? []) as PlayerRecord[];
+      let playersData = sortPlayersByNumber((playersRes.data ?? []) as PlayerRecord[]);
       let eligibilityMap = new Map<number, { elegible: boolean; asistencias: number; min: number }>();
       if (selectedMatch?.phase && selectedMatch.phase !== 'Fase Regular') {
         const { results } = await calcularElegibilidad(supabase, selectedMatch.away_team.id, seasonId!);
@@ -166,7 +181,7 @@ export default function CapturePage() {
             { elegible: result.elegible, asistencias: result.asistencias, min: result.min_requerido },
           ])
         );
-        playersData = playersData.filter(p => eligibleSet.has(p.id));
+        playersData = sortPlayersByNumber(playersData.filter(p => eligibleSet.has(p.id)));
       }
 
       const credentials = await fetchTeamCredentials(

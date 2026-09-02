@@ -74,6 +74,10 @@ const sectionGridStyle: CSSProperties = {
   gap: 16,
 };
 
+function sortTeamsByName(teams: TeamData[]) {
+  return [...teams].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+}
+
 export default function PublicPageClient({ seasons, teams, allPlayers, allMatches, allStats }: Props) {
   const activeSeasons = useMemo(() => seasons.filter((season) => season.is_active), [seasons]);
   const [activeTab, setActiveTab] = useState('standings');
@@ -82,6 +86,8 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
   );
   const [selectedTeam, setSelectedTeam] = useState<TeamStats | null>(null);
   const [jornadaFilter, setJornadaFilter] = useState<number | 'all'>('all');
+  const [calendarTeamFilter, setCalendarTeamFilter] = useState<number | 'all'>('all');
+  const [calendarViewFilter, setCalendarViewFilter] = useState<'upcoming' | 'all'>('upcoming');
 
   const selectedSeason =
     activeSeasons.find((s) => s.id === selectedSeasonId) ?? activeSeasons[0] ?? null;
@@ -167,6 +173,11 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
     const js = new Set(seasonMatches.map((m) => m.jornada).filter(Boolean));
     return Array.from(js).sort((a, b) => (a as number) - (b as number));
   }, [seasonMatches]);
+
+  const calendarTeamOptions = useMemo(() =>
+    sortTeamsByName(teams.filter((team) => team.season_id === selectedSeasonId))
+      .map((team) => ({ label: team.name, value: team.id })),
+    [selectedSeasonId, teams]);
 
   const handlePDF = () => {
     if (!selectedSeason) return;
@@ -359,23 +370,58 @@ export default function PublicPageClient({ seasons, teams, allPlayers, allMatche
               children: (
                 <GlassSectionCard>
                   <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Text className="premium-helper-text">Filtrar por jornada:</Text>
-                    <Select
-                      className="premium-select"
-                      value={jornadaFilter}
-                      onChange={(value) => startTransition(() => setJornadaFilter(value))}
-                      style={{ width: 180 }}
-                      options={[
-                        { label: 'Todas las jornadas', value: 'all' },
-                        ...jornadasDropdown.map((j) => ({ label: `Jornada ${j}`, value: j })),
-                      ]}
-                    />
+                    <div>
+                      <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Jornada:</Text>
+                      <Select
+                        className="premium-select"
+                        value={jornadaFilter}
+                        onChange={(value) => startTransition(() => setJornadaFilter(value))}
+                        style={{ width: 180 }}
+                        options={[
+                          { label: 'Todas las jornadas', value: 'all' },
+                          ...jornadasDropdown.map((j) => ({ label: `Jornada ${j}`, value: j })),
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Equipo:</Text>
+                      <Select
+                        className="premium-select"
+                        value={calendarTeamFilter}
+                        onChange={(value) => startTransition(() => setCalendarTeamFilter(value))}
+                        style={{ width: 240 }}
+                        options={[
+                          { label: 'Todos los equipos', value: 'all' },
+                          ...calendarTeamOptions,
+                        ]}
+                        showSearch
+                        filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
+                      />
+                    </div>
+                    <div>
+                      <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Vista:</Text>
+                      <Select
+                        className="premium-select"
+                        value={calendarViewFilter}
+                        onChange={(value) => startTransition(() => setCalendarViewFilter(value))}
+                        style={{ width: 190 }}
+                        options={[
+                          { label: 'Proximos partidos', value: 'upcoming' },
+                          { label: 'Todos, con pasados', value: 'all' },
+                        ]}
+                      />
+                    </div>
                   </div>
 
                   {seasonMatches.length === 0 ? (
                     <Text style={{ color: '#7e7c76', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos</Text>
                   ) : (
-                    <CalendarList matches={seasonMatches} jornadaFilter={jornadaFilter} />
+                    <CalendarList
+                      matches={seasonMatches}
+                      jornadaFilter={jornadaFilter}
+                      teamFilter={calendarTeamFilter}
+                      viewFilter={calendarViewFilter}
+                    />
                   )}
                 </GlassSectionCard>
               ),
@@ -614,7 +660,7 @@ function TeamStatsTab({
   const [phaseFilter, setPhaseFilter] = useState<'all' | 'Fase Regular' | 'Liguilla'>('Fase Regular');
   const isCoarsePointer = useIsCoarsePointer();
 
-  const activeTeams = useMemo(() => teams.filter((t) => t.season_id === seasonId), [teams, seasonId]);
+  const activeTeams = useMemo(() => sortTeamsByName(teams.filter((t) => t.season_id === seasonId)), [teams, seasonId]);
 
   const filteredMatches = useMemo(() => {
     if (phaseFilter === 'all') return seasonMatches;
@@ -720,9 +766,26 @@ function TeamStatsTab({
 }
 
 function formatTeamMatchDate(match: MatchData) {
-  if (!match.scheduled_date) return 'Sin fecha aún';
-  const date = dayjs(match.scheduled_date).format('DD MMM YYYY');
-  return `${date}${match.time_str ? ` · ${match.time_str} hrs` : ''}${match.court ? ` · ${match.court}` : ''}`;
+  const details = [
+    match.time_str ? `${match.time_str} hrs` : null,
+    match.court,
+  ].filter(Boolean);
+
+  if (!match.scheduled_date) {
+    return [
+      typeof match.jornada === 'number' ? `Jornada ${match.jornada}` : 'Sin fecha aún',
+      ...details,
+    ].join(' · ');
+  }
+
+  return [dayjs(match.scheduled_date).format('DD MMM YYYY'), ...details].join(' · ');
+}
+
+function getMatchSortValue(match: MatchData) {
+  const datedValue = dayjs(match.played_date ?? match.scheduled_date ?? '').valueOf();
+  if (Number.isFinite(datedValue)) return datedValue;
+  if (typeof match.jornada === 'number') return match.jornada;
+  return 0;
 }
 
 function teamMatchResult(match: MatchData, teamId: number) {
@@ -739,11 +802,11 @@ function teamMatchResult(match: MatchData, teamId: number) {
 function TeamMatchesTab({ seasonId, teams, matches }: { seasonId: number | null; teams: TeamData[]; matches: MatchData[] }) {
   const [teamId, setTeamId] = useState<number | null>(null);
   const isCoarsePointer = useIsCoarsePointer();
-  const activeTeams = useMemo(() => teams.filter((team) => team.season_id === seasonId).sort((a, b) => a.name.localeCompare(b.name)), [seasonId, teams]);
+  const activeTeams = useMemo(() => sortTeamsByName(teams.filter((team) => team.season_id === seasonId)), [seasonId, teams]);
   const encounters = useMemo(() => teamId ? buildTeamEncounters(teamId, activeTeams, matches) : [], [activeTeams, matches, teamId]);
   const pending = encounters.filter((item) => !item.match || !isPlayedStatus(item.match.status));
   const played = encounters.filter((item): item is TeamEncounter<MatchData> & { match: MatchData } => Boolean(item.match && isPlayedStatus(item.match.status)))
-    .sort((a, b) => dayjs(b.match.played_date ?? b.match.scheduled_date ?? '1900-01-01').valueOf() - dayjs(a.match.played_date ?? a.match.scheduled_date ?? '1900-01-01').valueOf());
+    .sort((a, b) => getMatchSortValue(b.match) - getMatchSortValue(a.match));
   const playoffs = teamId ? matches.filter((match) => !isRegularPhase(match.phase) && (match.home_team_id === teamId || match.away_team_id === teamId)) : [];
 
   if (!seasonId) return <Text style={{ color: '#7e7c76' }}>Selecciona una temporada arriba.</Text>;
@@ -799,8 +862,29 @@ function PlayoffList({ matches, teamId }: { matches: MatchData[]; teamId: number
 const thS: CSSProperties = { textAlign: 'center' };
 const tdS: CSSProperties = { textAlign: 'center' };
 
-function CalendarList({ matches, jornadaFilter }: { matches: MatchData[]; jornadaFilter: number | 'all' }) {
-  const filtered = matches.filter((m) => jornadaFilter === 'all' || m.jornada === jornadaFilter);
+function isPastCalendarMatch(match: MatchData) {
+  if (isPlayedStatus(match.status)) return true;
+  if (!match.scheduled_date) return false;
+  return dayjs(match.scheduled_date).isBefore(dayjs(), 'day');
+}
+
+function CalendarList({
+  matches,
+  jornadaFilter,
+  teamFilter,
+  viewFilter,
+}: {
+  matches: MatchData[];
+  jornadaFilter: number | 'all';
+  teamFilter: number | 'all';
+  viewFilter: 'upcoming' | 'all';
+}) {
+  const filtered = matches.filter((m) => {
+    const matchesJornada = jornadaFilter === 'all' || m.jornada === jornadaFilter;
+    const matchesTeam = teamFilter === 'all' || m.home_team_id === teamFilter || m.away_team_id === teamFilter;
+    const matchesView = viewFilter === 'all' || !isPastCalendarMatch(m);
+    return matchesJornada && matchesTeam && matchesView;
+  });
 
   const grouped: Record<string, MatchData[]> = {};
   filtered.forEach((m) => {
@@ -811,6 +895,10 @@ function CalendarList({ matches, jornadaFilter }: { matches: MatchData[]; jornad
 
   const phaseOrder = ['Fase Regular', 'Octavos de Final', 'Cuartos de Final', 'Semifinal', 'Tercer Lugar', 'Final'];
   const sortedPhases = Object.keys(grouped).sort((a, b) => phaseOrder.indexOf(a) - phaseOrder.indexOf(b));
+
+  if (filtered.length === 0) {
+    return <Text style={{ color: '#7e7c76', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos con estos filtros</Text>;
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
