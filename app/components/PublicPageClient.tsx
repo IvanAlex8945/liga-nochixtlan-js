@@ -91,6 +91,10 @@ function sortTeamsByName(teams: TeamData[]) {
   return [...teams].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
+function sortSelectOptions<T extends { label?: ReactNode }>(a: T, b: T) {
+  return String(a.label ?? '').localeCompare(String(b.label ?? ''), 'es', { sensitivity: 'base' });
+}
+
 export default function PublicPageClient(props: Props) {
   const { seasons } = props;
   const usesInitialData = 'initialData' in props;
@@ -415,6 +419,7 @@ export default function PublicPageClient(props: Props) {
                         ]}
                         showSearch
                         filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
+                        filterSort={sortSelectOptions}
                       />
                     </div>
                     <div>
@@ -726,6 +731,7 @@ function TeamStatsTab({
             options={activeTeams.map((t) => ({ label: t.name, value: t.id }))}
             showSearch={!isCoarsePointer}
             filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
+            filterSort={sortSelectOptions}
           />
         </div>
         <div style={{ flex: '0 1 220px' }}>
@@ -834,7 +840,8 @@ function TeamMatchesTab({ seasonId, teams, matches }: { seasonId: number | null;
       <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Selecciona tu equipo:</Text>
       <Select className="premium-select" style={{ width: '100%', maxWidth: 440, marginBottom: 18 }} placeholder="Seleccionar equipo" value={teamId} onChange={setTeamId}
         options={activeTeams.map((team) => ({ label: team.name, value: team.id }))} showSearch={!isCoarsePointer}
-        filterOption={(input, option) => (option?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())} />
+        filterOption={(input, option) => (option?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
+        filterSort={sortSelectOptions} />
       {!teamId ? <Text style={{ color: '#7e7c76', display: 'block', textAlign: 'center', padding: 32 }}>Selecciona tu equipo para ver sus partidos.</Text> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <EncounterList title="Partidos que faltan" encounters={pending} teamId={teamId} />
