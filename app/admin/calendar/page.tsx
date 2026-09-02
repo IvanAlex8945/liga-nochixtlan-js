@@ -1598,6 +1598,7 @@ export default function CalendarPage() {
           onClose={() => setLiguillaModalOpen(false)}
           seasonId={seasonId}
           matches={matches}
+          teams={teams}
         />
       )}
       {seasonId && missingModalOpen && (
