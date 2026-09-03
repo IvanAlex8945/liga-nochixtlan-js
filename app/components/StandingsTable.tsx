@@ -44,15 +44,49 @@ function getTeamInitials(name: string): string {
 export default function StandingsTable({ data, onTeamClick }: StandingsTableProps) {
   const leader = data[0] ?? null;
 
-  const bestOffense = useMemo(() => {
-    if (data.length === 0) return null;
-    return [...data].sort((a, b) => b.PF - a.PF)[0];
+  // Criterio de elegibilidad deportiva para Mejor Ofensiva y Defensiva:
+  // - Excluye equipos inactivos o retirados (ej. SOSOLA).
+  // - Requiere haber disputado partidos reales en cancha (PG + PP > 0).
+  // - Considera partidos jugados (PJ), perdidos (PP) y por default (WO).
+  // - Requiere un mínimo representativo de partidos jugados respecto al torneo.
+  const eligibleTeams = useMemo(() => {
+    if (data.length === 0) return [];
+    const maxPJ = Math.max(...data.map((t) => t.PJ), 1);
+    const minPJThreshold = Math.max(2, Math.floor(maxPJ * 0.25));
+
+    const activeList = data.filter((t) => {
+      const name = t.equipo.trim().toUpperCase();
+      if (name.includes('SOSOLA')) return false;
+      // Excluir equipos con solo incomparecencias / defaults sin partidos disputados
+      if (t.PG === 0 && t.PP === 0 && t.WO > 0) return false;
+      return t.PJ >= minPJThreshold && (t.PG + t.PP) > 0;
+    });
+
+    if (activeList.length === 0) {
+      return data.filter((t) => !t.equipo.trim().toUpperCase().includes('SOSOLA') && t.PJ > 0);
+    }
+    return activeList;
   }, [data]);
 
+  const bestOffense = useMemo(() => {
+    if (eligibleTeams.length === 0) return null;
+    return [...eligibleTeams].sort((a, b) => {
+      const avgA = a.PF / Math.max(1, a.PJ);
+      const avgB = b.PF / Math.max(1, b.PJ);
+      if (Math.abs(avgB - avgA) > 0.01) return avgB - avgA;
+      return b.PF - a.PF;
+    })[0];
+  }, [eligibleTeams]);
+
   const bestDefense = useMemo(() => {
-    if (data.length === 0) return null;
-    return [...data].sort((a, b) => a.PC - b.PC)[0];
-  }, [data]);
+    if (eligibleTeams.length === 0) return null;
+    return [...eligibleTeams].sort((a, b) => {
+      const avgA = a.PC / Math.max(1, a.PJ);
+      const avgB = b.PC / Math.max(1, b.PJ);
+      if (Math.abs(avgA - avgB) > 0.01) return avgA - avgB;
+      return a.PC - b.PC;
+    })[0];
+  }, [eligibleTeams]);
 
   const columns: ColumnsType<TableRow> = [
     {
@@ -380,8 +414,13 @@ export default function StandingsTable({ data, onTeamClick }: StandingsTableProp
                   {bestOffense.equipo}
                 </div>
               </div>
-              <div style={{ color: '#4ade80', fontWeight: 800, fontSize: 14 }}>
-                {bestOffense.PF} <span style={{ fontSize: 10, fontWeight: 600 }}>PF</span>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ color: '#4ade80', fontWeight: 800, fontSize: 14 }}>
+                  {bestOffense.PF} <span style={{ fontSize: 10, fontWeight: 600 }}>PF</span>
+                </div>
+                <div style={{ color: '#94a3b8', fontSize: 10 }}>
+                  {(bestOffense.PF / Math.max(1, bestOffense.PJ)).toFixed(1)} pts/j · {bestOffense.PJ} PJ
+                </div>
               </div>
             </div>
           )}
@@ -408,8 +447,13 @@ export default function StandingsTable({ data, onTeamClick }: StandingsTableProp
                   {bestDefense.equipo}
                 </div>
               </div>
-              <div style={{ color: '#38bdf8', fontWeight: 800, fontSize: 14 }}>
-                {bestDefense.PC} <span style={{ fontSize: 10, fontWeight: 600 }}>PC</span>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ color: '#38bdf8', fontWeight: 800, fontSize: 14 }}>
+                  {bestDefense.PC} <span style={{ fontSize: 10, fontWeight: 600 }}>PC</span>
+                </div>
+                <div style={{ color: '#94a3b8', fontSize: 10 }}>
+                  {(bestDefense.PC / Math.max(1, bestDefense.PJ)).toFixed(1)} pts/j · {bestDefense.PJ} PJ
+                </div>
               </div>
             </div>
           )}
