@@ -3,12 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import Image from 'next/image';
+import Link from 'next/link';
 
 import AdminLayout from '@/app/components/AdminLayout';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import { generateTeamCredentialPdf } from '@/lib/credential-pdf';
 import { renderCredentialImage } from '@/lib/credential-render';
 import { optimizePlayerPhoto } from '@/lib/image-client';
+import { invalidatePublicCache } from '@/lib/public-cache-client';
+import { formatPlayerNumber, normalizePlayerNumberForStorage } from '@/lib/player-number';
 import {
   getCredentialStatusLabel,
   type PlayerCredentialStatus,
@@ -38,9 +41,26 @@ import {
 } from 'antd';
 
 const { Title, Text } = Typography;
-const CATEGORIES = ['Libre', 'Veteranos', 'Femenil', '3ra'];
+const CATEGORIES = ['Libre', 'Veteranos', 'Femenil', '3ra', 'Master'];
+const CURP_PATTERN = /^[A-Z]{4}\d{6}[HM][A-Z]{5}[A-Z0-9]\d$/;
+
+function isVeteransCategory(category: string | null | undefined) {
+  const normalized = category
+    ?.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+  return normalized?.includes('veteran') ?? false;
+}
+
+function normalizeCurp(value: string | null | undefined) {
+  return value?.replace(/\s+/g, '').toUpperCase() || null;
+}
 
 interface Team {
+  captain_name?: string | null;
+  captain_phone?: string | null;
   id: number;
   name: string;
   category: string;
@@ -58,6 +78,7 @@ interface Player {
   name: string;
   number: number | null;
   category?: string | null;
+  curp?: string | null;
   is_active: boolean;
   photo_url?: string | null;
   photo_thumb_url?: string | null;
@@ -78,8 +99,9 @@ interface PlayerCredential {
 }
 
 interface PlayerFormValues {
+  curp?: string | null;
   name: string;
-  number?: number | null;
+  number?: string | number | null;
 }
 
 interface PhotoDraft {
@@ -204,8 +226,9 @@ export default function TeamsPage() {
   function openPlayerForEdit(player: Player) {
     setEditingPlayer(player);
     playerForm.setFieldsValue({
+      curp: player.curp ?? null,
       name: player.name,
-      number: player.number,
+      number: formatPlayerNumber(player.number, ''),
     });
     replacePhotoDraft(getPlayerPhotoDraft(player));
     hydratePlayerCredential(player.id).catch((error) => {
@@ -622,6 +645,7 @@ export default function TeamsPage() {
       const imageUrl = await renderCredentialImage({
         category: player.category ?? selectedSeason.category ?? 'Categoría',
         credentialCode: credential.credential_code,
+        curp: player.curp ?? null,
         issuedAt: credential.issued_at,
         number: player.number,
         photoUrl: player.photo_url ?? null,
@@ -666,6 +690,8 @@ export default function TeamsPage() {
     mutationFn: async (values: Partial<Team>) => {
       const payload = {
         ...values,
+        captain_name: values.captain_name?.trim() || null,
+        captain_phone: values.captain_phone?.trim() || null,
         match_frequency_days: values.match_frequency_days ? Number(values.match_frequency_days) : null,
         preferred_time_notes: values.preferred_time_notes?.trim() || null,
         season_id: seasonId!,
@@ -683,8 +709,9 @@ export default function TeamsPage() {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['teams'] });
+      await invalidatePublicCache({ seasonId });
       message.success(editingTeam ? 'Equipo actualizado' : 'Equipo creado');
       setTeamModal(false);
       setEditingTeam(null);
@@ -721,8 +748,9 @@ export default function TeamsPage() {
       const { error } = await supabase.from('teams').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['teams', 'players'] });
+      await invalidatePublicCache({ seasonId });
       message.success('Equipo y todos sus datos eliminados correctamente');
     },
     onError: (error: Error) => message.error(error.message),
@@ -768,6 +796,7 @@ export default function TeamsPage() {
           return {
             category: player.category ?? selectedSeason.category ?? team.category ?? 'Libre',
             credentialCode: credential.credential_code,
+            curp: player.curp ?? null,
             fileSafeName: player.name,
             issuedAt: credential.issued_at,
             number: player.number,
@@ -796,12 +825,15 @@ export default function TeamsPage() {
 
   const savePlayer = useMutation({
     mutationFn: async (values: PlayerFormValues) => {
+      const requiresCurp = isVeteransCategory(selectedSeason?.category);
       const previousPublicId = editingPlayer?.photo_public_id ?? null;
       const nextPublicId = photoDraft?.publicId ?? null;
       const trimmedName = values.name.trim();
+      const playerNumber = normalizePlayerNumberForStorage(values.number);
       const payload = {
+        ...(requiresCurp ? { curp: normalizeCurp(values.curp) } : {}),
         name: trimmedName,
-        number: values.number ?? null,
+        number: playerNumber,
         photo_url: photoDraft?.photoUrl ?? null,
         photo_thumb_url: photoDraft?.thumbUrl ?? null,
         photo_public_id: nextPublicId,
@@ -813,6 +845,9 @@ export default function TeamsPage() {
           .from('players')
           .update(payload)
           .eq('id', editingPlayer.id);
+        if (error?.code === '23505' && error.message.includes('idx_players_curp_unique')) {
+          throw new Error('Esta CURP ya esta registrada para otro jugador.');
+        }
         if (error) throw error;
 
         if (
@@ -830,7 +865,7 @@ export default function TeamsPage() {
         const currentCredential = getPlayerCredential(editingPlayer.id);
         const credentialNeedsReissue =
           editingPlayer.name.trim() !== trimmedName ||
-          (editingPlayer.number ?? null) !== (values.number ?? null) ||
+          (editingPlayer.number ?? null) !== playerNumber ||
           (editingPlayer.photo_url ?? null) !== (photoDraft?.photoUrl ?? null) ||
           (editingPlayer.photo_public_id ?? null) !== nextPublicId;
 
@@ -873,6 +908,9 @@ export default function TeamsPage() {
           })
           .select('id')
           .single();
+        if (error?.code === '23505' && error.message.includes('idx_players_curp_unique')) {
+          throw new Error('Esta CURP ya esta registrada para otro jugador.');
+        }
         if (error) throw error;
         const result = await issueCredentialForPlayer(data.id);
 
@@ -883,9 +921,10 @@ export default function TeamsPage() {
         });
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['players'] });
       qc.invalidateQueries({ queryKey: ['player-credentials'] });
+      await invalidatePublicCache({ seasonId });
       message.success(editingPlayer ? 'Jugador actualizado y credencial sincronizada' : 'Jugador agregado con foto y credencial emitida');
       resetPlayerEditorState();
     },
@@ -932,9 +971,10 @@ export default function TeamsPage() {
         }
       }
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       qc.invalidateQueries({ queryKey: ['players'] });
       qc.invalidateQueries({ queryKey: ['player-credentials'] });
+      await invalidatePublicCache({ seasonId });
       message.success(variables.is_active ? 'Jugador reactivado' : 'Jugador marcado como baja y credencial revocada');
     },
     onError: (error: Error) => message.error(error.message),
@@ -978,8 +1018,9 @@ export default function TeamsPage() {
 
       return 'deleted';
     },
-    onSuccess: (status) => {
+    onSuccess: async (status) => {
       qc.invalidateQueries({ queryKey: ['players'] });
+      await invalidatePublicCache({ seasonId });
       if (status === 'soft-deleted') {
         message.info(
           'El jugador tiene estadísticas guardadas. Fue marcado como Baja (Inactivo) para no afectar el historial del equipo.',
@@ -1036,7 +1077,7 @@ export default function TeamsPage() {
     {
       title: '',
       key: 'actions',
-      width: 130,
+      width: 210,
       render: (_: unknown, row: Team) => (
         <Space>
           <Button size="small" icon={<UserAddOutlined />} onClick={() => openNewPlayerModal(row.id)} />
@@ -1049,6 +1090,9 @@ export default function TeamsPage() {
               setTeamModal(true);
             }}
           />
+          <Link href={`/admin/teams/${row.id}/cedula`}>
+            <Button size="small">Cédula</Button>
+          </Link>
           <Button
             size="small"
             danger
@@ -1189,7 +1233,7 @@ export default function TeamsPage() {
                           })
                         }
                       >
-                        #{player.number ?? '?'} {player.name} {!player.is_active && '(baja)'}
+                        #{formatPlayerNumber(player.number, '?')} {player.name} {!player.is_active && '(baja)'}
                         {getPlayerCredential(player.id) && (
                           <span style={{ marginLeft: 6, color: '#52c41a' }}>• credencial</span>
                         )}
@@ -1245,6 +1289,12 @@ export default function TeamsPage() {
           <Form.Item name="category" label="Categoría" rules={[{ required: true }]}>
             <Select options={CATEGORIES.map((category) => ({ label: category, value: category }))} />
           </Form.Item>
+          <Form.Item name="captain_name" label="Capitán / responsable">
+            <Input placeholder="Nombre del responsable del equipo" />
+          </Form.Item>
+          <Form.Item name="captain_phone" label="Número de celular">
+            <Input placeholder="Ej. 951 000 0000" />
+          </Form.Item>
           <Form.Item name="status" label="Estatus">
             <Select
               options={[
@@ -1299,7 +1349,7 @@ export default function TeamsPage() {
                         style={{ cursor: 'pointer', padding: '4px 8px' }}
                         onClick={() => openPlayerForEdit(player)}
                       >
-                        #{player.number ?? '?'} {player.name}
+                        #{formatPlayerNumber(player.number, '?')} {player.name}
                       </Tag>
                     ))}
                   {selectedTeamPlayers.filter((player) => player.is_active).length === 0 && (
@@ -1323,7 +1373,7 @@ export default function TeamsPage() {
                         style={{ cursor: 'pointer', padding: '4px 8px' }}
                         onClick={() => openPlayerForEdit(player)}
                       >
-                        #{player.number ?? '?'} {player.name}
+                        #{formatPlayerNumber(player.number, '?')} {player.name}
                       </Tag>
                     ))}
                   {selectedTeamPlayers.filter((player) => !player.is_active).length === 0 && (
@@ -1445,9 +1495,49 @@ export default function TeamsPage() {
               <Input />
             </Form.Item>
 
+            {isVeteransCategory(selectedSeason?.category) && (
+              <Form.Item
+                name="curp"
+                label="CURP"
+                normalize={(value: string | undefined) => normalizeCurp(value) ?? ''}
+                rules={[
+                  {
+                    validator: async (_, value: string | undefined) => {
+                      if (!value || CURP_PATTERN.test(value)) {
+                        return;
+                      }
+
+                      throw new Error('La CURP debe tener 18 caracteres y un formato valido.');
+                    },
+                  },
+                ]}
+              >
+                <Input
+                  maxLength={18}
+                  placeholder="AAAA000000HAAAAA00"
+                  autoComplete="off"
+                  style={{ textTransform: 'uppercase' }}
+                />
+              </Form.Item>
+            )}
+
             <Space style={{ width: '100%', alignItems: 'flex-start' }} wrap>
-              <Form.Item name="number" label="Dorsal">
-                <Input type="number" min={0} max={99} style={{ width: 100 }} />
+              <Form.Item
+                name="number"
+                label="Dorsal"
+                rules={[
+                  {
+                    pattern: /^\d{1,2}$/,
+                    message: 'Captura un dorsal de 1 o 2 digitos.',
+                  },
+                ]}
+              >
+                <Input
+                  inputMode="numeric"
+                  maxLength={2}
+                  placeholder="00"
+                  style={{ width: 100 }}
+                />
               </Form.Item>
 
               <div

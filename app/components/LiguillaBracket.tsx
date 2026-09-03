@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Typography } from 'antd';
+import { Typography, Tag } from 'antd';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 export interface TeamData {
   id: number;
@@ -23,163 +23,357 @@ export interface MatchData {
   away_team?: TeamData;
 }
 
-const BracketColumn = ({ title, seriesList, neonColor }: { title: string; seriesList: MatchData[][], neonColor: string }) => (
-  <div style={{ flex: '1 1 290px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-    <div style={{ textAlign: 'center', paddingBottom: 12, marginBottom: 8, position: 'relative' }}>
-      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '80%', height: 20, background: neonColor, filter: 'blur(30px)', opacity: 0.3, zIndex: 0 }} />
-      <Text style={{ 
-        color: '#fff', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 2, fontSize: 16,
-        textShadow: `0 0 10px ${neonColor}88`, position: 'relative', zIndex: 1
-      }}>
-        {title}
-      </Text>
-      <div style={{ height: 2, width: '40%', background: `linear-gradient(90deg, transparent, ${neonColor}, transparent)`, margin: '8px auto 0' }} />
-    </div>
-    {seriesList.length === 0 ? (
-      <div style={{ background: '#11111188', border: '1px dashed #333', borderRadius: 12, padding: 30, textAlign: 'center' }}>
-        <Text style={{ color: '#444', fontSize: 13 }}>Por definir</Text>
+interface ColumnProps {
+  title: string;
+  badge: string;
+  seriesList: MatchData[][];
+  accentColor: string;
+}
+
+const BracketColumn = ({ title, badge, seriesList, accentColor }: ColumnProps) => (
+  <div style={{ flex: '1 1 280px', minWidth: 260, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    {/* Header de la fase */}
+    <div
+      style={{
+        padding: '12px 16px',
+        borderRadius: 14,
+        background: 'rgba(20, 26, 38, 0.7)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: accentColor,
+            display: 'inline-block',
+          }}
+        />
+        <Text style={{ color: '#f8fafc', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 13 }}>
+          {title}
+        </Text>
       </div>
-    ) : (
-      seriesList.map((matchesGroup) => <SeriesBox key={matchesGroup[0].id} matches={matchesGroup} neonColor={neonColor} />)
-    )}
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: '0.1em',
+          padding: '2px 8px',
+          borderRadius: 9999,
+          background: `${accentColor}18`,
+          color: accentColor,
+          border: `1px solid ${accentColor}33`,
+          textTransform: 'uppercase',
+        }}
+      >
+        {badge}
+      </span>
+    </div>
+
+    {/* Series de la fase */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {seriesList.length === 0 ? (
+        <div
+          style={{
+            padding: 24,
+            textAlign: 'center',
+            background: 'rgba(255, 255, 255, 0.02)',
+            borderRadius: 12,
+            border: '1px dashed rgba(255, 255, 255, 0.06)',
+            color: '#94a3b8',
+            fontSize: 12,
+          }}
+        >
+          Por definir cruces
+        </div>
+      ) : (
+        seriesList.map((serie, idx) => (
+          <SeriesBox key={idx} matches={serie} accentColor={accentColor} />
+        ))
+      )}
+    </div>
   </div>
 );
 
 export function LiguillaBracketTab({ seasonMatches }: { seasonMatches: MatchData[] }) {
-  const liguillaMatches = useMemo(() => {
-    return seasonMatches.filter((m) => m.phase && m.phase !== 'Fase Regular');
+  const [phaseFilter, setPhaseFilter] = useState<'all' | 'cuartos' | 'semis' | 'final'>('all');
+
+  const { cuartos, semis, final, tercero } = useMemo(() => {
+    const liguillaMatches = seasonMatches.filter(
+      (m) => m.phase && m.phase !== 'Fase Regular'
+    );
+
+    const groupSeries = (phaseName: string) => {
+      const matches = liguillaMatches.filter((m) => m.phase === phaseName);
+      const seriesMap: Record<string, MatchData[]> = {};
+      matches.forEach((m) => {
+        const key = [m.home_team_id, m.away_team_id].sort((a, b) => a - b).join('-');
+        if (!seriesMap[key]) seriesMap[key] = [];
+        seriesMap[key].push(m);
+      });
+      return Object.values(seriesMap);
+    };
+
+    const cMatches = [
+      ...groupSeries('Cuartos de Final'),
+      ...groupSeries('Octavos de Final'),
+    ];
+    const sMatches = groupSeries('Semifinal');
+    const fMatches = groupSeries('Final');
+    const tMatches = groupSeries('Tercer Lugar');
+
+    return { cuartos: cMatches, semis: sMatches, final: fMatches, tercero: tMatches };
   }, [seasonMatches]);
 
+  const hasAnyLiguilla = cuartos.length > 0 || semis.length > 0 || final.length > 0;
 
-  function groupSeries(matches: MatchData[]) {
-    const map: Record<string, MatchData[]> = {};
-    matches.forEach((m) => {
-      const h = m.home_team_id || 0;
-      const a = m.away_team_id || 0;
-      const key = `${Math.min(h, a)}-${Math.max(h, a)}`;
-      if (!map[key]) map[key] = [];
-      map[key].push(m);
-    });
-    // Sort series matches by jornada
-    return Object.values(map).map(list => list.sort((a,b) => (a.jornada || 0) - (b.jornada || 0)));
+  if (!hasAnyLiguilla) {
+    return (
+      <div style={{ textAlign: 'center', padding: '48px 16px' }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>🏀</div>
+        <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: 16 }}>Fase de Liguilla Aún No Programada</div>
+        <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 4, maxWidth: 440, margin: '4px auto 0' }}>
+          Los cruces de cuartos de final, semifinales y la gran final se activarán automáticamente una vez concluida la temporada regular.
+        </div>
+      </div>
+    );
   }
 
-  const cuartos = groupSeries(liguillaMatches.filter((m) => m.phase === 'Cuartos de Final' || m.phase === 'Octavos de Final'));
-  const semis = groupSeries(liguillaMatches.filter((m) => m.phase === 'Semifinal'));
-  const final = groupSeries(liguillaMatches.filter((m) => m.phase === 'Final'));
-  const tercero = groupSeries(liguillaMatches.filter((m) => m.phase === 'Tercer Lugar'));
-
   return (
-    <div style={{ overflowX: 'auto', paddingBottom: 40, paddingTop: 20 }}>
-      {/* Horizontal container simulating an NBA Playoff bracket structure */}
-      <div style={{ display: 'flex', gap: 40, minWidth: 900, padding: '10px 20px', alignItems: 'stretch' }}>
-        <BracketColumn title="Cuartos de Final" seriesList={cuartos} neonColor="#1677ff" />
-        <BracketColumn title="Semifinales" seriesList={semis} neonColor="#f5222d" />
-        <BracketColumn title="La Gran Final" seriesList={[...final, ...tercero]} neonColor="#FAAD14" />
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <div className="premium-section-label" style={{ marginBottom: 0 }}>
+            🏆 Cuadro Oficial de Postemporada
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+            Toca una serie para desglosar sus marcadores juego por juego
+          </div>
+        </div>
+
+        {/* Selector de fase rápido para pantallas móviles */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[
+            { id: 'all', label: 'Todo el Cuadro' },
+            { id: 'cuartos', label: 'Cuartos' },
+            { id: 'semis', label: 'Semis' },
+            { id: 'final', label: 'Finales' },
+          ].map((item) => (
+            <Tag
+              key={item.id}
+              role="button"
+              tabIndex={0}
+              className={`premium-tag${phaseFilter === item.id ? ' premium-tag--active' : ''}`}
+              style={{ minHeight: 30, padding: '2px 10px', fontSize: 11, cursor: 'pointer' }}
+              onClick={() => setPhaseFilter(item.id as typeof phaseFilter)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPhaseFilter(item.id as typeof phaseFilter); }}
+            >
+              {item.label}
+            </Tag>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto', paddingBottom: 16, WebkitOverflowScrolling: 'touch' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 20,
+            minWidth: phaseFilter === 'all' ? 860 : '100%',
+            padding: '4px 2px',
+            alignItems: 'stretch',
+          }}
+        >
+          {(phaseFilter === 'all' || phaseFilter === 'cuartos') && (
+            <BracketColumn title="Cuartos de Final" badge="Mejor de 3" seriesList={cuartos} accentColor="#38bdf8" />
+          )}
+          {(phaseFilter === 'all' || phaseFilter === 'semis') && (
+            <BracketColumn title="Semifinales" badge="Mejor de 3" seriesList={semis} accentColor="#f87171" />
+          )}
+          {(phaseFilter === 'all' || phaseFilter === 'final') && (
+            <BracketColumn title="Fase Final" badge="Definición" seriesList={[...final, ...tercero]} accentColor="#f59e0b" />
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function SeriesBox({ matches, neonColor }: { matches: MatchData[], neonColor: string }) {
-  const [hovered, setHovered] = useState(false);
-  
-  // Extract canonical teams from the first match
+function SeriesBox({ matches, accentColor }: { matches: MatchData[]; accentColor: string }) {
+  const [expanded, setExpanded] = useState(false);
+
   const tA_id = matches[0].home_team_id;
   const tB_id = matches[0].away_team_id;
   const tA_name = matches[0].home_team?.name ?? 'Por definir';
   const tB_name = matches[0].away_team?.name ?? 'Por definir';
   const phase = matches[0].phase;
-  
+
   let winsA = 0;
   let winsB = 0;
-  
-  matches.forEach(m => {
+
+  matches.forEach((m) => {
     const isJugado = ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status);
     if (!isJugado) return;
-    
+
     const homeWon = (m.home_score ?? 0) > (m.away_score ?? 0) || m.status === 'WO Visitante';
     const awayWon = (m.away_score ?? 0) > (m.home_score ?? 0) || m.status === 'WO Local';
-    
+
     if (m.home_team_id === tA_id && homeWon) winsA++;
     if (m.away_team_id === tA_id && awayWon) winsA++;
     if (m.home_team_id === tB_id && homeWon) winsB++;
     if (m.away_team_id === tB_id && awayWon) winsB++;
   });
 
-  const seriesWonA = winsA > winsB && winsA > (matches.length / 2);
-  const seriesWonB = winsB > winsA && winsB > (matches.length / 2);
-
-  const getDots = (w: number) => {
-    return Array.from({ length: w }).map((_, i) => <span key={i} style={{ fontSize: 10, margin: '0 2px' }}>🔥</span>);
-  };
-
-  const containerStyle: React.CSSProperties = {
-    background: 'linear-gradient(145deg, #1a1a1a 0%, #0d0d0d 100%)',
-    border: hovered ? `1px solid ${neonColor}` : `1px solid #333`,
-    borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative',
-    boxShadow: hovered ? `0 8px 32px ${neonColor}44` : `0 8px 24px rgba(0,0,0,0.6)`,
-    transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
-    transition: 'all 0.3s ease', cursor: 'pointer',
-  };
-
-  const TeamRow = ({ name, wins, isOverallWinner, isOverallLoser }: { name: string; wins: number; isOverallWinner: boolean; isOverallLoser: boolean }) => (
-    <div style={{ 
-      display: 'flex', justifyContent: 'space-between', padding: '12px 16px', alignItems: 'center',
-      background: isOverallWinner ? `linear-gradient(90deg, ${neonColor}22 0%, transparent 100%)` : 'transparent',
-      borderLeft: isOverallWinner ? `4px solid ${neonColor}` : '4px solid transparent',
-      transition: 'all 0.2s', opacity: isOverallLoser ? 0.5 : 1
-    }}>
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
-        <Text style={{ 
-          color: isOverallWinner ? '#fff' : (isOverallLoser ? '#666' : '#bbb'), 
-          fontWeight: isOverallWinner ? 800 : 500, fontSize: 14,
-          textShadow: isOverallWinner ? `0 0 10px ${neonColor}55` : 'none'
-        }}>
-          {name}
-        </Text>
-        <div style={{ height: 14, display: 'flex' }}>
-          {getDots(wins)}
-        </div>
-      </div>
-      <div style={{ 
-        background: isOverallWinner ? neonColor : '#222', color: isOverallWinner ? '#000' : '#888', 
-        padding: '2px 8px', borderRadius: 4, fontWeight: 800, fontSize: 16, minWidth: 28, textAlign: 'center',
-        boxShadow: isOverallWinner ? `0 0 8px ${neonColor}` : 'none'
-      }}>
-        {wins}
-      </div>
-    </div>
-  );
+  const seriesWonA = winsA > winsB && winsA >= Math.ceil(matches.length / 2);
+  const seriesWonB = winsB > winsA && winsB >= Math.ceil(matches.length / 2);
 
   return (
-    <div style={containerStyle} onMouseOver={() => setHovered(true)} onMouseOut={() => setHovered(false)}>
-      <div style={{ background: '#000000dd', padding: '6px 12px', fontSize: 11, display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #222' }}>
-        <span style={{ color: '#aaa', fontWeight: 600 }}>{matches.length > 1 ? `SERIE 2 DE ${matches.length}` : 'PARTIDO ÚNICO'}</span>
-        {phase === 'Tercer Lugar' && <span style={{ color: '#1677ff', fontWeight: 800 }}>3ER LUGAR</span>}
-        {phase === 'Final' && <span style={{ color: '#FAAD14', fontWeight: 900 }}>🏆 GRAN FINAL</span>}
+    <div
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      aria-label={`Serie ${tA_name} vs ${tB_name}`}
+      onClick={() => setExpanded(!expanded)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpanded(!expanded); }}
+      style={{
+        background: 'linear-gradient(180deg, rgba(20, 26, 38, 0.75), rgba(12, 16, 24, 0.85))',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: 14,
+        overflow: 'hidden',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+      }}
+    >
+      {/* Header de la serie */}
+      <div
+        style={{
+          background: 'rgba(8, 11, 17, 0.8)',
+          padding: '7px 12px',
+          fontSize: 11,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+        }}
+      >
+        <span style={{ color: '#94a3b8', fontWeight: 600, letterSpacing: '0.04em' }}>
+          {matches.length > 1 ? `SERIE AL MEJOR DE ${matches.length}` : 'PARTIDO ÚNICO'}
+        </span>
+        {phase === 'Tercer Lugar' && <span style={{ color: '#38bdf8', fontWeight: 800 }}>3ER LUGAR</span>}
+        {phase === 'Final' && <span style={{ color: '#f59e0b', fontWeight: 900 }}>🏆 GRAN FINAL</span>}
       </div>
-      
-      <TeamRow name={tA_name} wins={winsA} isOverallWinner={seriesWonA} isOverallLoser={seriesWonB} />
-      <div style={{ height: 1, background: '#222', margin: '0 16px' }} />
-      <TeamRow name={tB_name} wins={winsB} isOverallWinner={seriesWonB} isOverallLoser={seriesWonA} />
 
-      {/* Renders Individual matches dropdown on hover */}
-      {hovered && (
-        <div style={{ background: '#111', borderTop: '1px solid #333', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <Text style={{ fontSize: 10, color: '#888', textTransform: 'uppercase' }}>Resultados por Juego</Text>
+      {/* Equipo A */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          padding: '11px 14px',
+          alignItems: 'center',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+          background: seriesWonA ? `${accentColor}0a` : undefined,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: seriesWonA ? 800 : 600, color: seriesWonA ? '#fff' : '#cbd5e1' }}>
+            {tA_name}
+          </span>
+          {seriesWonA && <span style={{ fontSize: 10, color: accentColor, fontWeight: 900 }}>CLASIFICA</span>}
+        </div>
+        <div
+          style={{
+            padding: '2px 8px',
+            borderRadius: 6,
+            background: seriesWonA ? accentColor : 'rgba(255, 255, 255, 0.05)',
+            color: seriesWonA ? '#0b0f17' : '#94a3b8',
+            fontWeight: 800,
+            fontSize: 12,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {winsA}
+        </div>
+      </div>
+
+      {/* Equipo B */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          padding: '11px 14px',
+          alignItems: 'center',
+          background: seriesWonB ? `${accentColor}0a` : undefined,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: seriesWonB ? 800 : 600, color: seriesWonB ? '#fff' : '#cbd5e1' }}>
+            {tB_name}
+          </span>
+          {seriesWonB && <span style={{ fontSize: 10, color: accentColor, fontWeight: 900 }}>CLASIFICA</span>}
+        </div>
+        <div
+          style={{
+            padding: '2px 8px',
+            borderRadius: 6,
+            background: seriesWonB ? accentColor : 'rgba(255, 255, 255, 0.05)',
+            color: seriesWonB ? '#0b0f17' : '#94a3b8',
+            fontWeight: 800,
+            fontSize: 12,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {winsB}
+        </div>
+      </div>
+
+      {/* Desglose de partidos individuales (expandible) */}
+      {expanded && (
+        <div
+          style={{
+            background: 'rgba(8, 11, 16, 0.9)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+            padding: '10px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.08em' }}>
+            Resultados por Juego
+          </div>
           {matches.map((m, i) => {
-             const mIsJugado = ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status);
-             return (
-               <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#aaa', background: '#000', padding: '4px 8px', borderRadius: 4 }}>
-                 <span>Juego {i + 1} <span style={{ color: '#555', fontSize: 9 }}>(J{m.jornada})</span></span>
-                 {mIsJugado ? (
-                   <span style={{ color: '#fff', fontWeight: 500 }}>{m.home_team?.name} {m.home_score} - {m.away_score} {m.away_team?.name}</span>
-                 ) : (
-                   <span style={{ color: '#666' }}>Programado</span>
-                 )}
-               </div>
-             )
+            const mIsJugado = ['Jugado', 'WO Local', 'WO Visitante', 'WO Doble'].includes(m.status);
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: 11,
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  padding: '5px 8px',
+                  borderRadius: 6,
+                  alignItems: 'center',
+                }}
+              >
+                <span style={{ color: '#94a3b8' }}>
+                  Juego {i + 1} <span style={{ color: '#64748b' }}>(J{m.jornada})</span>
+                </span>
+                {mIsJugado ? (
+                  <span style={{ color: '#f8fafc', fontWeight: 700 }}>
+                    {m.home_score} — {m.away_score}
+                  </span>
+                ) : (
+                  <span style={{ color: '#64748b', fontStyle: 'italic' }}>Programado</span>
+                )}
+              </div>
+            );
           })}
         </div>
       )}

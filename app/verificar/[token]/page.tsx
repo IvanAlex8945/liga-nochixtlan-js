@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { formatPlayerNumber } from '@/lib/player-number';
 import {
   createVerificationLog,
   loadCredentialViewByCode,
@@ -72,7 +73,7 @@ export default async function VerifyCredentialPage({ params, searchParams }: Pag
               <InfoTile label="Equipo" value={activeView.team?.name ?? 'Sin equipo'} />
               <InfoTile
                 label="Número"
-                value={activeView.player.number !== null ? `#${activeView.player.number}` : 'Sin dorsal'}
+                value={activeView.player.number !== null ? `#${formatPlayerNumber(activeView.player.number)}` : 'Sin dorsal'}
               />
               <InfoTile
                 label="Temporada"
@@ -157,7 +158,7 @@ function CredentialHero({ view }: { view: CredentialVerificationView }) {
         </p>
         <div style={heroPillsStyle}>
           <Pill value={view.credential.status === 'active' ? 'VIGENTE' : view.credential.status.toUpperCase()} tone={view.credential.status === 'active' ? 'valid' : 'invalid'} />
-          <Pill value={view.player.number !== null ? `#${view.player.number}` : 'SIN DORSAL'} tone="neutral" />
+          <Pill value={view.player.number !== null ? `#${formatPlayerNumber(view.player.number)}` : 'SIN DORSAL'} tone="neutral" />
           <Pill value={view.credential.credential_code} tone="neutral" />
         </div>
       </div>

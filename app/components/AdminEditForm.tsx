@@ -8,15 +8,14 @@
 
 import { useState } from 'react';
 import {
-  Modal, Form, Select, InputNumber, Button, Typography, Alert, Tag,
-  Popconfirm, Divider, App,
+  Modal, Form, Select, InputNumber, Button, Alert,
+  Divider, App,
 } from 'antd';
 import { EditOutlined, WarningOutlined } from '@ant-design/icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { invalidatePublicCache } from '@/lib/public-cache-client';
 import { checkSchedulingConflicts, SchedulingMatch, SchedulingTeam } from '@/lib/scheduling';
 import { supabase } from '@/lib/supabase';
-
-const { Text } = Typography;
 
 export interface EditableMatch {
   id: number;
@@ -99,7 +98,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
         const [{ data: seasonMatches, error: matchesError }, { data: seasonTeams, error: teamsError }] = await Promise.all([
           supabase
             .from('matches')
-            .select('id, home_team_id, away_team_id, scheduled_date, time_str, court')
+            .select('id, jornada, home_team_id, away_team_id, scheduled_date, time_str, court')
             .eq('season_id', matchMeta.season_id),
           supabase
             .from('teams')
@@ -115,6 +114,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
           homeTeamId: match.home_team_id,
           awayTeamId: match.away_team_id,
           scheduledDate: dateVal,
+          jornada: values.jornada,
           timeStr: values.time_str,
           court: values.court,
           excludeMatchId: match.id,
@@ -212,12 +212,15 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
           }
         }
       }
+
+      return matchMeta?.season_id ?? null;
     },
-    onSuccess: () => {
+    onSuccess: async (seasonId) => {
       // Invalidate everything so standings recalculate
       qc.invalidateQueries({ queryKey: ['matches'] });
       qc.invalidateQueries({ queryKey: ['matches-programmed'] });
       qc.invalidateQueries({ queryKey: ['stats'] });
+      await invalidatePublicCache({ seasonId });
       messageApi.success('Partido actualizado. Las posiciones se han recalculado automáticamente.');
       onSaved();
     },
@@ -257,7 +260,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
     const [{ data: seasonMatches }, { data: seasonTeams }] = await Promise.all([
       supabase
         .from('matches')
-        .select('id, home_team_id, away_team_id, scheduled_date, time_str, court')
+        .select('id, jornada, home_team_id, away_team_id, scheduled_date, time_str, court')
         .eq('season_id', matchMeta.season_id),
       supabase
         .from('teams')
@@ -271,6 +274,7 @@ export default function AdminEditForm({ match, onClose, onSaved }: Props) {
       homeTeamId: match.home_team_id,
       awayTeamId: match.away_team_id,
       scheduledDate: dateVal,
+      jornada: values.jornada,
       timeStr: values.time_str,
       court: values.court,
       excludeMatchId: match.id,

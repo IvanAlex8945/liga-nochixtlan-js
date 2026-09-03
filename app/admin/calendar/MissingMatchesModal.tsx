@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Modal, Table, Button, Select, InputNumber, Space, DatePicker, Tag, Segmented, App } from 'antd';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { invalidatePublicCache } from '@/lib/public-cache-client';
 import { checkSchedulingConflicts, SchedulingTeam } from '@/lib/scheduling';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -45,6 +46,7 @@ interface MissingMatch {
   pairLabel: string;
   pairKey: string;
   reason: string;
+  suggestedJornada?: number;
 }
 interface RegisteredMatchRow extends MatchData {
   key: string;
@@ -93,6 +95,11 @@ function sortMatchesBySchedule(a: MatchData, b: MatchData) {
   return (a.id ?? 0) - (b.id ?? 0);
 }
 
+function getFirstLegJornadaCount(teamCount: number) {
+  if (teamCount < 2) return 0;
+  return teamCount % 2 === 0 ? teamCount - 1 : teamCount;
+}
+
 export default function MissingMatchesModal({ open, onClose, seasonId, teams, matches }: MissingMatchesModalProps) {
   const { message: messageApi, modal } = App.useApp();
   const qc = useQueryClient();
@@ -112,6 +119,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
       .map((m) => m.jornada as number);
     return regularJornadas.length > 0 ? Math.max(...regularJornadas) + 1 : 1;
   }, [matches]);
+  const firstLegJornadaCount = getFirstLegJornadaCount(teams.length);
 
   const pairAudit = useMemo(() => {
     const audits: PairAudit[] = [];
@@ -201,11 +209,16 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
             pairLabel: audit.pairLabel,
             pairKey: audit.key,
             reason: 'No existe ningún juego entre estos equipos. Al crear la ida se reservará la vuelta espejo.',
+            suggestedJornada: nextSuggestedJornada,
           });
           return;
         }
 
         if (audit.total === 1) {
+          const existingMatch = audit.orderedMatches[0];
+          const suggestedJornada = existingMatch?.jornada
+            ? existingMatch.jornada + firstLegJornadaCount
+            : nextSuggestedJornada;
           const missingHome = audit.homeByA === 0 ? audit.teamA : audit.teamB;
           const missingAway = missingHome.id === audit.teamA.id ? audit.teamB : audit.teamA;
           faltantes.push({
@@ -215,12 +228,13 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
             pairLabel: audit.pairLabel,
             pairKey: audit.key,
             reason: 'Falta únicamente el juego espejo.',
+            suggestedJornada,
           });
         }
       });
 
     return faltantes;
-  }, [pairAudit]);
+  }, [firstLegJornadaCount, nextSuggestedJornada, pairAudit]);
 
   const applyPairFilters = (homeId: number, awayId: number, vuelta?: 'ida' | 'vuelta', match?: MatchData | null) => {
     const passTeam = teamFilterIds.length === 0 || teamFilterIds.includes(homeId) || teamFilterIds.includes(awayId);
@@ -281,6 +295,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
         homeTeamId: vars.home_team_id,
         awayTeamId: vars.away_team_id,
         scheduledDate: vars.scheduled_date,
+        jornada: vars.jornada,
         timeStr: vars.time_str,
         court: vars.court,
       });
@@ -319,6 +334,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
       const reserveMirror = matchVars.reserveMirror;
       delete matchVars.reserveMirror;
       delete matchVars.forceScheduleWarnings;
+      const mirrorJornada = vars.jornada + firstLegJornadaCount;
       const rows = reserveMirror
         ? [
             {
@@ -333,7 +349,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
               status: 'Pendiente',
               home_team_id: vars.away_team_id,
               away_team_id: vars.home_team_id,
-              jornada: null,
+              jornada: mirrorJornada,
               court: null,
               time_str: null,
               scheduled_date: null,
@@ -352,25 +368,27 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
       const { error } = await supabase.from('matches').insert(rows);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['matches'] });
+      await invalidatePublicCache({ seasonId });
       messageApi.success('Partido programado con éxito');
     },
     onError: (e: Error) => messageApi.error(e.message),
   });
 
   const updateRowState = (key: string, field: keyof RowState, value: unknown) => {
+    const defaultJornada = missingMatches.find((record) => record.key === key)?.suggestedJornada ?? nextSuggestedJornada;
     setRowStates((prev: Record<string, RowState>) => ({
       ...prev,
       [key]: {
-        ...(prev[key] || { jornada: nextSuggestedJornada }),
+        ...(prev[key] || { jornada: defaultJornada }),
         [field]: value
       }
     }));
   };
 
   const attemptCreate = (record: MissingMatch) => {
-    const s = rowStates[record.key] || { jornada: nextSuggestedJornada };
+    const s = rowStates[record.key] || { jornada: record.suggestedJornada ?? nextSuggestedJornada };
     if (!s.jornada) {
       messageApi.error('Debes proporcionar una jornada.');
       return;
@@ -393,6 +411,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
       homeTeamId: vars.home_team_id,
       awayTeamId: vars.away_team_id,
       scheduledDate: vars.scheduled_date,
+      jornada: vars.jornada,
       timeStr: vars.time_str,
       court: vars.court,
     });
@@ -444,7 +463,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
       render: (_: unknown, record: MissingMatch) => (
         <InputNumber 
           min={1} 
-          value={rowStates[record.key]?.jornada || nextSuggestedJornada} 
+          value={rowStates[record.key]?.jornada ?? record.suggestedJornada ?? nextSuggestedJornada}
           onChange={(val) => updateRowState(record.key, 'jornada', val)}
           style={{ width: 60 }}
         />

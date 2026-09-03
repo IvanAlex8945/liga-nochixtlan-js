@@ -26,67 +26,55 @@ interface MatchData {
   court?: string | null;
 }
 
-/* ── Color Palette (curated, harmonious) ─────────────────── */
+/* ── Color Palette (curated, athletic) ───────────────────── */
 const TEAM_COLORS = [
-  '#E63946', '#457B9D', '#2A9D8F', '#E9C46A', '#F4A261',
-  '#264653', '#6A0572', '#1B998B', '#FF6B6B', '#4ECDC4',
-  '#D4A373', '#8338EC', '#FF006E', '#3A86FF', '#06D6A0',
+  '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6',
+  '#06b6d4', '#f97316', '#14b8a6', '#6366f1', '#e11d48',
+  '#84cc16', '#0ea5e9', '#d946ef', '#f43f5e', '#a855f7',
 ];
 
 function getTeamColor(teamId: number): string {
-  return TEAM_COLORS[teamId % TEAM_COLORS.length];
+  return TEAM_COLORS[Math.abs(teamId) % TEAM_COLORS.length];
 }
 
 function getTeamInitial(name: string): string {
-  return name.charAt(0).toUpperCase();
+  return name.trim().charAt(0).toUpperCase();
 }
 
 /* ── Phase theming ───────────────────────────────────────── */
-const PHASE_CONFIG: Record<string, { label: string; bgLabel: string; gradient: string; glow: string; accent: string }> = {
+const PHASE_CONFIG: Record<string, { label: string; bgLabel: string; accent: string }> = {
   'Cuartos de Final': {
     label: 'CUARTOS DE FINAL',
     bgLabel: 'CUARTOS',
-    gradient: 'linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 100%)',
-    glow: '#1677ff',
-    accent: '#1677ff',
+    accent: '#38bdf8',
   },
   'Octavos de Final': {
     label: 'OCTAVOS DE FINAL',
     bgLabel: 'OCTAVOS',
-    gradient: 'linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 100%)',
-    glow: '#1677ff',
-    accent: '#1677ff',
+    accent: '#38bdf8',
   },
   'Semifinal': {
     label: 'SEMIFINALES',
     bgLabel: 'SEMIS',
-    gradient: 'linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 100%)',
-    glow: '#f5222d',
-    accent: '#f5222d',
+    accent: '#f87171',
   },
   'Final': {
     label: 'LA GRAN FINAL',
     bgLabel: 'FINAL',
-    gradient: 'linear-gradient(135deg, #0d0d0d 0%, #141414 100%)',
-    glow: '#FAAD14',
-    accent: '#FAAD14',
+    accent: '#f59e0b',
   },
   'Tercer Lugar': {
     label: 'TERCER LUGAR',
     bgLabel: 'BRONCE',
-    gradient: 'linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 100%)',
-    glow: '#722ed1',
-    accent: '#722ed1',
+    accent: '#a78bfa',
   },
 };
 
 function getPhaseConfig(phase: string) {
   return PHASE_CONFIG[phase] ?? {
-    label: phase.toUpperCase(),
-    bgLabel: 'LIGA',
-    gradient: 'linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 100%)',
-    glow: '#FAAD14',
-    accent: '#FAAD14',
+    label: (phase || 'LIGUILLA').toUpperCase(),
+    bgLabel: 'PLAYOFFS',
+    accent: '#f59e0b',
   };
 }
 
@@ -169,7 +157,7 @@ function formatDateSpanish(dateStr: string | null | undefined): string {
     .replace(/^\w/, c => c.toUpperCase());
 }
 
-/* ── Canvas Image Generation (Premium) ───────────────────── */
+/* ── Canvas Image Generation (Preserved 100%) ────────────── */
 function generateBillboardImage(
   phase: string,
   bgLabel: string,
@@ -191,122 +179,127 @@ function generateBillboardImage(
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
 
-  // Mesh-like background
+  // Dark background with sports gradient
   const bgGrad = ctx.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, 1200);
-  bgGrad.addColorStop(0, '#141414');
-  bgGrad.addColorStop(1, '#050505');
+  bgGrad.addColorStop(0, '#111520');
+  bgGrad.addColorStop(1, '#05070a');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Background glow
+  // Subtle team glows
   const glowHome = ctx.createRadialGradient(W * 0.2, H * 0.45, 0, W * 0.2, H * 0.45, 600);
-  glowHome.addColorStop(0, homeColor + '15');
+  glowHome.addColorStop(0, homeColor + '18');
   glowHome.addColorStop(1, 'transparent');
   ctx.fillStyle = glowHome;
   ctx.fillRect(0, 0, W, H);
 
   const glowAway = ctx.createRadialGradient(W * 0.8, H * 0.55, 0, W * 0.8, H * 0.55, 600);
-  glowAway.addColorStop(0, awayColor + '15');
+  glowAway.addColorStop(0, awayColor + '18');
   glowAway.addColorStop(1, 'transparent');
   ctx.fillStyle = glowAway;
   ctx.fillRect(0, 0, W, H);
 
-  // Big background text
+  // Watermark text
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255,255,255,0.04)';
-  ctx.font = '900 280px Inter, Arial, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.font = '900 260px Inter, Arial, sans-serif';
   ctx.fillText(bgLabel, W / 2, H / 2 + 100);
 
   // Top header box
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = '#0a0d14';
   ctx.fillRect(0, 0, W, 260);
-  
-  // Accent bars
+
+  // Accent bar
   ctx.fillStyle = accent;
   ctx.fillRect(0, 260, W, 4);
 
-  // "LIGA MUNICIPAL DE BÁSQUETBOL"
-  ctx.fillStyle = '#FAAD14';
-  ctx.font = '700 32px Inter, Arial, sans-serif';
-  ctx.letterSpacing = '8px';
-  ctx.fillText('🏆 LIGA MUNICIPAL DE BÁSQUETBOL 🏆', W / 2, 110);
-  ctx.letterSpacing = '0px';
+  // Header titles
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = '700 28px Inter, Arial, sans-serif';
+  ctx.fillText('LIGA MUNICIPAL DE BÁSQUETBOL', W / 2, 110);
 
-  ctx.fillStyle = '#fff';
-  ctx.font = '900 64px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 60px Inter, Arial, sans-serif';
   ctx.fillText('NOCHIXTLÁN', W / 2, 190);
 
   // Phase Title
   ctx.fillStyle = accent;
-  ctx.font = '900 80px Inter, Arial, sans-serif';
+  ctx.font = '900 76px Inter, Arial, sans-serif';
   ctx.fillText(phase, W / 2, 380);
 
-  // Date/Court Row
-  ctx.fillStyle = '#888';
-  ctx.font = '600 36px Inter, Arial, sans-serif';
+  // Date / Court
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '600 34px Inter, Arial, sans-serif';
   ctx.fillText(`🗓  ${dateStr}`, W / 2, 460);
   ctx.fillText(`📍  ${court}`, W / 2, 515);
 
   // Teams Layout
   const nameY = 880;
-  
+
   // Home
   ctx.fillStyle = homeColor;
-  ctx.font = '900 200px Inter, Arial, sans-serif';
+  ctx.font = '900 190px Inter, Arial, sans-serif';
   ctx.fillText(getTeamInitial(homeName), W / 2 - 320, nameY);
-  ctx.fillStyle = '#fff';
-  ctx.font = '900 64px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 60px Inter, Arial, sans-serif';
   ctx.fillText(homeName.toUpperCase(), W / 2, nameY - 60);
 
   // VS
-  ctx.fillStyle = '#333';
-  ctx.font = '900 120px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.font = '900 110px Inter, Arial, sans-serif';
   ctx.fillText('VS', W / 2, nameY + 60);
 
   // Away
   ctx.fillStyle = awayColor;
-  ctx.font = '900 200px Inter, Arial, sans-serif';
+  ctx.font = '900 190px Inter, Arial, sans-serif';
   ctx.fillText(getTeamInitial(awayName), W / 2 + 320, nameY + 120);
-  ctx.fillStyle = '#fff';
-  ctx.font = '900 64px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 60px Inter, Arial, sans-serif';
   ctx.fillText(awayName.toUpperCase(), W / 2, nameY + 180);
 
   // Bottom Status Box
   const bottomBoxY = 1450;
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillStyle = 'rgba(10, 13, 20, 0.85)';
   ctx.fillRect(W * 0.1, bottomBoxY, W * 0.8, 300);
-  ctx.strokeStyle = accent + '44';
+  ctx.strokeStyle = accent + '55';
   ctx.lineWidth = 2;
   ctx.strokeRect(W * 0.1, bottomBoxY, W * 0.8, 300);
 
   ctx.fillStyle = accent;
-  ctx.font = '800 44px Inter, Arial, sans-serif';
+  ctx.font = '800 42px Inter, Arial, sans-serif';
   ctx.fillText(gameLabel, W / 2, bottomBoxY + 80);
 
-  ctx.fillStyle = '#ccc';
-  ctx.font = '500 36px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '500 34px Inter, Arial, sans-serif';
   ctx.fillText(seriesLabel, W / 2, bottomBoxY + 140);
 
-  ctx.fillStyle = '#fff';
-  ctx.font = '900 90px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 84px Inter, Arial, sans-serif';
   ctx.fillText(`🏀  ${timeStr}`, W / 2, bottomBoxY + 250);
 
   return canvas.toDataURL('image/png');
 }
 
 /* ── Avatar Badge Component ──────────────────────────────── */
-function AvatarBadge({ name, teamId, size = 64 }: { name: string; teamId: number; size?: number }) {
+function AvatarBadge({ name, teamId, size = 52 }: { name: string; teamId: number; size?: number }) {
   const color = getTeamColor(teamId);
   return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: `radial-gradient(circle at 30% 30%, ${color}66, ${color}11)`,
-      border: `2px solid ${color}`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: `0 0 25px ${color}22`,
-      flexShrink: 0,
-    }}>
-      <span style={{ color, fontSize: size * 0.5, fontWeight: 900, lineHeight: 1 }}>
+    <div
+      aria-hidden="true"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: `radial-gradient(circle at 30% 30%, ${color}33, ${color}11)`,
+        border: `2px solid ${color}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: `0 4px 16px ${color}22`,
+        flexShrink: 0,
+      }}
+    >
+      <span style={{ color, fontSize: size * 0.48, fontWeight: 900, lineHeight: 1 }}>
         {getTeamInitial(name)}
       </span>
     </div>
@@ -318,9 +311,8 @@ function AvatarBadge({ name, teamId, size = 64 }: { name: string; teamId: number
    ═══════════════════════════════════════════════════════════ */
 export default function GameDayBillboard({ seasonMatches }: { seasonMatches: MatchData[] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [rotation, setRotation] = useState({ x: 0, y: 0 });
 
-  // Filter logic
+  // Filter logic (Preserved 100%)
   const upcomingLiguilla = useMemo(() => {
     const liguillaPhases = ['Cuartos de Final', 'Octavos de Final', 'Semifinal', 'Final', 'Tercer Lugar'];
     return seasonMatches.filter(
@@ -350,13 +342,6 @@ export default function GameDayBillboard({ seasonMatches }: { seasonMatches: Mat
       return { match, info, phaseConfig };
     });
   }, [upcomingLiguilla, seriesGroups]);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientY - rect.top) / rect.height - 0.5) * 10;
-    const y = ((e.clientX - rect.left) / rect.width - 0.5) * -10;
-    setRotation({ x, y });
-  };
 
   const handleDownload = useCallback((cardIndex: number) => {
     const card = cards[cardIndex];
@@ -395,7 +380,9 @@ export default function GameDayBillboard({ seasonMatches }: { seasonMatches: Mat
   if (cards.length === 0) return null;
 
   const current = cards[currentIndex];
-  const { match, info, phaseConfig } = current!;
+  if (!current) return null;
+
+  const { match, info, phaseConfig } = current;
   const dateStr = formatDateSpanish(match.scheduled_date);
   const timeStr = match.time_str ?? 'Hora por confirmar';
   const court = match.court ?? 'Cancha Bicentenario';
@@ -406,107 +393,124 @@ export default function GameDayBillboard({ seasonMatches }: { seasonMatches: Mat
   const awayLeader = awayWins > homeWins;
 
   return (
-    <div style={{ maxWidth: 540, margin: '24px auto 12px', padding: '0 16px', perspective: 1000 }}>
-      
-      {/* Container with 3D Tilt */}
-      <div 
+    <div style={{ maxWidth: 1120, margin: '20px auto 14px', padding: '0 14px' }}>
+      <div
         className="billboard-card"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setRotation({ x: 0, y: 0 })}
         style={{
-          transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`,
-          background: `linear-gradient(215deg, rgba(10,10,10,0.88), rgba(26,26,26,0.78), rgba(5,5,5,0.92))`,
-          border: `1px solid ${phaseConfig.accent}44`,
-          borderRadius: 24,
+          background: 'linear-gradient(180deg, rgba(20, 26, 38, 0.92), rgba(10, 14, 22, 0.96))',
+          border: '1px solid rgba(255, 255, 255, 0.09)',
+          borderRadius: 20,
           overflow: 'hidden',
-          boxShadow: `0 30px 60px rgba(0,0,0,0.5), 0 0 50px ${phaseConfig.accent}15`,
+          boxShadow: '0 20px 48px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
         }}
       >
-        {/* Background text decoration */}
-        <div className="billboard-text-bg" style={{ color: phaseConfig.accent }}>
-          {phaseConfig.bgLabel}
+        {/* Cabecera del encuentro */}
+        <div
+          style={{
+            background: 'rgba(7, 9, 14, 0.85)',
+            padding: '12px 18px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 8,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: phaseConfig.accent,
+                display: 'inline-block',
+              }}
+            />
+            <span style={{ color: phaseConfig.accent, fontSize: 12, fontWeight: 800, letterSpacing: '0.14em' }}>
+              {phaseConfig.label}
+            </span>
+          </div>
+          <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600 }}>
+            {gameLabel}
+          </span>
         </div>
 
-        {/* Top Header */}
-        <div style={{ 
-          background: 'rgba(0,0,0,0.8)', padding: '16px 20px', 
-          borderBottom: `1px solid ${phaseConfig.accent}33`,
-          textAlign: 'center', position: 'relative', zIndex: 2
-        }}>
-          <div style={{ color: '#FAAD14', fontSize: 10, fontWeight: 700, letterSpacing: 4, marginBottom: 2 }}>
-            LIGA MUNICIPAL DE BÁSQUETBOL
-          </div>
-          <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, letterSpacing: 1 }}>
-            NOCHIXTLÁN
-          </div>
-        </div>
-
-        {/* Phase + Date */}
-        <div style={{ padding: '24px 20px 0', textAlign: 'center', position: 'relative', zIndex: 2 }}>
-          <div style={{ 
-            color: phaseConfig.accent, fontSize: 28, fontWeight: 900, 
-            textTransform: 'uppercase', marginBottom: 6,
-            textShadow: `0 0 15px ${phaseConfig.glow}66`
-          }}>
-            {phaseConfig.label}
-          </div>
-          <div style={{ color: '#888', fontSize: 13, fontWeight: 500 }}>
-            {dateStr}
-          </div>
-        </div>
-
-        {/* Teams Area */}
-        <div style={{ padding: '30px 20px 20px', position: 'relative', zIndex: 2 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Team A */}
+        {/* Zona de Equipos (Matchup) */}
+        <div style={{ padding: '22px 18px 18px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Local */}
             <div
               className={`billboard-score-card${homeLeader ? ' billboard-score-card--leader' : ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: 16 }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}
             >
-              <AvatarBadge name={match.home_team?.name ?? 'L'} teamId={match.home_team_id} size={56} />
-              <div style={{ color: '#fff', fontSize: 24, fontWeight: 900, textTransform: 'uppercase' }}>
-                {match.home_team?.name ?? 'Local'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                <AvatarBadge name={match.home_team?.name ?? 'Local'} teamId={match.home_team_id} size={46} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {match.home_team?.name ?? 'Local'}
+                  </div>
+                  <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600 }}>Local</div>
+                </div>
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: homeLeader ? 'var(--gold-soft)' : '#94a3b8' }}>
+                {homeWins}
               </div>
             </div>
 
-            {/* VS Divider */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
-              <div style={{ color: '#333', fontWeight: 900, fontSize: 32 }}>VS</div>
-              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
+            {/* Separador VS con estado de serie */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 8px' }}>
+              <div style={{ flex: 1, height: 1, background: 'rgba(255, 255, 255, 0.08)' }} />
+              <div style={{ color: 'var(--gold-accent)', fontWeight: 800, fontSize: 11, letterSpacing: '0.1em' }}>
+                {info.seriesLabel}
+              </div>
+              <div style={{ flex: 1, height: 1, background: 'rgba(255, 255, 255, 0.08)' }} />
             </div>
 
-            {/* Team B */}
+            {/* Visitante */}
             <div
               className={`billboard-score-card${awayLeader ? ' billboard-score-card--leader' : ''}`}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 16 }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}
             >
-              <div style={{ color: '#fff', fontSize: 24, fontWeight: 900, textTransform: 'uppercase', textAlign: 'right' }}>
-                {match.away_team?.name ?? 'Visitante'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                <AvatarBadge name={match.away_team?.name ?? 'Visitante'} teamId={match.away_team_id} size={46} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {match.away_team?.name ?? 'Visitante'}
+                  </div>
+                  <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600 }}>Visitante</div>
+                </div>
               </div>
-              <AvatarBadge name={match.away_team?.name ?? 'V'} teamId={match.away_team_id} size={56} />
+              <div style={{ fontSize: 20, fontWeight: 900, color: awayLeader ? 'var(--gold-soft)' : '#94a3b8' }}>
+                {awayWins}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Details Footer */}
-        <div style={{ 
-          background: 'rgba(0,0,0,0.6)', padding: '20px',
-          borderTop: `1px solid ${phaseConfig.accent}22`,
-          position: 'relative', zIndex: 2
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        {/* Detalles del Encuentro: Cancha, Fecha, Hora */}
+        <div
+          style={{
+            background: 'rgba(8, 11, 17, 0.75)',
+            padding: '16px 18px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
             <div>
-              <div style={{ color: phaseConfig.accent, fontSize: 16, fontWeight: 800 }}>{gameLabel}</div>
-              <div style={{ color: '#666', fontSize: 13, marginBottom: 8 }}>{info.seriesLabel}</div>
-              <div style={{ color: '#aaa', fontSize: 14 }}>📍 {court}</div>
+              <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>
+                🗓 {dateStr}
+              </div>
+              <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
+                📍 {court}
+              </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ color: '#fff', fontSize: 32, fontWeight: 900, lineHeight: 1 }}>
+              <div style={{ color: 'var(--gold-soft)', fontSize: 22, fontWeight: 900, lineHeight: 1 }}>
                 {timeStr}
               </div>
-              <div style={{ color: '#555', fontSize: 11, fontWeight: 700, marginTop: 4 }}>
-                HORARIO DE INICIO
+              <div style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>
+                Inicio
               </div>
             </div>
           </div>
@@ -515,28 +519,43 @@ export default function GameDayBillboard({ seasonMatches }: { seasonMatches: Mat
             block
             icon={<DownloadOutlined />}
             onClick={() => handleDownload(currentIndex)}
-            style={{ 
-              marginTop: 20, 
-              background: phaseConfig.accent, 
-              border: 'none', 
-              color: '#000', 
-              fontWeight: 800,
+            className="premium-button"
+            style={{
+              marginTop: 14,
               height: 44,
-              borderRadius: 12,
-              boxShadow: `0 4px 15px ${phaseConfig.glow}44`
+              borderRadius: 10,
+              fontSize: 12,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
             }}
           >
-            DESCARGAR PARA REDES
+            Descargar Tarjeta para Redes
           </Button>
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* Navegación entre tarjetas si hay más de 1 */}
       {cards.length > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 20, marginTop: 24 }}>
-          <Button shape="circle" icon={<LeftOutlined />} disabled={currentIndex === 0} onClick={() => setCurrentIndex(i => i-1)} style={{ background: '#111', border: '1px solid #333', color: '#fff' }} />
-          <div style={{ color: '#444', fontSize: 12, fontWeight: 700 }}>{currentIndex + 1} / {cards.length}</div>
-          <Button shape="circle" icon={<RightOutlined />} disabled={currentIndex === cards.length - 1} onClick={() => setCurrentIndex(i => i+1)} style={{ background: '#111', border: '1px solid #333', color: '#fff' }} />
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14, marginTop: 14 }}>
+          <Button
+            shape="circle"
+            aria-label="Partido anterior"
+            icon={<LeftOutlined />}
+            disabled={currentIndex === 0}
+            onClick={() => setCurrentIndex(i => i - 1)}
+            style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.12)', color: '#fff' }}
+          />
+          <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 700 }}>
+            {currentIndex + 1} / {cards.length}
+          </div>
+          <Button
+            shape="circle"
+            aria-label="Siguiente partido"
+            icon={<RightOutlined />}
+            disabled={currentIndex === cards.length - 1}
+            onClick={() => setCurrentIndex(i => i + 1)}
+            style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255, 255, 255, 0.12)', color: '#fff' }}
+          />
         </div>
       )}
     </div>

@@ -18,6 +18,7 @@ const MARGIN_Y_MM = 12;
 const GAP_X_MM = 11.9;
 const GAP_Y_MM = 9;
 const CARDS_PER_PAGE = 8;
+const CREDENTIAL_BACK_SRC = '/credentials/credential_back_stamp.png';
 
 export async function generateTeamCredentialPdf({
   credentials,
@@ -33,23 +34,71 @@ export async function generateTeamCredentialPdf({
     unit: 'mm',
   });
 
-  for (let index = 0; index < credentials.length; index += 1) {
-    if (index > 0 && index % CARDS_PER_PAGE === 0) {
+  const backImageUrl = await loadCredentialBackImage();
+
+  for (let pageStart = 0; pageStart < credentials.length; pageStart += CARDS_PER_PAGE) {
+    if (pageStart > 0) {
       doc.addPage('letter', 'portrait');
     }
 
-    const pageIndex = index % CARDS_PER_PAGE;
-    const col = pageIndex % 2;
-    const row = Math.floor(pageIndex / 2);
-    const x = MARGIN_X_MM + col * (CARD_WIDTH_MM + GAP_X_MM);
-    const y = MARGIN_Y_MM + row * (CARD_HEIGHT_MM + GAP_Y_MM);
+    const pageCredentials = credentials.slice(pageStart, pageStart + CARDS_PER_PAGE);
+    await drawCredentialPdfPage(doc, pageCredentials);
+
+    doc.addPage('letter', 'portrait');
+    drawCredentialBackPage(doc, getEvenCardCount(pageCredentials.length), backImageUrl);
+  }
+
+  doc.save(`credenciales_${slugify(teamName)}.pdf`);
+}
+
+async function drawCredentialPdfPage(doc: jsPDF, credentials: PrintableCredential[]) {
+  for (let index = 0; index < credentials.length; index += 1) {
+    const { x, y } = getCardPosition(index);
     const imageUrl = await renderCredentialImage(credentials[index]);
 
     doc.addImage(imageUrl, 'PNG', x, y, CARD_WIDTH_MM, CARD_HEIGHT_MM, undefined, 'FAST');
     drawCutGuides(doc, x, y, CARD_WIDTH_MM, CARD_HEIGHT_MM);
   }
+}
 
-  doc.save(`credenciales_${slugify(teamName)}.pdf`);
+function drawCredentialBackPage(doc: jsPDF, cardCount: number, imageUrl: string) {
+  for (let index = 0; index < cardCount; index += 1) {
+    const { x, y } = getCardPosition(index);
+
+    doc.addImage(imageUrl, 'PNG', x, y, CARD_WIDTH_MM, CARD_HEIGHT_MM, undefined, 'FAST');
+    drawCutGuides(doc, x, y, CARD_WIDTH_MM, CARD_HEIGHT_MM);
+  }
+}
+
+function getEvenCardCount(cardCount: number) {
+  return cardCount % 2 === 0 ? cardCount : cardCount + 1;
+}
+
+function getCardPosition(index: number) {
+  const col = index % 2;
+  const row = Math.floor(index / 2);
+
+  return {
+    x: MARGIN_X_MM + col * (CARD_WIDTH_MM + GAP_X_MM),
+    y: MARGIN_Y_MM + row * (CARD_HEIGHT_MM + GAP_Y_MM),
+  };
+}
+
+async function loadCredentialBackImage() {
+  const response = await fetch(CREDENTIAL_BACK_SRC);
+
+  if (!response.ok) {
+    throw new Error('No se pudo cargar el reverso de la credencial.');
+  }
+
+  const blob = await response.blob();
+
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('No se pudo preparar el reverso de la credencial.'));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function drawCutGuides(
