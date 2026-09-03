@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { formatPlayerNumber } from '@/lib/player-number';
 import {
   createVerificationLog,
   loadCredentialViewByCode,
@@ -86,7 +87,7 @@ function ManualResult({ view }: { view: CredentialVerificationView }) {
           </div>
           <h2 style={{ color: '#fff', margin: '10px 0 8px', fontSize: 30 }}>{view.player.name}</h2>
           <p style={{ margin: 0, color: 'rgba(245,241,232,0.74)' }}>
-            {view.team?.name ?? 'Equipo sin asignar'} · {view.player.number !== null ? `#${view.player.number}` : 'Sin dorsal'}
+            {view.team?.name ?? 'Equipo sin asignar'} · {view.player.number !== null ? `#${formatPlayerNumber(view.player.number)}` : 'Sin dorsal'}
           </p>
           <p style={{ margin: '8px 0 0', color: 'rgba(245,241,232,0.74)' }}>
             Código: {view.credential.credential_code}

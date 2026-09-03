@@ -4,7 +4,7 @@
  */
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { calcularPosiciones, MatchForStandings, TeamStats } from './standings';
+import { TeamStats } from './standings';
 import { elegibilidadLiguilla } from './liga';
 
 interface StatRow {

@@ -7,6 +7,7 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { invalidatePublicCache } from '@/lib/public-cache-client';
 import { useState } from 'react';
 
 const { Title, Text } = Typography;
@@ -21,7 +22,7 @@ interface Season {
   created_at: string;
 }
 
-const CATEGORIES = ['Libre', 'Veteranos', 'Femenil', '3ra'];
+const CATEGORIES = ['Libre', 'Veteranos', 'Femenil', '3ra', 'Master'];
 
 export default function SeasonsPage() {
   const qc = useQueryClient();
@@ -46,13 +47,21 @@ export default function SeasonsPage() {
       if (editing) {
         const { error } = await supabase.from('seasons').update(values).eq('id', editing.id);
         if (error) throw error;
+        return editing.id;
       } else {
-        const { error } = await supabase.from('seasons').insert(values);
+        const { data, error } = await supabase
+          .from('seasons')
+          .insert(values)
+          .select('id')
+          .single();
         if (error) throw error;
+        return data.id;
       }
     },
-    onSuccess: () => {
+    onSuccess: async (seasonId) => {
       qc.invalidateQueries({ queryKey: ['seasons'] });
+      qc.invalidateQueries({ queryKey: ['seasons-selector'] });
+      await invalidatePublicCache({ seasonId, seasons: true });
       message.success(editing ? 'Temporada actualizada' : 'Temporada creada');
       setModalOpen(false);
       setEditing(null);
@@ -67,10 +76,13 @@ export default function SeasonsPage() {
       await supabase.from('seasons').update({ is_active: false }).eq('category', category);
       const { error } = await supabase.from('seasons').update({ is_active: true }).eq('id', id);
       if (error) throw error;
+      return id;
     },
-    onSuccess: () => {
+    onSuccess: async (seasonId) => {
       qc.invalidateQueries({ queryKey: ['seasons'] });
       qc.invalidateQueries({ queryKey: ['active-season'] });
+      qc.invalidateQueries({ queryKey: ['seasons-selector'] });
+      await invalidatePublicCache({ seasonId, seasons: true });
       message.success('Temporada activada');
     },
     onError: (e: Error) => message.error(e.message),
@@ -81,8 +93,10 @@ export default function SeasonsPage() {
       const { error } = await supabase.from('seasons').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async (_, seasonId) => {
       qc.invalidateQueries({ queryKey: ['seasons'] });
+      qc.invalidateQueries({ queryKey: ['seasons-selector'] });
+      await invalidatePublicCache({ seasonId, seasons: true });
       message.success('Temporada eliminada');
     },
     onError: (e: Error) => message.error(e.message),

@@ -1,7 +1,7 @@
 'use client';
 
 import AdminLayout from '@/app/components/AdminLayout';
-import { Select, Typography, Alert, Spin, Tag, Button } from 'antd';
+import { Select, Typography, Alert, Spin, Button } from 'antd';
 import { FilePdfOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';

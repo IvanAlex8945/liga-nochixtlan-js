@@ -37,7 +37,7 @@ async function run() {
   console.log("⚙️  Creando administradores iniciales...\n");
 
   for (const admin of adminsToCreate) {
-    const { data, error } = await supabase.auth.admin.createUser({
+    const { error } = await supabase.auth.admin.createUser({
       email: admin.email,
       password: admin.password,
       email_confirm: true // <-- Esto es clave: marca el correo como confirmado automáticamente sin tener que mandarles un correo real.

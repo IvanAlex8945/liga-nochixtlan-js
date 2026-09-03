@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { Modal, Button, Checkbox, Select, Typography, App } from 'antd';
 import { calcularPosiciones, MatchForStandings, TeamStats } from '@/lib/standings';
 import { supabase } from '@/lib/supabase';
+import { invalidatePublicCache } from '@/lib/public-cache-client';
 import { useQueryClient } from '@tanstack/react-query';
 
 const { Title, Text } = Typography;
@@ -25,18 +26,15 @@ export default function LiguillaModal({
   open,
   onClose,
   seasonId,
-  matches,
-  teams
+  matches
 }: {
   open: boolean;
   onClose: () => void;
   seasonId: number;
   matches: Match[];
-  teams: unknown[];
 }) {
   const { message: messageApi } = App.useApp();
   const qc = useQueryClient();
-  const [step, setStep] = useState(1);
   const [formatCuartos, setFormatCuartos] = useState<'1' | '3'>('1');
   const [formatSemis, setFormatSemis] = useState<'1' | '3'>('1');
   const [selectedSemisTeamIds, setSelectedSemisTeamIds] = useState<number[]>([]);
@@ -70,6 +68,7 @@ export default function LiguillaModal({
     try {
       const { error } = await supabase.from('matches').insert(matchesArray);
       if (error) throw error;
+      await invalidatePublicCache({ seasonId });
       messageApi.success('Partidos de liguilla inyectados al calendario.');
       qc.invalidateQueries({ queryKey: ['matches'] });
       onClose();

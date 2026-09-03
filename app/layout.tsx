@@ -6,12 +6,14 @@ import AntdProvider from './components/AntdProvider';
 const sora = Sora({
   subsets: ['latin'],
   variable: '--font-sora',
+  display: 'swap',
 });
 
 const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
   variable: '--font-display',
   weight: ['600', '700'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {

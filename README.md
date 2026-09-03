@@ -8,7 +8,7 @@
 
 Este sistema es una plataforma integral de gestión deportiva diseñada específicamente para la **Liga Municipal de Básquetbol de Nochixtlán**. El objetivo principal es centralizar la administración de torneos, el seguimiento de estadísticas de jugadores en tiempo real y la automatización de la programación de encuentros.
 
-A diferencia de soluciones genéricas, esta plataforma implementa la lógica de negocio particular de la liga, permitiendo una gestión fluida de múltiples categorías (**Libre, Veteranos, Femenil, 3ra**) y adaptándose al ritmo de competencia local, donde los encuentros se concentran los días **jueves, viernes y sábados** en sedes oficiales como la *Cancha Bicentenario* y la *Cancha Techada*.
+A diferencia de soluciones genéricas, esta plataforma implementa la lógica de negocio particular de la liga, permitiendo una gestión fluida de múltiples categorías (**Libre, Veteranos, Femenil, 3ra, Master**) y adaptándose al ritmo de competencia local, donde los encuentros se concentran los días **jueves, viernes y sábados** en sedes oficiales como la *Cancha Bicentenario* y la *Cancha Techada*.
 
 ---
 

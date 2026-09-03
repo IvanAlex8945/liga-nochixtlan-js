@@ -1,10 +1,13 @@
 import QRCode from 'qrcode';
 
+import { formatPlayerNumber, type PlayerNumberValue } from '@/lib/player-number';
+
 export interface CredentialRenderInput {
   category: string;
   credentialCode: string;
+  curp?: string | null;
   issuedAt: string;
-  number: number | null;
+  number: PlayerNumberValue;
   photoUrl: string | null;
   playerName: string;
   seasonName: string;
@@ -18,12 +21,16 @@ const CARD_HEIGHT = 992;
 const TEMPLATE_BY_CATEGORY = {
   femenil: '/credentials/credencial_base_femenil.png',
   libre: '/credentials/base_credencial_bueno.png',
+  master: '/credentials/credencial_base_master.png',
   tercera: '/credentials/credencial_base_tercera.png',
+  veteranos: '/credentials/credencial_base_veteranos.png',
 } as const;
 const templateImagePromises = new Map<string, Promise<HTMLImageElement>>();
 
 interface CredentialLayout {
   categoryCenterY: number;
+  curpCenterX: number | null;
+  curpY: number | null;
   fieldLeftX: number;
   fieldRightX: number;
   footerPeriodX: number;
@@ -31,9 +38,13 @@ interface CredentialLayout {
   lowerFieldsY: number;
   nameBoxHeight: number;
   nameBoxY: number;
+  photoX: number;
   photoY: number;
   qrBoxX: number;
   qrBoxY: number;
+  seasonFieldsCentered: boolean;
+  showFooterPeriod: boolean;
+  statusValidColor: string;
   teamCenterY: number;
   upperFieldsY: number;
 }
@@ -63,7 +74,7 @@ export async function renderCredentialImage(input: CredentialRenderInput) {
   context.drawImage(template, 0, 0, CARD_WIDTH, CARD_HEIGHT);
 
   await drawPlayerPhoto(context, input, layout);
-  drawStatusBadge(context, input.statusLabel);
+  drawStatusBadge(context, input.statusLabel, layout);
   drawPlayerName(context, input.playerName, layout);
   drawCenteredGoldText(context, input.teamName, {
     centerX: 796,
@@ -79,9 +90,12 @@ export async function renderCredentialImage(input: CredentialRenderInput) {
   });
   drawDorsal(context, input);
   drawSeasonFields(context, input, layout);
+  drawVeteransCurp(context, input, layout);
   await drawQr(context, input.verifyUrl, layout);
   drawOfficialDocument(context, input.credentialCode);
-  drawFooterSeason(context, input.seasonName, layout);
+  if (layout.showFooterPeriod) {
+    drawFooterSeason(context, input.seasonName, layout);
+  }
 
   return canvas.toDataURL('image/png');
 }
@@ -91,7 +105,13 @@ async function drawPlayerPhoto(
   input: CredentialRenderInput,
   layout: CredentialLayout
 ) {
-  const photoBox = { x: 64, y: layout.photoY, width: 318, height: 363, radius: 8 };
+  const photoBox = {
+    x: layout.photoX,
+    y: layout.photoY,
+    width: 318,
+    height: 363,
+    radius: 8,
+  };
 
   context.save();
   roundRect(context, photoBox.x, photoBox.y, photoBox.width, photoBox.height, photoBox.radius);
@@ -116,9 +136,13 @@ async function drawPlayerPhoto(
   context.restore();
 }
 
-function drawStatusBadge(context: CanvasRenderingContext2D, statusLabel: string) {
+function drawStatusBadge(
+  context: CanvasRenderingContext2D,
+  statusLabel: string,
+  layout: CredentialLayout
+) {
   const isValid = statusLabel.toLowerCase().includes('vigente');
-  const color = isValid ? COLORS.cyan : COLORS.danger;
+  const color = isValid ? layout.statusValidColor : COLORS.danger;
   const label = statusLabel.toUpperCase();
   const shieldCenterX = 1305;
   const shieldCenterY = 72;
@@ -196,7 +220,7 @@ function drawPlayerName(
 }
 
 function drawDorsal(context: CanvasRenderingContext2D, input: CredentialRenderInput) {
-  const numberText = input.number !== null ? String(input.number) : '--';
+  const numberText = formatPlayerNumber(input.number, '--');
 
   context.save();
   context.textAlign = 'center';
@@ -218,6 +242,12 @@ function drawSeasonFields(
 ) {
   const period = extractSeasonPeriod(input.seasonName);
   const issued = formatIssuedAt(input.issuedAt).toUpperCase();
+
+  context.save();
+  if (layout.seasonFieldsCentered) {
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+  }
 
   drawGoldText(context, period, {
     x: layout.fieldLeftX,
@@ -250,6 +280,30 @@ function drawSeasonFields(
     fontFamily: '"Arial Narrow", Impact, ui-monospace, monospace',
     maxWidth: 260,
   });
+  context.restore();
+}
+
+function drawVeteransCurp(
+  context: CanvasRenderingContext2D,
+  input: CredentialRenderInput,
+  layout: CredentialLayout
+) {
+  if (layout.curpCenterX === null || layout.curpY === null) {
+    return;
+  }
+
+  const curp = input.curp?.trim().toUpperCase() || 'CURP PENDIENTE';
+  context.save();
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  drawGoldText(context, curp, {
+    x: layout.curpCenterX,
+    y: layout.curpY,
+    fontSize: 38,
+    fontFamily: '"Arial Narrow", Impact, ui-monospace, monospace',
+    maxWidth: 650,
+  });
+  context.restore();
 }
 
 async function drawQr(
@@ -585,6 +639,10 @@ function loadCredentialTemplate(category: string) {
 function getCredentialTemplateSrc(category: string) {
   const normalizedCategory = normalizeCategory(category);
 
+  if (isMasterCategory(normalizedCategory)) {
+    return TEMPLATE_BY_CATEGORY.master;
+  }
+
   if (
     normalizedCategory === '3ra' ||
     normalizedCategory.includes('tercera') ||
@@ -602,6 +660,10 @@ function getCredentialTemplateSrc(category: string) {
     return TEMPLATE_BY_CATEGORY.femenil;
   }
 
+  if (normalizedCategory.includes('veteran')) {
+    return TEMPLATE_BY_CATEGORY.veteranos;
+  }
+
   return TEMPLATE_BY_CATEGORY.libre;
 }
 
@@ -611,10 +673,14 @@ function getCredentialLayout(category: string): CredentialLayout {
     normalizedCategory === 'femenil' ||
     normalizedCategory.includes('femenil') ||
     normalizedCategory.includes('femenina');
+  const isMaster = isMasterCategory(normalizedCategory);
+  const isVeteranos = normalizedCategory.includes('veteran');
 
   if (isFemenil) {
     return {
       categoryCenterY: 532,
+      curpCenterX: null,
+      curpY: null,
       fieldLeftX: 544,
       fieldRightX: 894,
       footerPeriodX: 1380,
@@ -622,16 +688,70 @@ function getCredentialLayout(category: string): CredentialLayout {
       lowerFieldsY: 793,
       nameBoxHeight: 92,
       nameBoxY: 214,
+      photoX: 64,
       photoY: 183,
       qrBoxX: 1216,
       qrBoxY: 240,
+      seasonFieldsCentered: false,
+      showFooterPeriod: true,
+      statusValidColor: COLORS.cyan,
       teamCenterY: 402,
       upperFieldsY: 671,
     };
   }
 
+  if (isVeteranos) {
+    return {
+      categoryCenterY: 425,
+      curpCenterX: 800,
+      curpY: 770,
+      fieldLeftX: 601,
+      fieldRightX: 982,
+      footerPeriodX: 0,
+      footerPeriodY: 0,
+      lowerFieldsY: 655,
+      nameBoxHeight: 70,
+      nameBoxY: 182,
+      photoX: 67,
+      photoY: 179,
+      qrBoxX: 1218,
+      qrBoxY: 228,
+      seasonFieldsCentered: true,
+      showFooterPeriod: false,
+      statusValidColor: '#F6E71D',
+      teamCenterY: 320,
+      upperFieldsY: 540,
+    };
+  }
+
+  if (isMaster) {
+    return {
+      categoryCenterY: 557,
+      curpCenterX: null,
+      curpY: null,
+      fieldLeftX: 544,
+      fieldRightX: 894,
+      footerPeriodX: 1346,
+      footerPeriodY: 935,
+      lowerFieldsY: 813,
+      nameBoxHeight: 102,
+      nameBoxY: 222,
+      photoX: 64,
+      photoY: 173,
+      qrBoxX: 1224,
+      qrBoxY: 228,
+      seasonFieldsCentered: false,
+      showFooterPeriod: true,
+      statusValidColor: COLORS.cyan,
+      teamCenterY: 424,
+      upperFieldsY: 691,
+    };
+  }
+
   return {
     categoryCenterY: 557,
+    curpCenterX: null,
+    curpY: null,
     fieldLeftX: 544,
     fieldRightX: 894,
     footerPeriodX: 1346,
@@ -639,12 +759,20 @@ function getCredentialLayout(category: string): CredentialLayout {
     lowerFieldsY: 813,
     nameBoxHeight: 102,
     nameBoxY: 222,
+    photoX: 64,
     photoY: 173,
     qrBoxX: 1224,
     qrBoxY: 228,
+    seasonFieldsCentered: false,
+    showFooterPeriod: true,
+    statusValidColor: COLORS.cyan,
     teamCenterY: 424,
     upperFieldsY: 691,
   };
+}
+
+function isMasterCategory(normalizedCategory: string) {
+  return normalizedCategory === 'master' || normalizedCategory.includes('master');
 }
 
 function normalizeCategory(category: string) {

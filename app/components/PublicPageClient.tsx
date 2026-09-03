@@ -1,21 +1,57 @@
 'use client';
 
-import { startTransition, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { Tabs, Typography, Tag, Select, Button, FloatButton } from 'antd';
-import { FilePdfOutlined } from '@ant-design/icons';
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type TouchEvent,
+} from 'react';
+import dynamic from 'next/dynamic';
+import { Typography, Tag, Select, Button, Spin } from 'antd';
+import { FilePdfOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import StandingsTable from './StandingsTable';
-import TeamDetailModal from './TeamDetailModal';
 import { calcularPosiciones, MatchForStandings, TeamStats } from '@/lib/standings';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
-import { generateEligibilityPDF } from '@/lib/pdfReport';
 import GameDayBillboard from './GameDayBillboard';
 import { LiguillaBracketTab } from './LiguillaBracket';
 import { buildTeamEncounters, isPlayedStatus, isRegularPhase, type TeamEncounter } from '@/lib/public-team-matches';
 
+// Carga diferida de TeamDetailModal para optimizar bundle inicial
+const TeamDetailModal = dynamic(() => import('./TeamDetailModal'), {
+  loading: () => <div style={{ textAlign: 'center', padding: 40 }}><Spin description="Cargando ficha de equipo..." /></div>,
+  ssr: false,
+});
+
 dayjs.locale('es');
 
 const { Title, Text } = Typography;
+
+export type TabKey = 'home' | 'standings' | 'stats' | 'team-matches' | 'bracket' | 'calendar';
+
+export const TAB_ORDER: TabKey[] = [
+  'home',
+  'standings',
+  'stats',
+  'team-matches',
+  'bracket',
+  'calendar',
+];
+
+export const TAB_LABELS: Record<TabKey, { label: string; icon: string }> = {
+  home: { label: 'INICIO', icon: '🏠' },
+  standings: { label: 'POSICIONES', icon: '🏆' },
+  stats: { label: 'ESTADÍSTICAS', icon: '📊' },
+  'team-matches': { label: 'MI EQUIPO', icon: '🏀' },
+  bracket: { label: 'LIGUILLA', icon: '🔥' },
+  calendar: { label: 'CALENDARIO', icon: '📅' },
+};
 
 interface Season { id: number; name: string; category: string; year: number; is_active: boolean; }
 
@@ -81,12 +117,6 @@ interface InitialDataProps {
 
 type Props = DirectDataProps | InitialDataProps;
 
-const sectionGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  gap: 16,
-};
-
 function sortTeamsByName(teams: TeamData[]) {
   return [...teams].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
@@ -98,12 +128,29 @@ function sortSelectOptions<T extends { label?: ReactNode }>(a: T, b: T) {
 export default function PublicPageClient(props: Props) {
   const { seasons } = props;
   const usesInitialData = 'initialData' in props;
-  const teams = usesInitialData ? props.initialData.teams : props.teams;
-  const allPlayers = usesInitialData ? props.initialData.players : props.allPlayers;
-  const allMatches = usesInitialData ? props.initialData.matches : props.allMatches;
-  const allStats = usesInitialData ? props.initialData.stats : props.allStats;
   const activeSeasons = useMemo(() => seasons.filter((season) => season.is_active), [seasons]);
-  const [activeTab, setActiveTab] = useState('standings');
+
+  // Tab activo y dirección de transición
+  const [activeTab, setActiveTab] = useState<TabKey>('home');
+  const [slideDirection, setSlideDirection] = useState<'forward' | 'backward'>('forward');
+  const prevTabRef = useRef<TabKey>(activeTab);
+
+  // Sub-vista de estadísticas (Honor / Plantillas)
+  const [statsSubView, setStatsSubView] = useState<'leaders' | 'rosters'>('leaders');
+
+  // Referencias para el Sliding Pill Indicator
+  const navRibbonRef = useRef<HTMLElement>(null);
+  const tabButtonRefs = useRef<Map<TabKey, HTMLButtonElement>>(new Map());
+  const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
+
+  // Referencia táctil para swipe gestures
+  const touchState = useRef<{
+    startX: number;
+    startY: number;
+    startTime: number;
+    validSwipeZone: boolean;
+  } | null>(null);
+
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(
     usesInitialData ? props.initialSeasonId : activeSeasons[0]?.id ?? null
   );
@@ -112,9 +159,39 @@ export default function PublicPageClient(props: Props) {
   const [calendarTeamFilter, setCalendarTeamFilter] = useState<number | 'all'>('all');
   const [calendarViewFilter, setCalendarViewFilter] = useState<'upcoming' | 'all'>('upcoming');
 
+  // Cache dinámico de temporadas secundarias
+  const [dynamicData, setDynamicData] = useState<{
+    teams: TeamData[];
+    players: PlayerData[];
+    matches: MatchData[];
+    stats: PlayerStats[];
+  } | null>(null);
+
   const selectedSeason =
     activeSeasons.find((s) => s.id === selectedSeasonId) ?? activeSeasons[0] ?? null;
   const effectiveSeasonId = selectedSeason?.id ?? null;
+
+  // Carga reactiva de datos al conmutar temporada
+  useEffect(() => {
+    if (!effectiveSeasonId) return;
+    if (usesInitialData && effectiveSeasonId === props.initialSeasonId) {
+      setDynamicData(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/public/season-data?seasonId=${effectiveSeasonId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setDynamicData(data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [effectiveSeasonId, usesInitialData, props]);
+
+  const teams = dynamicData?.teams ?? (usesInitialData ? props.initialData.teams : props.teams);
+  const allPlayers = dynamicData?.players ?? (usesInitialData ? props.initialData.players : props.allPlayers);
+  const allMatches = dynamicData?.matches ?? (usesInitialData ? props.initialData.matches : props.allMatches);
+  const allStats = dynamicData?.stats ?? (usesInitialData ? props.initialData.stats : props.allStats);
 
   const categories = useMemo(() =>
     [...new Set(activeSeasons.map((s) => s.category))].filter(Boolean),
@@ -139,6 +216,126 @@ export default function PublicPageClient(props: Props) {
       ) as MatchForStandings[]
     ),
     [regularMatches]);
+
+  // Transición de pestañas con dirección calculada (Fade + Slide)
+  const switchTab = useCallback((nextTab: TabKey) => {
+    if (nextTab === prevTabRef.current) return;
+    const prevIdx = TAB_ORDER.indexOf(prevTabRef.current);
+    const nextIdx = TAB_ORDER.indexOf(nextTab);
+    if (nextIdx !== prevIdx) {
+      setSlideDirection(nextIdx > prevIdx ? 'forward' : 'backward');
+    }
+    prevTabRef.current = nextTab;
+    startTransition(() => {
+      setActiveTab(nextTab);
+    });
+  }, []);
+
+  // Actualización del indicador deslizante y auto-centrado anti-jump en Safari
+  const updateIndicator = useCallback(() => {
+    const container = navRibbonRef.current;
+    const activeButton = tabButtonRefs.current.get(activeTab);
+    if (!container || !activeButton) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = activeButton.getBoundingClientRect();
+
+    const left = activeRect.left - containerRect.left + container.scrollLeft;
+    const width = activeRect.width;
+
+    setIndicatorStyle({ left, width });
+
+    // Auto-centrado puramente matemático para evitar saltos de scroll vertical en iOS
+    const targetLeft =
+      activeButton.offsetLeft -
+      (container.clientWidth / 2) +
+      (activeButton.offsetWidth / 2);
+
+    container.scrollTo({
+      left: Math.max(0, targetLeft),
+      behavior: 'smooth',
+    });
+  }, [activeTab]);
+
+  useLayoutEffect(() => {
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [updateIndicator]);
+
+  // Navegación por teclado accesible en la barra de pestañas (WAI-ARIA APG)
+  const handleTabKeyDown = (e: KeyboardEvent<HTMLButtonElement>, currentKey: TabKey) => {
+    const curIdx = TAB_ORDER.indexOf(currentKey);
+    let targetKey: TabKey | null = null;
+
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      targetKey = TAB_ORDER[(curIdx + 1) % TAB_ORDER.length];
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      targetKey = TAB_ORDER[(curIdx - 1 + TAB_ORDER.length) % TAB_ORDER.length];
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      targetKey = TAB_ORDER[0];
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      targetKey = TAB_ORDER[TAB_ORDER.length - 1];
+    }
+
+    if (targetKey) {
+      switchTab(targetKey);
+      tabButtonRefs.current.get(targetKey)?.focus();
+    }
+  };
+
+  // Gestos táctiles de swipe horizontal seguro (Anti-colisión con tablas y controles)
+  const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1) return;
+    const target = e.target as HTMLElement | null;
+
+    // Descartar si el toque inicia dentro de un elemento con scroll horizontal o interactivo
+    const isInteractiveOrScrollable = !!target?.closest(
+      '.ant-table-wrapper, .ant-table-body, .ant-table-content, .ant-table, .scoreboard-rail, .sports-nav-ribbon, input, textarea, select, button, a'
+    );
+
+    touchState.current = {
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      startTime: Date.now(),
+      validSwipeZone: !isInteractiveOrScrollable,
+    };
+  };
+
+  const handleTouchEnd = (e: TouchEvent<HTMLDivElement>) => {
+    if (!touchState.current || !touchState.current.validSwipeZone || e.changedTouches.length !== 1) {
+      touchState.current = null;
+      return;
+    }
+
+    const deltaX = e.changedTouches[0].clientX - touchState.current.startX;
+    const deltaY = e.changedTouches[0].clientY - touchState.current.startY;
+    const elapsedTime = Date.now() - touchState.current.startTime;
+    touchState.current = null;
+
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    // Axis-Locking estricto: el gesto debe ser horizontal (> 60 grados de horizontalidad)
+    if (absX < absY * 1.75) return;
+
+    // Detección de flick rápido (<300ms, >38px) o arrastre sostenido (>70px)
+    const isFlick = elapsedTime < 300 && absX > 38;
+    const isSustainedSwipe = absX > 70;
+
+    if (!isFlick && !isSustainedSwipe) return;
+
+    const curIdx = TAB_ORDER.indexOf(activeTab);
+    if (deltaX < 0 && curIdx < TAB_ORDER.length - 1) {
+      switchTab(TAB_ORDER[curIdx + 1]);
+    } else if (deltaX > 0 && curIdx > 0) {
+      switchTab(TAB_ORDER[curIdx - 1]);
+    }
+  };
 
   const leaders = useMemo(() => {
     const matchIds = new Set(regularMatches.map((m) => m.id));
@@ -202,8 +399,14 @@ export default function PublicPageClient(props: Props) {
       .map((team) => ({ label: team.name, value: team.id })),
     [effectiveSeasonId, teams]);
 
-  const handlePDF = () => {
+  const activeTeamsCount = useMemo(() =>
+    teams.filter((t) => t.season_id === effectiveSeasonId).length,
+    [teams, effectiveSeasonId]);
+
+  // Carga diferida de jsPDF
+  const handlePDF = async () => {
     if (!selectedSeason) return;
+    const { generateEligibilityPDF } = await import('@/lib/pdfReport');
     generateEligibilityPDF(
       standings,
       seasonMatches as unknown as Record<string, unknown>[],
@@ -212,248 +415,730 @@ export default function PublicPageClient(props: Props) {
     );
   };
 
+  // Partido estelar reciente o próximo
+  const spotlightMatch = useMemo(() => {
+    if (seasonMatches.length === 0) return null;
+    const upcoming = seasonMatches.find((m) => m.scheduled_date && !isPlayedStatus(m.status));
+    if (upcoming) return upcoming;
+    const played = [...seasonMatches].reverse().find((m) => isPlayedStatus(m.status));
+    return played ?? seasonMatches[0];
+  }, [seasonMatches]);
+
+  // Sumatoria total de puntos anotados en la temporada
+  const totalPointsScored = useMemo(() => {
+    return allStats.reduce((acc, s) => acc + (s.points ?? 0), 0);
+  }, [allStats]);
+
+  // Equipo líder general de la temporada
+  const leaderTeam = standings[0] ?? null;
+
   return (
-    <main className="public-glass-shell" style={{ minHeight: '100vh', padding: '0 0 80px' }}>
-      <GoldParticles />
-      <div className="premium-orb premium-orb--left" />
-      <div className="premium-orb premium-orb--right" />
-      <div className="premium-orb premium-orb--bottom" />
+    <main className="public-glass-shell" style={{ minHeight: '100vh', padding: '0 0 48px' }}>
+      {/* ── BARRA DE NAVEGACIÓN PRINCIPAL (SPORTS NAV RIBBON STICKY) ── */}
+      <div style={{ maxWidth: 1280, margin: '14px auto 0', padding: '0 20px' }}>
+        <nav
+          ref={navRibbonRef}
+          className="sports-nav-ribbon"
+          role="tablist"
+          aria-orientation="horizontal"
+          aria-label="Navegación oficial de Liga Nochixtlán"
+        >
+          {/* Cápsula flotante animada compartida (Sliding Pill) */}
+          <div
+            className="sports-nav-indicator"
+            style={{
+              transform: `translate3d(${indicatorStyle.left}px, 0, 0)`,
+              width: indicatorStyle.width,
+            }}
+          />
 
-      <div className="public-glass-header" style={{ textAlign: 'center', padding: '28px 16px 22px' }}>
-        <div className="premium-hero-mark">Liga Municipal de Basquetbol</div>
-        <Title className="premium-title" level={1} style={{ color: '#fff5d4', margin: '18px 0 4px', fontSize: 'clamp(2.6rem, 7vw, 4.8rem)', lineHeight: 0.9 }}>
-          Liga Nochixtlan
-        </Title>
+          {TAB_ORDER.map((key) => {
+            const isActive = activeTab === key;
+            const item = TAB_LABELS[key];
+            return (
+              <button
+                key={key}
+                ref={(el) => {
+                  if (el) tabButtonRefs.current.set(key, el);
+                  else tabButtonRefs.current.delete(key);
+                }}
+                id={`tab-${key}`}
+                role="tab"
+                tabIndex={isActive ? 0 : -1}
+                aria-selected={isActive}
+                aria-controls={`tabpanel-${key}`}
+                className={`sports-nav-pill${isActive ? ' sports-nav-pill--active' : ''}`}
+                onClick={() => switchTab(key)}
+                onKeyDown={(e) => handleTabKeyDown(e, key)}
+              >
+                <span className="sports-nav-pill__icon">{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-        {selectedSeason ? (
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Tag className="premium-tag premium-tag--active">{selectedSeason.name}</Tag>
-            <Tag className="premium-tag">{selectedSeason.category}</Tag>
-            <Tag className="premium-tag">{seasonMatches.length} partidos</Tag>
-          </div>
-        ) : (
-          <Text style={{ color: '#7e7c76', display: 'block', marginTop: 16 }}>Sin temporada seleccionada</Text>
-        )}
+        {/* ── VIEWPORT DINÁMICO CON FADE + SLIDE DIRECCIONAL ── */}
+        <div
+          className="tab-content-viewport"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div
+            key={activeTab}
+            id={`tabpanel-${activeTab}`}
+            role="tabpanel"
+            tabIndex={0}
+            aria-labelledby={`tab-${activeTab}`}
+            className={slideDirection === 'forward' ? 'tab-pane-slide-forward' : 'tab-pane-slide-backward'}
+          >
+            {/* ══════════════════════════════════════════════════════════
+                1. SECCIÓN INICIO — LANDING PAGE DEPORTIVA OFICIAL
+               ══════════════════════════════════════════════════════════ */}
+            {activeTab === 'home' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {/* Hero Monumental Asimétrico (Stage 60/40) */}
+                <section className="hero-stage">
+                  <div className="hero-asymmetric-grid">
+                    {/* Zona A: Épica Editorial (60%) */}
+                    <div>
+                      <div className="premium-hero-mark" style={{ marginBottom: 10 }}>
+                        <span>🏀</span> Liga Municipal de Básquetbol · Nochixtlán, Oaxaca
+                      </div>
 
-        <div className="premium-section-card" style={{ marginTop: 22, padding: 18, textAlign: 'left' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div className="premium-section-label" style={{ marginBottom: 0 }}>Temporada</div>
-            <a
-              href="/admin"
-              className="premium-button"
-              style={{ textDecoration: 'none', padding: '12px 16px', display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700 }}
-            >
-              ⚙ Panel Admin
-            </a>
-          </div>
+                      <Title
+                        className="premium-title"
+                        level={1}
+                        style={{
+                          color: '#ffffff',
+                          fontSize: 'clamp(2.5rem, 6vw, 4.8rem)',
+                          lineHeight: 0.95,
+                          letterSpacing: '0.03em',
+                          background: 'linear-gradient(135deg, #ffffff 40%, var(--oro-cantera) 80%, var(--oro-mixteco) 100%)',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                        }}
+                      >
+                        Liga Nochixtlán
+                      </Title>
 
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
-            <Select
-              className="premium-select"
-              value={effectiveSeasonId}
-              onChange={(value) => startTransition(() => setSelectedSeasonId(value))}
-              options={seasonOptions}
-              style={{ width: 280, textAlign: 'left' }}
-              placeholder="Seleccionar temporada"
-              showSearch
-              filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
-            />
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
-              {categories.map((cat) => (
-                <Tag
-                  key={cat}
-                  className={`premium-tag${selectedSeason?.category === cat ? ' premium-tag--active' : ''}`}
-                  style={{ cursor: 'pointer', marginInlineEnd: 0 }}
-                  onClick={() => {
-                    const found = activeSeasons.find((s) => s.category === cat);
-                    if (found) startTransition(() => setSelectedSeasonId(found.id));
+                      <div style={{ color: 'var(--oro-cantera)', fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, marginTop: 4 }}>
+                        La Catedral de la Duela Mixteca
+                      </div>
+
+                      <p style={{ color: '#cbd5e1', fontSize: 'clamp(14px, 1.3vw, 16px)', lineHeight: 1.55, maxWidth: 540, marginTop: 10, marginBottom: 18 }}>
+                        La máxima fiesta del básquetbol regional. Consulta la tabla general, líderes anotadores, estadísticas individuales y el rol oficial de juegos en tiempo real.
+                      </p>
+
+                      {/* CTAs de acción rápida */}
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <Button
+                          type="primary"
+                          className="premium-button"
+                          style={{
+                            background: 'linear-gradient(135deg, var(--oro-mixteco), #d97706)',
+                            borderColor: 'transparent',
+                            color: '#0b0f17',
+                            fontWeight: 800,
+                            boxShadow: '0 4px 18px rgba(245, 158, 11, 0.35)',
+                          }}
+                          onClick={() => switchTab('standings')}
+                        >
+                          🏆 Ver Posiciones
+                        </Button>
+                        <Button
+                          className="premium-button"
+                          onClick={() => switchTab('stats')}
+                        >
+                          📊 Estadísticas & Líderes
+                        </Button>
+                        <Button
+                          className="premium-button"
+                          onClick={() => switchTab('calendar')}
+                        >
+                          📅 Rol de Juegos
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Zona B: Cockpit Oficial de Temporada (40%) */}
+                    <div className="hero-cockpit-card">
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.12em', color: 'var(--oro-cantera)', textTransform: 'uppercase' }}>
+                            ⚙ Cockpit Oficial
+                          </span>
+                          <span className="hero-stat-badge hero-stat-badge--highlight" style={{ fontSize: 11 }}>
+                            {selectedSeason ? selectedSeason.name : 'Temporada'}
+                          </span>
+                        </div>
+
+                        {/* Selector de Temporada */}
+                        <div style={{ marginBottom: 10 }}>
+                          <Select
+                            className="premium-select"
+                            value={effectiveSeasonId}
+                            onChange={(value) => startTransition(() => setSelectedSeasonId(value))}
+                            options={seasonOptions}
+                            style={{ width: '100%' }}
+                            placeholder="Seleccionar temporada"
+                            showSearch
+                            filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
+                          />
+                        </div>
+
+                        {/* Chips de Categorías */}
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                          {categories.map((cat) => {
+                            const isActive = selectedSeason?.category === cat;
+                            return (
+                              <Tag
+                                key={cat}
+                                role="button"
+                                tabIndex={0}
+                                aria-pressed={isActive}
+                                className={`premium-tag${isActive ? ' premium-tag--active' : ''}`}
+                                style={{ cursor: 'pointer', marginInlineEnd: 0, minHeight: 30, padding: '3px 10px', fontSize: 11 }}
+                                onClick={() => {
+                                  const found = activeSeasons.find((s) => s.category === cat);
+                                  if (found) startTransition(() => setSelectedSeasonId(found.id));
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    const found = activeSeasons.find((s) => s.category === cat);
+                                    if (found) startTransition(() => setSelectedSeasonId(found.id));
+                                  }
+                                }}
+                              >
+                                {cat}
+                              </Tag>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Matriz 2x2 de KPIs Oficiales */}
+                      <div className="hero-kpi-grid">
+                        <div className="hero-kpi-box">
+                          <div className="hero-kpi-value">{activeTeamsCount}</div>
+                          <div className="hero-kpi-label">Clubes Activos</div>
+                        </div>
+                        <div className="hero-kpi-box">
+                          <div className="hero-kpi-value">{seasonMatches.length}</div>
+                          <div className="hero-kpi-label">Partidos Totales</div>
+                        </div>
+                        <div className="hero-kpi-box">
+                          <div className="hero-kpi-value">{jornadasDropdown.length}</div>
+                          <div className="hero-kpi-label">Jornadas</div>
+                        </div>
+                        <div className="hero-kpi-box">
+                          <div className="hero-kpi-value" style={{ color: 'var(--oro-mixteco)' }}>
+                            {leaders[0]?.puntos ?? '0'}
+                          </div>
+                          <div className="hero-kpi-label">Pts Líder Top</div>
+                        </div>
+                      </div>
+
+                      {/* Mini Match Spotlight */}
+                      {spotlightMatch && (
+                        <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800, marginBottom: 4 }}>
+                            <span>{isPlayedStatus(spotlightMatch.status) ? 'Último Resultado' : 'Próximo Encuentro'}</span>
+                            <span>J{spotlightMatch.jornada ?? '1'} · {spotlightMatch.court ?? 'Cancha Bicentenario'}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.03)', padding: '6px 10px', borderRadius: 8 }}>
+                            <span style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{spotlightMatch.home_team?.name ?? 'Local'}</span>
+                            {isPlayedStatus(spotlightMatch.status) ? (
+                              <span style={{ color: 'var(--oro-cantera)', fontWeight: 900, fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
+                                {spotlightMatch.home_score} — {spotlightMatch.away_score}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--oro-mixteco)', fontWeight: 800, fontSize: 11 }}>VS</span>
+                            )}
+                            <span style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{spotlightMatch.away_team?.name ?? 'Visitante'}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                {/* Bloque 2: Cartelera Panorámica / Billboard Hub */}
+                <GameDayBillboard seasonMatches={seasonMatches as never[]} />
+
+                {/* Bloque 3: League Pulse Bento Grid (El Pulso de la Competición) */}
+                <section className="premium-section-card" style={{ padding: '22px 24px' }}>
+                  <h2 className="premium-section-label">⚡ El Pulso de la Temporada</h2>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginTop: 10 }}>
+                    {/* Tarjeta: Puntero General */}
+                    <div style={{ background: 'rgba(20, 26, 38, 0.65)', border: '1px solid rgba(255, 255, 255, 0.07)', borderRadius: 12, padding: '16px 14px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--oro-cantera)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        🏆 Puntero de la Tabla
+                      </div>
+                      <div style={{ color: '#fff', fontWeight: 800, fontSize: 18, marginTop: 8 }}>
+                        {leaderTeam ? leaderTeam.equipo : 'Por disputar'}
+                      </div>
+                      {leaderTeam && (
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                          {leaderTeam.PG}G - {leaderTeam.PP}P · {leaderTeam.Pts} Pts ({leaderTeam.DP > 0 ? `+${leaderTeam.DP}` : leaderTeam.DP} DIF)
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tarjeta: Canastero de Oro */}
+                    <div style={{ background: 'rgba(20, 26, 38, 0.65)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: 12, padding: '16px 14px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--oro-mixteco)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        👑 Canastero Líder
+                      </div>
+                      <div style={{ color: '#fff', fontWeight: 800, fontSize: 18, marginTop: 8 }}>
+                        {leaders[0]?.nombre ?? 'Sin registros'}
+                      </div>
+                      {leaders[0] && (
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                          {leaders[0].puntos} puntos acumulados · {teams.find(t => t.id === leaders[0]?.team_id)?.name ?? '?'}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tarjeta: Rey de Triples */}
+                    <div style={{ background: 'rgba(20, 26, 38, 0.65)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: 12, padding: '16px 14px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        🎯 Rey del Triple
+                      </div>
+                      <div style={{ color: '#fff', fontWeight: 800, fontSize: 18, marginTop: 8 }}>
+                        {tripleros[0]?.nombre ?? 'Sin registros'}
+                      </div>
+                      {tripleros[0] && (
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                          {tripleros[0].triples} bombas de 3 ({tripleros[0].triples * 3} pts eq.)
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tarjeta: Espectáculo Acumulado */}
+                    <div style={{ background: 'rgba(20, 26, 38, 0.65)', border: '1px solid rgba(255, 255, 255, 0.07)', borderRadius: 12, padding: '16px 14px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--verde-victoria)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        🏀 Puntos de la Liga
+                      </div>
+                      <div style={{ color: '#fff', fontWeight: 800, fontSize: 18, marginTop: 8 }}>
+                        {totalPointsScored.toLocaleString('es-MX')} PTS
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                        Anotados a lo largo de {seasonMatches.length} partidos oficiales
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Bloque 4: Quick Navigation Hub (Atajos Visuales a las Demás Secciones) */}
+                <section className="premium-section-card" style={{ padding: '22px 24px' }}>
+                  <h2 className="premium-section-label">🚀 Explora las Secciones Oficiales</h2>
+                  <div className="quick-nav-grid">
+                    {/* Atajo: Posiciones */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="quick-nav-card"
+                      onClick={() => switchTab('standings')}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('standings'); }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>🏆</div>
+                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Tabla de Posiciones</div>
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                          Clasificación general con regla oficial 3-1-0, diferencia de puntos y zonas de liguilla.
+                        </div>
+                      </div>
+                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        Ver Tabla Oficial <ArrowRightOutlined />
+                      </div>
+                    </div>
+
+                    {/* Atajo: Estadísticas */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="quick-nav-card"
+                      onClick={() => switchTab('stats')}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('stats'); }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>📊</div>
+                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Estadísticas & Líderes</div>
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                          Top canasteros, mejores tripleros, récords y plantillas detalladas por club.
+                        </div>
+                      </div>
+                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        Consultar Estadísticas <ArrowRightOutlined />
+                      </div>
+                    </div>
+
+                    {/* Atajo: Mi Equipo */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="quick-nav-card"
+                      onClick={() => switchTab('team-matches')}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('team-matches'); }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>🏀</div>
+                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Mi Equipo</div>
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                          Encuentra a tu club, consulta el calendario ida y vuelta y sus resultados.
+                        </div>
+                      </div>
+                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        Buscar Mi Club <ArrowRightOutlined />
+                      </div>
+                    </div>
+
+                    {/* Atajo: Liguilla */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="quick-nav-card"
+                      onClick={() => switchTab('bracket')}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('bracket'); }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>🔥</div>
+                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Cuadro de Liguilla</div>
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                          Las llaves de cuartos, semifinales y la gran final por la corona del torneo.
+                        </div>
+                      </div>
+                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        Ver Cuadro de Play-offs <ArrowRightOutlined />
+                      </div>
+                    </div>
+
+                    {/* Atajo: Calendario */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      className="quick-nav-card"
+                      onClick={() => switchTab('calendar')}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('calendar'); }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 24, marginBottom: 8 }}>📅</div>
+                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Rol de Juegos</div>
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                          Horarios oficiales, sedes y partidos de toda la temporada por jornada.
+                        </div>
+                      </div>
+                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        Ver Calendario <ArrowRightOutlined />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                2. SECCIÓN POSICIONES — TABLA OFICIAL
+               ══════════════════════════════════════════════════════════ */}
+            {activeTab === 'standings' && (
+              <GlassSectionCard
+                action={(
+                  <Button
+                    icon={<FilePdfOutlined />}
+                    onClick={handlePDF}
+                    disabled={standings.length === 0}
+                    className="premium-button"
+                  >
+                    Reporte de Elegibilidad PDF
+                  </Button>
+                )}
+              >
+                {standings.length === 0 ? (
+                  <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 40 }}>
+                    Sin partidos registrados en esta temporada
+                  </Text>
+                ) : (
+                  <StandingsTable data={standings} onTeamClick={setSelectedTeam} />
+                )}
+              </GlassSectionCard>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                3. SECCIÓN ESTADÍSTICAS — CENTRO ESTADÍSTICO UNIFICADO
+               ══════════════════════════════════════════════════════════ */}
+            {activeTab === 'stats' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Sub-navegación segmentada: Cuadro de Honor vs Plantillas */}
+                <div className="stats-subnav-bar" role="group" aria-label="Subsecciones estadísticas">
+                  <button
+                    type="button"
+                    className={`stats-subnav-btn${statsSubView === 'leaders' ? ' stats-subnav-btn--active' : ''}`}
+                    onClick={() => setStatsSubView('leaders')}
+                  >
+                    👑 Cuadro de Honor & Récords
+                  </button>
+                  <button
+                    type="button"
+                    className={`stats-subnav-btn${statsSubView === 'rosters' ? ' stats-subnav-btn--active' : ''}`}
+                    onClick={() => setStatsSubView('rosters')}
+                  >
+                    📋 Estadísticas por Plantilla
+                  </button>
+                </div>
+
+                {/* Subvista A: Líderes y Récords */}
+                {statsSubView === 'leaders' && (
+                  <>
+                    {/* Podio Top 3 Anotadores */}
+                    <GlassSectionCard>
+                      <h2 className="premium-section-label">👑 Podio de Anotadores (Top 3)</h2>
+                      {leaders.length === 0 ? (
+                        <Text style={{ color: '#94a3b8', padding: '14px 0', display: 'block' }}>Sin estadísticas registradas</Text>
+                      ) : (
+                        <>
+                          <div className="podium-grid">
+                            {leaders.slice(0, 3).map((l, i) => {
+                              const team = teams.find((t) => t.id === l.team_id);
+                              const isGold = i === 0;
+                              return (
+                                <div
+                                  key={l.id}
+                                  className={`podium-card${isGold ? ' podium-card--first' : ''}`}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: 18 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+                                    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: isGold ? 'var(--oro-cantera)' : '#94a3b8', textTransform: 'uppercase' }}>
+                                      {i === 0 ? 'Líder Canastero' : `Lugar #${i + 1}`}
+                                    </span>
+                                  </div>
+                                  <div style={{ margin: '12px 0 6px' }}>
+                                    <div className="podium-number">{l.puntos}</div>
+                                    <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                      Puntos Anotados
+                                    </div>
+                                  </div>
+                                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: 10 }}>
+                                    <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{l.nombre}</div>
+                                    <div style={{ color: '#94a3b8', fontSize: 12 }}>{team?.name ?? '?'}</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {leaders.length > 3 && (
+                            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: 14 }}>
+                              <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>
+                                Clasificación Extendida (4° al 10°)
+                              </div>
+                              <LeadersTable data={leaders.slice(3)} type="puntos" color="#f59e0b" teams={teams} startIndex={4} />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </GlassSectionCard>
+
+                    {/* Podio Top 3 Tripleros */}
+                    <GlassSectionCard>
+                      <h2 className="premium-section-label">🎯 Reyes del Triple (Top 3)</h2>
+                      {tripleros.length === 0 ? (
+                        <Text style={{ color: '#94a3b8', padding: '14px 0', display: 'block' }}>Sin triples registrados</Text>
+                      ) : (
+                        <>
+                          <div className="podium-grid">
+                            {tripleros.slice(0, 3).map((l, i) => {
+                              const team = teams.find((t) => t.id === l.team_id);
+                              const isGold = i === 0;
+                              return (
+                                <div
+                                  key={l.id}
+                                  className={`podium-card${isGold ? ' podium-card--first' : ''}`}
+                                  style={isGold ? { borderColor: 'rgba(56, 189, 248, 0.45)', background: 'linear-gradient(180deg, rgba(56, 189, 248, 0.12), rgba(12, 16, 24, 0.95))' } : undefined}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: 18 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
+                                    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: isGold ? '#38bdf8' : '#94a3b8', textTransform: 'uppercase' }}>
+                                      {i === 0 ? 'Mejor Tirador' : `Lugar #${i + 1}`}
+                                    </span>
+                                  </div>
+                                  <div style={{ margin: '12px 0 6px' }}>
+                                    <div className="podium-number" style={{ color: '#38bdf8' }}>{l.triples}</div>
+                                    <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                      Bombas de 3PT ({Math.floor(l.triples * 3)} pts eq.)
+                                    </div>
+                                  </div>
+                                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: 10 }}>
+                                    <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{l.nombre}</div>
+                                    <div style={{ color: '#94a3b8', fontSize: 12 }}>{team?.name ?? '?'}</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {tripleros.length > 3 && (
+                            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: 14 }}>
+                              <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>
+                                Clasificación Extendida (4° al 10°)
+                              </div>
+                              <LeadersTable data={tripleros.slice(3)} type="triples" color="#38bdf8" teams={teams} startIndex={4} />
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </GlassSectionCard>
+
+                    {/* Récords de Temporada */}
+                    <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                      {seasonRecords.bestPuntos && (
+                        <SmallRecordBadge
+                          icon="🔥"
+                          label="Récord de Puntos en un Partido"
+                          color="#f59e0b"
+                          jugador={seasonRecords.bestPuntos.nombre}
+                          equipo={seasonRecords.bestPuntos.equipo}
+                          valor={seasonRecords.bestPuntos.valor}
+                          jornada={seasonRecords.bestPuntos.jornada}
+                        />
+                      )}
+                      {seasonRecords.bestTriples && (
+                        <SmallRecordBadge
+                          icon="🎯"
+                          label="Récord de Triples en un Partido"
+                          color="#38bdf8"
+                          jugador={seasonRecords.bestTriples.nombre}
+                          equipo={seasonRecords.bestTriples.equipo}
+                          valor={seasonRecords.bestTriples.valor}
+                          jornada={seasonRecords.bestTriples.jornada}
+                        />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Subvista B: Desglose por Plantilla */}
+                {statsSubView === 'rosters' && (
+                  <GlassSectionCard>
+                    <h2 className="premium-section-label">📊 Estadísticas Individuales por Club</h2>
+                    <TeamStatsTab
+                      seasonId={effectiveSeasonId}
+                      teams={teams}
+                      allPlayers={allPlayers}
+                      allStats={allStats}
+                      seasonMatches={seasonMatches}
+                      standings={standings}
+                    />
+                  </GlassSectionCard>
+                )}
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                4. SECCIÓN MI EQUIPO — FIXTURE Y RESULTADOS POR CLUB
+               ══════════════════════════════════════════════════════════ */}
+            {activeTab === 'team-matches' && (
+              <GlassSectionCard>
+                <h2 className="premium-section-label">🏀 Fixture y Resultados por Club</h2>
+                <TeamMatchesTab
+                  seasonId={effectiveSeasonId}
+                  teams={teams}
+                  matches={seasonMatches}
+                  standings={standings}
+                />
+              </GlassSectionCard>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                5. SECCIÓN LIGUILLA — CUADRO DE POSTEMPORADA
+               ══════════════════════════════════════════════════════════ */}
+            {activeTab === 'bracket' && (
+              <GlassSectionCard>
+                <LiguillaBracketTab seasonMatches={seasonMatches as unknown as Parameters<typeof LiguillaBracketTab>[0]['seasonMatches']} />
+              </GlassSectionCard>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                6. SECCIÓN CALENDARIO — ROL DE JUEGOS Y FILTROS
+               ══════════════════════════════════════════════════════════ */}
+            {activeTab === 'calendar' && (
+              <GlassSectionCard>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                    gap: 12,
+                    marginBottom: 20,
                   }}
                 >
-                  {cat}
-                </Tag>
-              ))}
-            </div>
+                  <div>
+                    <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                      Jornada:
+                    </Text>
+                    <Select
+                      className="premium-select"
+                      value={jornadaFilter}
+                      onChange={(value) => startTransition(() => setJornadaFilter(value))}
+                      style={{ width: '100%' }}
+                      options={[
+                        { label: 'Todas las jornadas', value: 'all' },
+                        ...jornadasDropdown.map((j) => ({ label: `Jornada ${j}`, value: j })),
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                      Equipo:
+                    </Text>
+                    <Select
+                      className="premium-select"
+                      value={calendarTeamFilter}
+                      onChange={(value) => startTransition(() => setCalendarTeamFilter(value))}
+                      style={{ width: '100%' }}
+                      options={[
+                        { label: 'Todos los equipos', value: 'all' },
+                        ...calendarTeamOptions,
+                      ]}
+                      showSearch
+                      filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
+                      filterSort={sortSelectOptions}
+                    />
+                  </div>
+                  <div>
+                    <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                      Vista:
+                    </Text>
+                    <Select
+                      className="premium-select"
+                      value={calendarViewFilter}
+                      onChange={(value) => startTransition(() => setCalendarViewFilter(value))}
+                      style={{ width: '100%' }}
+                      options={[
+                        { label: 'Próximos partidos', value: 'upcoming' },
+                        { label: 'Todos, con pasados', value: 'all' },
+                      ]}
+                    />
+                  </div>
+                </div>
+
+                {seasonMatches.length === 0 ? (
+                  <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos</Text>
+                ) : (
+                  <CalendarList
+                    matches={seasonMatches}
+                    jornadaFilter={jornadaFilter}
+                    teamFilter={calendarTeamFilter}
+                    viewFilter={calendarViewFilter}
+                  />
+                )}
+              </GlassSectionCard>
+            )}
           </div>
         </div>
       </div>
 
-      <GameDayBillboard seasonMatches={seasonMatches as never[]} />
-
-      <div style={{ maxWidth: 1120, margin: '18px auto 0', padding: '0 12px' }}>
-        <Tabs
-          className="public-glass-tabs"
-          activeKey={activeTab}
-          onChange={(key) => startTransition(() => setActiveTab(key))}
-          centered
-          items={[
-            {
-              key: 'standings',
-              label: <TabLabel icon="🏆" text="Posiciones" />,
-              children: (
-                <GlassSectionCard
-                  action={(
-                    <Button icon={<FilePdfOutlined />} onClick={handlePDF} disabled={standings.length === 0} className="premium-button">
-                      Reporte PDF
-                    </Button>
-                  )}
-                >
-                  <MobileLandscapeHint />
-                  {standings.length === 0 ? (
-                    <Text style={{ color: '#7e7c76', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos registrados</Text>
-                  ) : (
-                    <>
-                      <StandingsTable data={standings} onTeamClick={setSelectedTeam} />
-                    </>
-                  )}
-                </GlassSectionCard>
-              ),
-            },
-            {
-              key: 'leaders',
-              label: <TabLabel icon="⭐" text="Lideres" />,
-              children: (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                  <GlassSectionCard
-                  >
-                    <div style={sectionGridStyle}>
-                      <div>
-                        <div className="premium-section-label" style={{ marginBottom: 10 }}>🏀 Top Anotadores</div>
-                        <LeadersTable data={leaders} type="puntos" color="#FAAD14" teams={teams} />
-                      </div>
-                      <div>
-                        <div className="premium-section-label" style={{ marginBottom: 10 }}>🎯 Top Tripleros</div>
-                        <LeadersTable data={tripleros} type="triples" color="#6fb5ff" teams={teams} />
-                      </div>
-                    </div>
-                  </GlassSectionCard>
-
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    {seasonRecords.bestPuntos && (
-                      <SmallRecordBadge
-                        icon="🔥"
-                        label="Record de puntos"
-                        color="#FAAD14"
-                        jugador={seasonRecords.bestPuntos.nombre}
-                        equipo={seasonRecords.bestPuntos.equipo}
-                        valor={seasonRecords.bestPuntos.valor}
-                        jornada={seasonRecords.bestPuntos.jornada}
-                      />
-                    )}
-                    {seasonRecords.bestTriples && (
-                      <SmallRecordBadge
-                        icon="🎯"
-                        label="Record de triples"
-                        color="#6fb5ff"
-                        jugador={seasonRecords.bestTriples.nombre}
-                        equipo={seasonRecords.bestTriples.equipo}
-                        valor={seasonRecords.bestTriples.valor}
-                        jornada={seasonRecords.bestTriples.jornada}
-                      />
-                    )}
-                  </div>
-                </div>
-              ),
-            },
-            {
-              key: 'team-stats',
-              label: <TabLabel icon="📊" text="Estadisticas" />,
-              children: (
-                <GlassSectionCard>
-                  <TeamStatsTab
-                    seasonId={effectiveSeasonId}
-                    teams={teams}
-                    allPlayers={allPlayers}
-                    allStats={allStats}
-                    seasonMatches={seasonMatches}
-                  />
-                </GlassSectionCard>
-              ),
-            },
-            {
-              key: 'team-matches',
-              label: <TabLabel icon="📋" text="Partidos de mi equipo" />,
-              children: (
-                <GlassSectionCard>
-                  <TeamMatchesTab seasonId={effectiveSeasonId} teams={teams} matches={seasonMatches} />
-                </GlassSectionCard>
-              ),
-            },
-            {
-              key: 'bracket',
-              label: <TabLabel icon="🔥" text="Liguilla" />,
-              children: (
-                <GlassSectionCard>
-                  <LiguillaBracketTab seasonMatches={seasonMatches as unknown as Parameters<typeof LiguillaBracketTab>[0]['seasonMatches']} />
-                </GlassSectionCard>
-              ),
-            },
-            {
-              key: 'calendar',
-              label: <TabLabel icon="📅" text="Calendario" />,
-              children: (
-                <GlassSectionCard>
-                  <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div>
-                      <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Jornada:</Text>
-                      <Select
-                        className="premium-select"
-                        value={jornadaFilter}
-                        onChange={(value) => startTransition(() => setJornadaFilter(value))}
-                        style={{ width: 180 }}
-                        options={[
-                          { label: 'Todas las jornadas', value: 'all' },
-                          ...jornadasDropdown.map((j) => ({ label: `Jornada ${j}`, value: j })),
-                        ]}
-                      />
-                    </div>
-                    <div>
-                      <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Equipo:</Text>
-                      <Select
-                        className="premium-select"
-                        value={calendarTeamFilter}
-                        onChange={(value) => startTransition(() => setCalendarTeamFilter(value))}
-                        style={{ width: 240 }}
-                        options={[
-                          { label: 'Todos los equipos', value: 'all' },
-                          ...calendarTeamOptions,
-                        ]}
-                        showSearch
-                        filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
-                        filterSort={sortSelectOptions}
-                      />
-                    </div>
-                    <div>
-                      <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Vista:</Text>
-                      <Select
-                        className="premium-select"
-                        value={calendarViewFilter}
-                        onChange={(value) => startTransition(() => setCalendarViewFilter(value))}
-                        style={{ width: 190 }}
-                        options={[
-                          { label: 'Próximos partidos', value: 'upcoming' },
-                          { label: 'Todos, con pasados', value: 'all' },
-                        ]}
-                      />
-                    </div>
-                  </div>
-
-                  {seasonMatches.length === 0 ? (
-                    <Text style={{ color: '#7e7c76', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos</Text>
-                  ) : (
-                    <CalendarList
-                      matches={seasonMatches}
-                      jornadaFilter={jornadaFilter}
-                      teamFilter={calendarTeamFilter}
-                      viewFilter={calendarViewFilter}
-                    />
-                  )}
-                </GlassSectionCard>
-              ),
-            },
-          ]}
-        />
-      </div>
-
+      {/* Modal Ficha Técnica de Equipo (Diferido con Recharts) */}
       {selectedTeam && selectedSeason && (
         <TeamDetailModal
           team={selectedTeam}
@@ -465,12 +1150,45 @@ export default function PublicPageClient(props: Props) {
         />
       )}
 
-      <FloatButton
-        icon={<FilePdfOutlined />}
-        tooltip="Reporte Elegibilidad PDF"
-        style={{ bottom: 24, right: 24, background: '#f7d774' }}
-        onClick={handlePDF}
-      />
+      {/* Pie de Página Oficial con Enlace Discreto de Administración */}
+      <footer
+        style={{
+          maxWidth: 1280,
+          margin: '48px auto 0',
+          padding: '24px 20px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 14,
+          color: '#94a3b8',
+          fontSize: 12,
+        }}
+      >
+        <div>
+          © {new Date().getFullYear()} Liga Municipal de Básquetbol Nochixtlán · Todos los derechos reservados.
+        </div>
+        <div>
+          <a
+            href="/admin"
+            style={{
+              color: '#94a3b8',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              transition: 'color 0.18s ease',
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--oro-cantera)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = '#94a3b8')}
+          >
+            ⚙ Panel Oficial de Administración
+          </a>
+        </div>
+      </footer>
     </main>
   );
 }
@@ -480,21 +1198,14 @@ function useIsCoarsePointer() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const mediaQuery = window.matchMedia('(pointer: coarse)');
     const update = () => setIsCoarsePointer(mediaQuery.matches);
-
     update();
     mediaQuery.addEventListener('change', update);
-
     return () => mediaQuery.removeEventListener('change', update);
   }, []);
 
   return isCoarsePointer;
-}
-
-function TabLabel({ icon, text }: { icon: string; text: string }) {
-  return <span style={{ fontWeight: 700 }}>{icon} {text}</span>;
 }
 
 function GlassSectionCard({
@@ -505,66 +1216,14 @@ function GlassSectionCard({
   action?: ReactNode;
 }) {
   return (
-    <section className="premium-section-card" style={{ padding: 20 }}>
+    <section className="premium-section-card" style={{ padding: '20px 22px' }}>
       {action ? (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
           {action}
         </div>
       ) : null}
       {children}
     </section>
-  );
-}
-
-function MobileLandscapeHint() {
-  return (
-    <div className="mobile-landscape-hint" role="note" aria-label="Sugerencia de visualizacion">
-      <span className="mobile-landscape-hint__icon" aria-hidden="true">↻</span>
-      <span>Para una mejor visualizacion en celular, gira tu dispositivo a horizontal.</span>
-    </div>
-  );
-}
-
-function GoldParticles() {
-  const particles = [
-    { left: '4%', top: '14%', size: 5, delay: '0s', duration: '10s' },
-    { left: '8%', top: '52%', size: 4, delay: '1.3s', duration: '12s' },
-    { left: '12%', top: '28%', size: 6, delay: '2.1s', duration: '11s' },
-    { left: '16%', top: '72%', size: 4, delay: '0.6s', duration: '9s' },
-    { left: '22%', top: '18%', size: 5, delay: '1.8s', duration: '10s' },
-    { left: '27%', top: '44%', size: 7, delay: '0.9s', duration: '13s' },
-    { left: '33%', top: '66%', size: 4, delay: '2.8s', duration: '12s' },
-    { left: '39%', top: '24%', size: 5, delay: '1.1s', duration: '11s' },
-    { left: '45%', top: '56%', size: 8, delay: '2.5s', duration: '14s' },
-    { left: '51%', top: '12%', size: 5, delay: '0.4s', duration: '10s' },
-    { left: '57%', top: '36%', size: 6, delay: '1.7s', duration: '12s' },
-    { left: '63%', top: '74%', size: 4, delay: '2.2s', duration: '10s' },
-    { left: '69%', top: '22%', size: 5, delay: '0.8s', duration: '11s' },
-    { left: '74%', top: '48%', size: 7, delay: '2.9s', duration: '13s' },
-    { left: '79%', top: '66%', size: 4, delay: '1.5s', duration: '9s' },
-    { left: '84%', top: '16%', size: 6, delay: '2.4s', duration: '12s' },
-    { left: '88%', top: '58%', size: 5, delay: '0.7s', duration: '11s' },
-    { left: '93%', top: '34%', size: 7, delay: '1.9s', duration: '13s' },
-    { left: '96%', top: '78%', size: 4, delay: '2.7s', duration: '10s' },
-  ];
-
-  return (
-    <div className="gold-particles" aria-hidden="true">
-      {particles.map((particle, index) => (
-        <span
-          key={index}
-          className="gold-particle"
-          style={{
-            left: particle.left,
-            top: particle.top,
-            width: particle.size,
-            height: particle.size,
-            animationDelay: particle.delay,
-            animationDuration: particle.duration,
-          }}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -586,17 +1245,40 @@ function SmallRecordBadge({
   jornada: number | null;
 }) {
   return (
-    <div className="premium-record-badge" style={{ padding: '14px 16px' }}>
+    <div
+      style={{
+        background: 'var(--surface-section)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 14,
+        padding: '16px 18px',
+        flex: '1 1 240px',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 14 }}>{icon}</span>
-        <Text style={{ color, fontWeight: 800, fontSize: 11, letterSpacing: 2.4, textTransform: 'uppercase' }}>{label}</Text>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        <Text style={{ color, fontWeight: 800, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+          {label}
+        </Text>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 10, gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 12, gap: 10 }}>
         <div>
           <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>{jugador}</div>
-          <div style={{ color: 'rgba(245, 241, 232, 0.58)', fontSize: 12 }}>{equipo} · J{jornada ?? '?'}</div>
+          <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{equipo} · J{jornada ?? '?'}</div>
         </div>
-        <div className="premium-stat-pill" style={{ color }}>{valor}</div>
+        <div
+          style={{
+            color,
+            border: `1px solid ${color}44`,
+            background: `${color}12`,
+            padding: '4px 12px',
+            borderRadius: 8,
+            fontWeight: 900,
+            fontSize: 16,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {valor}
+        </div>
       </div>
     </div>
   );
@@ -607,62 +1289,68 @@ function LeadersTable({
   type,
   color,
   teams,
+  startIndex = 1,
 }: {
   data: { id: number; nombre: string; team_id: number; puntos: number; triples: number }[];
   type: 'puntos' | 'triples';
   color: string;
   teams: TeamData[];
+  startIndex?: number;
 }) {
   if (data.length === 0) {
-    return <Text style={{ color: '#7e7c76' }}>Sin estadisticas registradas</Text>;
+    return <Text style={{ color: '#94a3b8', padding: '14px 0', display: 'block' }}>Sin estadísticas</Text>;
   }
 
   return (
-    <div className="premium-table-shell">
-      <div style={{ overflowX: 'auto' }}>
-        <table className="premium-data-table">
-          <thead>
-            <tr>
-              <th style={thS}>#</th>
-              <th style={{ ...thS, textAlign: 'left' }}>Jugador</th>
-              <th style={{ ...thS, textAlign: 'left' }}>Equipo</th>
-              {type === 'puntos' ? (
-                <th style={thS}>Puntos</th>
-              ) : (
-                <>
-                  <th style={thS}>3PT</th>
-                  <th style={thS}>Pts Eq.</th>
-                </>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((l, i) => {
-              const team = teams.find((t) => t.id === l.team_id);
-              const isTop = i < 3;
-              return (
-                <tr key={l.id ?? i} style={isTop ? { background: `${color}12` } : undefined}>
-                  <td style={tdS}>
-                    <span className="premium-stat-pill" style={{ color: isTop ? color : '#efe7cf', minWidth: 54 }}>
-                      {i === 0 ? '1' : i === 1 ? '2' : i === 2 ? '3' : `${i + 1}`}
-                    </span>
+    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <table style={{ width: '100%', minWidth: 260, borderCollapse: 'collapse' }} aria-label={type === 'puntos' ? 'Tabla de anotadores' : 'Tabla de tripleros'}>
+        <thead>
+          <tr>
+            <th scope="col" style={{ width: 44, textAlign: 'center', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>#</th>
+            <th scope="col" style={{ textAlign: 'left', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Jugador</th>
+            <th scope="col" style={{ textAlign: 'left', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Equipo</th>
+            {type === 'puntos' ? (
+              <th scope="col" style={{ textAlign: 'right', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Puntos</th>
+            ) : (
+              <>
+                <th scope="col" style={{ textAlign: 'right', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>3PT</th>
+                <th scope="col" style={{ textAlign: 'right', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Pts Eq.</th>
+              </>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((l, i) => {
+            const team = teams.find((t) => t.id === l.team_id);
+            const pos = startIndex + i;
+            return (
+              <tr key={l.id ?? i} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                <td style={{ textAlign: 'center', padding: '8px 6px' }}>
+                  <span style={{ color: '#94a3b8', fontWeight: 700, fontSize: 12 }}>
+                    {pos}
+                  </span>
+                </td>
+                <td style={{ textAlign: 'left', fontWeight: 600, color: '#f8fafc', padding: '8px 6px', fontSize: 13 }}>{l.nombre}</td>
+                <td style={{ textAlign: 'left', color: '#94a3b8', fontSize: 12, padding: '8px 6px' }}>{team?.name ?? '?'}</td>
+                {type === 'puntos' ? (
+                  <td style={{ textAlign: 'right', padding: '8px 6px' }}>
+                    <span style={{ color, fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{l.puntos}</span>
                   </td>
-                  <td style={{ ...tdS, textAlign: 'left', fontWeight: 600 }}>{l.nombre}</td>
-                  <td style={{ ...tdS, textAlign: 'left', color: 'rgba(245, 241, 232, 0.62)', fontSize: 12 }}>{team?.name ?? '?'}</td>
-                  {type === 'puntos' ? (
-                    <td style={tdS}><span className="premium-stat-pill" style={{ color }}>{l.puntos}</span></td>
-                  ) : (
-                    <>
-                      <td style={tdS}><span className="premium-stat-pill" style={{ color }}>{l.triples}</span></td>
-                      <td style={tdS}><span style={{ color: 'rgba(245, 241, 232, 0.64)' }}>{Math.floor((l.triples ?? 0) * 3)}</span></td>
-                    </>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                ) : (
+                  <>
+                    <td style={{ textAlign: 'right', padding: '8px 6px' }}>
+                      <span style={{ color, fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{l.triples}</span>
+                    </td>
+                    <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: 12, padding: '8px 6px', fontVariantNumeric: 'tabular-nums' }}>
+                      {Math.floor((l.triples ?? 0) * 3)}
+                    </td>
+                  </>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -673,12 +1361,14 @@ function TeamStatsTab({
   allPlayers,
   allStats,
   seasonMatches,
+  standings,
 }: {
   seasonId: number | null;
   teams: TeamData[];
   allPlayers: PlayerData[];
   allStats: PlayerStats[];
   seasonMatches: MatchData[];
+  standings: TeamStats[];
 }) {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [phaseFilter, setPhaseFilter] = useState<'all' | 'Fase Regular' | 'Liguilla'>('Fase Regular');
@@ -694,16 +1384,13 @@ function TeamStatsTab({
 
   const teamStats = useMemo(() => {
     if (!selectedTeamId) return [];
-
     const byPlayer: Record<number, { id: number; number: string | null; nombre: string; triples: number; puntos: number }> = {};
     for (const p of allPlayers) {
       if (p.team_id === selectedTeamId) {
         byPlayer[p.id] = { id: p.id, number: p.number ?? null, nombre: p.name, triples: 0, puntos: 0 };
       }
     }
-
     const matchIds = new Set(filteredMatches.map((m) => m.id));
-
     for (const s of allStats) {
       if (!matchIds.has(s.match_id) || s.team_id !== selectedTeamId || !s.played) continue;
       const p = s.players;
@@ -715,17 +1402,52 @@ function TeamStatsTab({
     return Object.values(byPlayer).sort((a, b) => b.puntos - a.puntos || a.nombre.localeCompare(b.nombre));
   }, [allPlayers, allStats, filteredMatches, selectedTeamId]);
 
-  if (!seasonId) return <Text style={{ color: '#7e7c76' }}>Selecciona una temporada arriba.</Text>;
+  if (!seasonId) return <Text style={{ color: '#94a3b8' }}>Selecciona una temporada arriba.</Text>;
 
   return (
     <div>
-      <div style={{ marginBottom: 18, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      {/* Grid táctil de clubes */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+          Toca un club para consultar su plantilla:
+        </div>
+        <div className="team-hub-grid">
+          {activeTeams.map((team) => {
+            const stats = standings.find((s) => s.id === team.id);
+            const isSelected = selectedTeamId === team.id;
+            return (
+              <div
+                key={team.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
+                className={`team-grid-card${isSelected ? ' team-grid-card--active' : ''}`}
+                onClick={() => setSelectedTeamId(team.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedTeamId(team.id); }}
+              >
+                <div style={{ color: isSelected ? 'var(--oro-cantera)' : '#fff', fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {team.name}
+                </div>
+                {stats && (
+                  <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>
+                    {stats.PG}G - {stats.PP}P · {stats.Pts} pts
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 18, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 240px' }}>
-          <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Selecciona un equipo:</Text>
+          <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+            O busca por nombre:
+          </Text>
           <Select
             className="premium-select"
             style={{ width: '100%', maxWidth: 420 }}
-            placeholder="Seleccionar equipo"
+            placeholder="Seleccionar club"
             value={selectedTeamId}
             onChange={(v) => setSelectedTeamId(v as number | null)}
             options={activeTeams.map((t) => ({ label: t.name, value: t.id }))}
@@ -735,7 +1457,9 @@ function TeamStatsTab({
           />
         </div>
         <div style={{ flex: '0 1 220px' }}>
-          <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Fase:</Text>
+          <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+            Fase de Torneo:
+          </Text>
           <Select
             className="premium-select"
             style={{ width: '100%' }}
@@ -753,35 +1477,35 @@ function TeamStatsTab({
       {selectedTeamId && (
         <>
           {teamStats.length === 0 ? (
-            <Text style={{ color: '#7e7c76' }}>Sin estadisticas registradas para este equipo.</Text>
+            <Text style={{ color: '#94a3b8', display: 'block', padding: 24, textAlign: 'center' }}>
+              Sin estadísticas registradas para este equipo.
+            </Text>
           ) : (
-            <div className="premium-table-shell">
-              <div style={{ overflowX: 'auto' }}>
-                <table className="premium-data-table">
-                  <thead>
-                    <tr>
-                      <th style={{ ...thS, textAlign: 'left' }}>Jugador</th>
-                      <th style={{ ...thS, textAlign: 'left' }}>Nombre</th>
-                      <th style={{ ...thS, textAlign: 'right' }}>Triples</th>
-                      <th style={{ ...thS, textAlign: 'right' }}>Puntos</th>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', minWidth: 300, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <th scope="col" style={{ width: 54, textAlign: 'center', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>#</th>
+                    <th scope="col" style={{ textAlign: 'left', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Nombre</th>
+                    <th scope="col" style={{ textAlign: 'right', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Triples</th>
+                    <th scope="col" style={{ textAlign: 'right', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Puntos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamStats.map((s) => (
+                    <tr key={s.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                      <td style={{ textAlign: 'center', color: '#94a3b8', padding: '8px 6px', fontSize: 12 }}>{s.number ? `#${s.number}` : '-'}</td>
+                      <td style={{ textAlign: 'left', fontWeight: 600, color: '#f8fafc', padding: '8px 6px', fontSize: 13 }}>{s.nombre}</td>
+                      <td style={{ textAlign: 'right', padding: '8px 6px' }}>
+                        <span style={{ color: s.triples > 0 ? '#38bdf8' : '#94a3b8', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{s.triples}</span>
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '8px 6px' }}>
+                        <span style={{ color: s.puntos > 0 ? 'var(--oro-cantera)' : '#94a3b8', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{s.puntos}</span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {teamStats.map((s) => (
-                      <tr key={s.id}>
-                        <td style={{ ...tdS, textAlign: 'left', color: 'rgba(245, 241, 232, 0.58)', width: 72 }}>{s.number ? `#${s.number}` : '-'}</td>
-                        <td style={{ ...tdS, textAlign: 'left', fontWeight: 600 }}>{s.nombre}</td>
-                        <td style={{ ...tdS, textAlign: 'right' }}>
-                          <span className="premium-stat-pill" style={{ color: s.triples > 0 ? '#6fb5ff' : '#6d7480' }}>{s.triples}</span>
-                        </td>
-                        <td style={{ ...tdS, textAlign: 'right' }}>
-                          <span className="premium-stat-pill" style={{ color: s.puntos > 0 ? '#f7d774' : '#6d7480' }}>{s.puntos}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </>
@@ -818,13 +1542,26 @@ function teamMatchResult(match: MatchData, teamId: number) {
   const pointsFor = isHome ? match.home_score : match.away_score;
   const pointsAgainst = isHome ? match.away_score : match.home_score;
   if (typeof pointsFor !== 'number' || typeof pointsAgainst !== 'number') {
-    return { text: match.status ?? 'Resultado pendiente', color: '#f7d774' };
+    return { text: match.status ?? 'Resultado pendiente', color: '#fde68a' };
   }
-  const label = pointsFor > pointsAgainst ? 'Ganaron' : pointsFor < pointsAgainst ? 'Perdieron' : 'Empate';
-  return { text: `${pointsFor} - ${pointsAgainst} · ${label}`, color: pointsFor > pointsAgainst ? '#95de64' : pointsFor < pointsAgainst ? '#ff9c9d' : '#f7d774' };
+  const label = pointsFor > pointsAgainst ? 'Victoria' : pointsFor < pointsAgainst ? 'Derrota' : 'Empate';
+  return {
+    text: `${pointsFor} - ${pointsAgainst} · ${label}`,
+    color: pointsFor > pointsAgainst ? '#4ade80' : pointsFor < pointsAgainst ? '#f87171' : '#fde68a',
+  };
 }
 
-function TeamMatchesTab({ seasonId, teams, matches }: { seasonId: number | null; teams: TeamData[]; matches: MatchData[] }) {
+function TeamMatchesTab({
+  seasonId,
+  teams,
+  matches,
+  standings,
+}: {
+  seasonId: number | null;
+  teams: TeamData[];
+  matches: MatchData[];
+  standings: TeamStats[];
+}) {
   const [teamId, setTeamId] = useState<number | null>(null);
   const isCoarsePointer = useIsCoarsePointer();
   const activeTeams = useMemo(() => sortTeamsByName(teams.filter((team) => team.season_id === seasonId)), [seasonId, teams]);
@@ -834,18 +1571,66 @@ function TeamMatchesTab({ seasonId, teams, matches }: { seasonId: number | null;
     .sort((a, b) => getMatchSortValue(b.match) - getMatchSortValue(a.match));
   const playoffs = teamId ? matches.filter((match) => !isRegularPhase(match.phase) && (match.home_team_id === teamId || match.away_team_id === teamId)) : [];
 
-  if (!seasonId) return <Text style={{ color: '#7e7c76' }}>Selecciona una temporada arriba.</Text>;
+  if (!seasonId) return <Text style={{ color: '#94a3b8' }}>Selecciona una temporada arriba.</Text>;
+
   return (
     <div>
-      <Text className="premium-helper-text" style={{ display: 'block', marginBottom: 8 }}>Selecciona tu equipo:</Text>
-      <Select className="premium-select" style={{ width: '100%', maxWidth: 440, marginBottom: 18 }} placeholder="Seleccionar equipo" value={teamId} onChange={setTeamId}
-        options={activeTeams.map((team) => ({ label: team.name, value: team.id }))} showSearch={!isCoarsePointer}
+      {/* Grid táctil de clubes */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+          Toca tu club para ver sus partidos:
+        </div>
+        <div className="team-hub-grid">
+          {activeTeams.map((team) => {
+            const stats = standings.find((s) => s.id === team.id);
+            const isSelected = teamId === team.id;
+            return (
+              <div
+                key={team.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
+                className={`team-grid-card${isSelected ? ' team-grid-card--active' : ''}`}
+                onClick={() => setTeamId(team.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setTeamId(team.id); }}
+              >
+                <div style={{ color: isSelected ? 'var(--oro-cantera)' : '#fff', fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {team.name}
+                </div>
+                {stats && (
+                  <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>
+                    Pos. #{standings.findIndex((s) => s.id === team.id) + 1} · {stats.Pts} pts
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+        O selecciona en lista:
+      </Text>
+      <Select
+        className="premium-select"
+        style={{ width: '100%', maxWidth: 440, marginBottom: 20 }}
+        placeholder="Seleccionar equipo"
+        value={teamId}
+        onChange={setTeamId}
+        options={activeTeams.map((team) => ({ label: team.name, value: team.id }))}
+        showSearch={!isCoarsePointer}
         filterOption={(input, option) => (option?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
-        filterSort={sortSelectOptions} />
-      {!teamId ? <Text style={{ color: '#7e7c76', display: 'block', textAlign: 'center', padding: 32 }}>Selecciona tu equipo para ver sus partidos.</Text> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <EncounterList title="Partidos que faltan" encounters={pending} teamId={teamId} />
-          <EncounterList title="Partidos ya jugados" encounters={played} teamId={teamId} showResult />
+        filterSort={sortSelectOptions}
+      />
+
+      {!teamId ? (
+        <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 28 }}>
+          Selecciona tu equipo para ver su calendario completo y resultados.
+        </Text>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <EncounterList title="Partidos por Disputar" encounters={pending} teamId={teamId} />
+          <EncounterList title="Partidos ya Jugados" encounters={played} teamId={teamId} showResult />
           {playoffs.length > 0 && <PlayoffList matches={playoffs} teamId={teamId} />}
         </div>
       )}
@@ -856,15 +1641,22 @@ function TeamMatchesTab({ seasonId, teams, matches }: { seasonId: number | null;
 function EncounterList({ title, encounters, teamId, showResult = false }: { title: string; encounters: TeamEncounter<MatchData>[]; teamId: number; showResult?: boolean }) {
   return (
     <div>
-      <div className="premium-section-label">{title}</div>
-      {encounters.length === 0 ? <Text style={{ color: '#7e7c76' }}>No hay partidos en esta sección.</Text> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+      <h3 className="premium-section-label" style={{ fontSize: 12 }}>{title}</h3>
+      {encounters.length === 0 ? <Text style={{ color: '#94a3b8', padding: '10px 0', display: 'block' }}>No hay partidos en esta sección.</Text> : (
+        <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
           {encounters.map((encounter) => {
             const result = showResult && encounter.match ? teamMatchResult(encounter.match, teamId) : null;
-            return <div key={encounter.key} className="premium-calendar-card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <div><div style={{ color: '#fff5dd', fontWeight: 700 }}>{encounter.opponent.name}</div><div style={{ color: 'rgba(245, 241, 232, 0.58)', fontSize: 12, marginTop: 4 }}>{encounter.leg === 'ida' ? 'Primer enfrentamiento' : 'Segundo enfrentamiento'}</div></div>
-              <div style={{ color: result?.color ?? 'rgba(245, 241, 232, 0.7)', fontSize: 12, textAlign: 'right' }}>{result?.text ?? (encounter.match ? formatTeamMatchDate(encounter.match) : 'Por programar · Aún no registrado')}</div>
-            </div>;
+            return (
+              <div key={encounter.key} className="premium-list-item" style={{ flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: 14 }}>{encounter.opponent.name}</div>
+                  <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{encounter.leg === 'ida' ? 'Primer enfrentamiento (Ida)' : 'Segundo enfrentamiento (Vuelta)'}</div>
+                </div>
+                <div style={{ color: result?.color ?? '#cbd5e1', fontSize: 12, textAlign: 'right', fontWeight: 600 }}>
+                  {result?.text ?? (encounter.match ? formatTeamMatchDate(encounter.match) : 'Por programar · Aún no registrado')}
+                </div>
+              </div>
+            );
           })}
         </div>
       )}
@@ -873,20 +1665,29 @@ function EncounterList({ title, encounters, teamId, showResult = false }: { titl
 }
 
 function PlayoffList({ matches, teamId }: { matches: MatchData[]; teamId: number }) {
-  return <div><div className="premium-section-label">Liguilla</div><div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-    {matches.map((match) => {
-      const opponent = match.home_team_id === teamId ? match.away_team : match.home_team;
-      const result = isPlayedStatus(match.status) ? teamMatchResult(match, teamId) : null;
-      return <div key={match.id} className="premium-calendar-card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div><div style={{ color: '#fff5dd', fontWeight: 700 }}>{opponent?.name ?? 'Rival por definir'}</div><div style={{ color: 'rgba(245, 241, 232, 0.58)', fontSize: 12 }}>{match.phase ?? 'Liguilla'}</div></div>
-        <div style={{ color: result?.color ?? 'rgba(245, 241, 232, 0.7)', fontSize: 12 }}>{result?.text ?? formatTeamMatchDate(match)}</div>
-      </div>;
-    })}
-  </div></div>;
+  return (
+    <div>
+      <h3 className="premium-section-label" style={{ fontSize: 12 }}>Liguilla / Play-offs</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.06)', marginTop: 8 }}>
+        {matches.map((match) => {
+          const opponent = match.home_team_id === teamId ? match.away_team : match.home_team;
+          const result = isPlayedStatus(match.status) ? teamMatchResult(match, teamId) : null;
+          return (
+            <div key={match.id} className="premium-list-item" style={{ flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ color: '#f8fafc', fontWeight: 700 }}>{opponent?.name ?? 'Rival por definir'}</div>
+                <div style={{ color: '#94a3b8', fontSize: 12 }}>{match.phase ?? 'Liguilla'}</div>
+              </div>
+              <div style={{ color: result?.color ?? '#cbd5e1', fontSize: 12, fontWeight: 600 }}>
+                {result?.text ?? formatTeamMatchDate(match)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
-
-const thS: CSSProperties = { textAlign: 'center' };
-const tdS: CSSProperties = { textAlign: 'center' };
 
 function isPastCalendarMatch(match: MatchData) {
   if (isPlayedStatus(match.status)) return true;
@@ -923,7 +1724,7 @@ function CalendarList({
   const sortedPhases = Object.keys(grouped).sort((a, b) => phaseOrder.indexOf(a) - phaseOrder.indexOf(b));
 
   if (filtered.length === 0) {
-    return <Text style={{ color: '#7e7c76', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos con estos filtros</Text>;
+    return <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos con los filtros seleccionados</Text>;
   }
 
   return (
@@ -931,31 +1732,39 @@ function CalendarList({
       {sortedPhases.map((phase) => (
         <div key={phase}>
           <div style={{ marginBottom: 10 }}>
-            <div className="premium-section-label">{phase === 'Fase Regular' ? 'Temporada Regular' : phase}</div>
+            <h3 className="premium-section-label" style={{ fontSize: 12 }}>{phase === 'Fase Regular' ? 'Temporada Regular' : phase}</h3>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
             {grouped[phase].map((m) => (
-              <div key={m.id} className="premium-calendar-card" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <Tag className={`premium-tag${phase !== 'Fase Regular' ? ' premium-tag--active' : ''}`} style={{ marginInlineEnd: 0 }}>
-                  J{m.jornada ?? '?'}
-                </Tag>
-                <div style={{ flex: 1, minWidth: 180 }}>
-                  <Text style={{ fontSize: 14, fontWeight: phase !== 'Fase Regular' ? 700 : 500, color: '#fff5dd' }}>
-                    {m.home_team?.name ?? '?'} vs {m.away_team?.name ?? '?'}
-                  </Text>
-                  <div style={{ color: 'rgba(245, 241, 232, 0.58)', fontSize: 12, marginTop: 4 }}>
-                    {m.scheduled_date ? dayjs(m.scheduled_date).format('DD MMM') : ''}
-                    {m.time_str && ` · ${m.time_str} hrs`}
-                    {m.court && ` · ${m.court}`}
+              <div key={m.id} className="premium-list-item" style={{ flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 200 }}>
+                  <Tag className={`premium-tag${phase !== 'Fase Regular' ? ' premium-tag--active' : ''}`} style={{ marginInlineEnd: 0, minHeight: 28, padding: '2px 8px', fontSize: 11 }}>
+                    J{m.jornada ?? '?'}
+                  </Tag>
+                  <div>
+                    <Text style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>
+                      {m.home_team?.name ?? '?'} <span style={{ color: '#94a3b8', fontWeight: 500, margin: '0 4px' }}>vs</span> {m.away_team?.name ?? '?'}
+                    </Text>
+                    <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
+                      {m.scheduled_date ? dayjs(m.scheduled_date).format('DD MMM') : ''}
+                      {m.time_str && ` · ${m.time_str} hrs`}
+                      {m.court && ` · ${m.court}`}
+                    </div>
                   </div>
                 </div>
-                {m.status === 'Jugado'
-                  ? <Tag className="premium-tag premium-tag--active" style={{ marginInlineEnd: 0 }}>{m.home_score} - {m.away_score}</Tag>
-                  : m.status?.startsWith('WO') || m.status?.startsWith('W')
-                    ? <Tag className="premium-tag premium-tag--active" style={{ marginInlineEnd: 0 }}>{m.status}</Tag>
-                    : <Tag className="premium-tag" style={{ marginInlineEnd: 0 }}>
-                        {m.scheduled_date ? dayjs(m.scheduled_date).format('DD MMM') : 'Programado'}
-                      </Tag>}
+                {m.status === 'Jugado' ? (
+                  <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--oro-cantera)', fontVariantNumeric: 'tabular-nums' }}>
+                    {m.home_score} — {m.away_score}
+                  </span>
+                ) : m.status?.startsWith('WO') || m.status?.startsWith('W') ? (
+                  <span style={{ fontWeight: 800, fontSize: 12, color: '#fbbf24' }}>
+                    {m.status}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                    {m.scheduled_date ? dayjs(m.scheduled_date).format('DD MMM') : 'Programado'}
+                  </span>
+                )}
               </div>
             ))}
           </div>
