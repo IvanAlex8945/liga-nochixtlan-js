@@ -26,12 +26,13 @@ export default function LiguillaModal({
   open,
   onClose,
   seasonId,
-  matches
+  matches,
 }: {
   open: boolean;
   onClose: () => void;
   seasonId: number;
   matches: Match[];
+  teams?: Array<{ id: number; name: string }>;
 }) {
   const { message: messageApi } = App.useApp();
   const qc = useQueryClient();
