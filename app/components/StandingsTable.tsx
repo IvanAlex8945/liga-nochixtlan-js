@@ -44,26 +44,31 @@ function getTeamInitials(name: string): string {
 export default function StandingsTable({ data, onTeamClick }: StandingsTableProps) {
   const leader = data[0] ?? null;
 
-  // Criterio de elegibilidad deportiva para Mejor Ofensiva y Defensiva:
-  // - Excluye equipos inactivos o retirados (ej. SOSOLA).
-  // - Requiere haber disputado partidos reales en cancha (PG + PP > 0).
-  // - Considera partidos jugados (PJ), perdidos (PP) y por default (WO).
-  // - Requiere un mínimo representativo de partidos jugados respecto al torneo.
+  // Criterio de elegibilidad deportiva universal para Mejor Ofensiva y Mejor Defensiva
+  // Aplicable de forma general para todas las categorías (3ra, Femenil, Libre, Master, Veteranos):
+  // 1. Considera partidos jugados (PJ), ganados (PG), perdidos (PP) y por default (WO).
+  // 2. Excluye equipos retirados, dados de baja o que solo acumularon incomparecencias sin competir en cancha.
+  // 3. Excluye equipos con múltiples defaults y 0 victorias (ej. SOSOLA o equipos desertores).
+  // 4. Requiere un mínimo de partidos disputados respecto al avance del torneo (>= 30% del máximo de la tabla).
   const eligibleTeams = useMemo(() => {
     if (data.length === 0) return [];
     const maxPJ = Math.max(...data.map((t) => t.PJ), 1);
-    const minPJThreshold = Math.max(2, Math.floor(maxPJ * 0.25));
+    const minPJThreshold = Math.max(1, Math.ceil(maxPJ * 0.3));
 
     const activeList = data.filter((t) => {
       const name = t.equipo.trim().toUpperCase();
-      if (name.includes('SOSOLA')) return false;
-      // Excluir equipos con solo incomparecencias / defaults sin partidos disputados
-      if (t.PG === 0 && t.PP === 0 && t.WO > 0) return false;
+      if (name.includes('SOSOLA') || name.includes('RETIRADO') || name.includes('BAJA')) return false;
+      // No elegible si solo tiene partidos por default sin haber jugado en cancha
+      if ((t.PG + t.PP) === 0 && t.WO > 0) return false;
+      // No elegible si abandonó el torneo (sin victorias y múltiples WOs)
+      if (t.PG === 0 && t.WO >= 2) return false;
+      // Debe haber disputado al menos 1 juego en cancha y cumplir el umbral del torneo
       return t.PJ >= minPJThreshold && (t.PG + t.PP) > 0;
     });
 
     if (activeList.length === 0) {
-      return data.filter((t) => !t.equipo.trim().toUpperCase().includes('SOSOLA') && t.PJ > 0);
+      // Fallback seguro (ej. primeras jornadas donde los partidos apenas comienzan)
+      return data.filter((t) => !t.equipo.trim().toUpperCase().includes('SOSOLA') && (t.PG + t.PP) > 0);
     }
     return activeList;
   }, [data]);
@@ -71,20 +76,28 @@ export default function StandingsTable({ data, onTeamClick }: StandingsTableProp
   const bestOffense = useMemo(() => {
     if (eligibleTeams.length === 0) return null;
     return [...eligibleTeams].sort((a, b) => {
+      // Pondera el promedio de puntos anotados por partido (PF / PJ)
       const avgA = a.PF / Math.max(1, a.PJ);
       const avgB = b.PF / Math.max(1, b.PJ);
-      if (Math.abs(avgB - avgA) > 0.01) return avgB - avgA;
-      return b.PF - a.PF;
+      if (Math.abs(avgB - avgA) > 0.05) return avgB - avgA;
+      // Desempate por mayor total de PF
+      if (b.PF !== a.PF) return b.PF - a.PF;
+      // Desempate por mayor número de victorias
+      return b.PG - a.PG;
     })[0];
   }, [eligibleTeams]);
 
   const bestDefense = useMemo(() => {
     if (eligibleTeams.length === 0) return null;
     return [...eligibleTeams].sort((a, b) => {
+      // Pondera el promedio de puntos recibidos por partido (PC / PJ)
       const avgA = a.PC / Math.max(1, a.PJ);
       const avgB = b.PC / Math.max(1, b.PJ);
-      if (Math.abs(avgA - avgB) > 0.01) return avgA - avgB;
-      return a.PC - b.PC;
+      if (Math.abs(avgA - avgB) > 0.05) return avgA - avgB;
+      // Desempate por menor total de PC
+      if (a.PC !== b.PC) return a.PC - b.PC;
+      // Desempate por menor número de derrotas (PP + WO)
+      return (a.PP + a.WO) - (b.PP + b.WO);
     })[0];
   }, [eligibleTeams]);
 
@@ -419,7 +432,7 @@ export default function StandingsTable({ data, onTeamClick }: StandingsTableProp
                   {bestOffense.PF} <span style={{ fontSize: 10, fontWeight: 600 }}>PF</span>
                 </div>
                 <div style={{ color: '#94a3b8', fontSize: 10 }}>
-                  {(bestOffense.PF / Math.max(1, bestOffense.PJ)).toFixed(1)} pts/j · {bestOffense.PJ} PJ
+                  {(bestOffense.PF / Math.max(1, bestOffense.PJ)).toFixed(1)} pts/j · {bestOffense.PJ} PJ ({bestOffense.PG}G-{bestOffense.PP}P{bestOffense.WO > 0 ? `-${bestOffense.WO}WO` : ''})
                 </div>
               </div>
             </div>
@@ -452,7 +465,7 @@ export default function StandingsTable({ data, onTeamClick }: StandingsTableProp
                   {bestDefense.PC} <span style={{ fontSize: 10, fontWeight: 600 }}>PC</span>
                 </div>
                 <div style={{ color: '#94a3b8', fontSize: 10 }}>
-                  {(bestDefense.PC / Math.max(1, bestDefense.PJ)).toFixed(1)} pts/j · {bestDefense.PJ} PJ
+                  {(bestDefense.PC / Math.max(1, bestDefense.PJ)).toFixed(1)} pts/j · {bestDefense.PJ} PJ ({bestDefense.PG}G-{bestDefense.PP}P{bestDefense.WO > 0 ? `-${bestDefense.WO}WO` : ''})
                 </div>
               </div>
             </div>
