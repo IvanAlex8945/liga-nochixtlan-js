@@ -5,9 +5,10 @@ import { Select, Typography, Alert, Spin, Button } from 'antd';
 import { FilePdfOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import EligibilityTable from '@/app/components/EligibilityTable';
+import { useAdminStore } from '@/lib/admin-store';
 import { calcularElegibilidad } from '@/lib/eligibility';
 import { generateEligibilityPDF } from '@/lib/pdfReport';
 import { calcularPosiciones, MatchForStandings } from '@/lib/standings';
@@ -15,13 +16,15 @@ import { calcularPosiciones, MatchForStandings } from '@/lib/standings';
 const { Title, Text } = Typography;
 
 export default function EligibilityPage() {
-  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const seasonId = useAdminStore((s) => s.selectedSeasonId);
+  const setSeasonId = useAdminStore((s) => s.setSelectedSeasonId);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [prevSeasonId, setPrevSeasonId] = useState(seasonId);
 
-  useEffect(() => {
-    supabase.from('seasons').select('id').eq('is_active', true).limit(1).single()
-      .then(({ data }) => { if (data) setSeasonId(data.id); });
-  }, []);
+  if (seasonId !== prevSeasonId) {
+    setPrevSeasonId(seasonId);
+    setSelectedTeamId(null);
+  }
 
   const { data: selectedSeason } = useQuery({
     queryKey: ['season-detail', seasonId],

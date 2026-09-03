@@ -7,11 +7,12 @@ import {
 import { PlusOutlined, DeleteOutlined, EditOutlined, WhatsAppOutlined, CopyOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import AdminEditForm, { EditableMatch } from '@/app/components/AdminEditForm';
 import { invalidatePublicCache } from '@/lib/public-cache-client';
 import { checkSchedulingConflicts, SchedulingTeam } from '@/lib/scheduling';
+import { useAdminStore } from '@/lib/admin-store';
 import LiguillaModal from './LiguillaModal';
 import MissingMatchesModal from './MissingMatchesModal';
 
@@ -145,7 +146,8 @@ export default function CalendarPage() {
   const qc = useQueryClient();
   const [form] = Form.useForm();
   const [modalOpen, setModalOpen] = useState(false);
-  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const seasonId = useAdminStore((s) => s.selectedSeasonId);
+  const setSeasonId = useAdminStore((s) => s.setSelectedSeasonId);
   const [editingMatch, setEditingMatch] = useState<EditableMatch | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
   const [waModalOpen, setWaModalOpen] = useState(false);
@@ -164,10 +166,12 @@ export default function CalendarPage() {
   const [assistantMaxMatches, setAssistantMaxMatches] = useState(6);
   const [assistantSuggestions, setAssistantSuggestions] = useState<AssistantSuggestion[]>([]);
 
-  useEffect(() => {
-    supabase.from('seasons').select('id').eq('is_active', true).limit(1).single()
-      .then(({ data }) => { if (data) setSeasonId(data.id); });
-  }, []);
+  const [prevSeasonId, setPrevSeasonId] = useState(seasonId);
+  if (seasonId !== prevSeasonId) {
+    setPrevSeasonId(seasonId);
+    setTeamFilterIds([]);
+    setSelectedTeamCalendarId(null);
+  }
 
   const { data: teams = [] } = useQuery<Team[]>({
     queryKey: ['teams-active', seasonId],

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Form,
   Radio,
@@ -77,6 +78,7 @@ function TeamRunningScore({
 }
 
 export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers, initialResultType = 'Normal', onSaved }: Props) {
+  const queryClient = useQueryClient();
   const [resultType, setResultType] = useState<ResultType>(initialResultType);
   const [homeLineup, setHomeLineup] = useState<PlayerRow[]>(homePlayers);
   const [awayLineup, setAwayLineup] = useState<PlayerRow[]>(awayPlayers);
@@ -108,7 +110,21 @@ export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers,
         getLineupForSave(awayLineup)
       );
       await invalidatePublicCache({ seasonId });
-      message.success('Resultado guardado correctamente');
+
+      await queryClient.invalidateQueries({ queryKey: ['matches-programmed'] });
+      if (seasonId) {
+        await queryClient.invalidateQueries({ queryKey: ['matches-programmed', seasonId] });
+        await queryClient.invalidateQueries({ queryKey: ['matches', seasonId] });
+        await queryClient.invalidateQueries({ queryKey: ['stats', seasonId] });
+        await queryClient.invalidateQueries({ queryKey: ['standings', seasonId] });
+        await queryClient.invalidateQueries({ queryKey: ['season-detail', seasonId] });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['match', match.id] });
+      await queryClient.invalidateQueries({ queryKey: ['players-capture-home'] });
+      await queryClient.invalidateQueries({ queryKey: ['players-capture-away'] });
+      await queryClient.invalidateQueries({ queryKey: ['eligibility'] });
+
+      message.success('✓ Resultado guardado correctamente. Puedes capturar el siguiente partido.', 5);
       onSaved?.();
     } catch (err: unknown) {
       message.error(err instanceof Error ? err.message : 'Error al guardar');
@@ -264,6 +280,8 @@ export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers,
           size="large"
           icon={<SaveOutlined />}
           onClick={handleSave}
+          loading={saving}
+          disabled={saving}
           className="btn-capture"
           style={{ width: '100%', marginTop: 16 }}
         >

@@ -2,13 +2,14 @@
 
 import AdminLayout from '@/app/components/AdminLayout';
 import { Select, Typography, Alert, Spin, Tag } from 'antd';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import CaptureForm from '@/app/components/CaptureForm';
 import type { PlayerRow } from '@/app/components/PlayerAttendanceTable';
 import { calcularElegibilidad } from '@/lib/eligibility';
+import { useAdminStore } from '@/lib/admin-store';
 
 const { Title, Text } = Typography;
 
@@ -77,14 +78,18 @@ async function fetchTeamCredentials(playerIds: number[], seasonId: number) {
 }
 
 export default function CapturePage() {
-  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const seasonId = useAdminStore((s) => s.selectedSeasonId);
+  const setSeasonId = useAdminStore((s) => s.setSelectedSeasonId);
+  const queryClient = useQueryClient();
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
   const [selectedJornada, setSelectedJornada] = useState<number | null>(null);
+  const [prevSeasonId, setPrevSeasonId] = useState(seasonId);
 
-  useEffect(() => {
-    supabase.from('seasons').select('id').eq('is_active', true).limit(1).single()
-      .then(({ data }) => { if (data) setSeasonId(data.id); });
-  }, []);
+  if (seasonId !== prevSeasonId) {
+    setPrevSeasonId(seasonId);
+    setSelectedMatchId(null);
+    setSelectedJornada(null);
+  }
 
   const { data: matches = [], isLoading: loadingMatches } = useQuery<Match[]>({
     queryKey: ['matches-programmed', seasonId],
@@ -120,14 +125,18 @@ export default function CapturePage() {
       let eligibilityMap = new Map<number, { elegible: boolean; asistencias: number; min: number }>();
       if (selectedMatch?.phase && selectedMatch.phase !== 'Fase Regular') {
         const { results } = await calcularElegibilidad(supabase, selectedMatch.home_team.id, seasonId!);
-        const eligibleSet = new Set(results.filter(r => r.elegible).map(r => r.jugador_id));
         eligibilityMap = new Map(
           results.map((result) => [
             result.jugador_id,
             { elegible: result.elegible, asistencias: result.asistencias, min: result.min_requerido },
           ])
         );
-        playersData = sortPlayersByNumber(playersData.filter(p => eligibleSet.has(p.id)));
+        playersData = [...playersData].sort((a, b) => {
+          const eligA = eligibilityMap.get(a.id)?.elegible ? 1 : 0;
+          const eligB = eligibilityMap.get(b.id)?.elegible ? 1 : 0;
+          if (eligA !== eligB) return eligB - eligA;
+          return getPlayerNumberSortValue(a.number) - getPlayerNumberSortValue(b.number);
+        });
       }
 
       const credentials = await fetchTeamCredentials(
@@ -174,14 +183,18 @@ export default function CapturePage() {
       let eligibilityMap = new Map<number, { elegible: boolean; asistencias: number; min: number }>();
       if (selectedMatch?.phase && selectedMatch.phase !== 'Fase Regular') {
         const { results } = await calcularElegibilidad(supabase, selectedMatch.away_team.id, seasonId!);
-        const eligibleSet = new Set(results.filter(r => r.elegible).map(r => r.jugador_id));
         eligibilityMap = new Map(
           results.map((result) => [
             result.jugador_id,
             { elegible: result.elegible, asistencias: result.asistencias, min: result.min_requerido },
           ])
         );
-        playersData = sortPlayersByNumber(playersData.filter(p => eligibleSet.has(p.id)));
+        playersData = [...playersData].sort((a, b) => {
+          const eligA = eligibilityMap.get(a.id)?.elegible ? 1 : 0;
+          const eligB = eligibilityMap.get(b.id)?.elegible ? 1 : 0;
+          if (eligA !== eligB) return eligB - eligA;
+          return getPlayerNumberSortValue(a.number) - getPlayerNumberSortValue(b.number);
+        });
       }
 
       const credentials = await fetchTeamCredentials(
@@ -253,17 +266,32 @@ export default function CapturePage() {
             <Select
               style={{ width: '100%' }}
               placeholder="-- Seleccionar partido programado --"
-              options={filteredMatches.map((m) => ({
-                label: `J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} ${m.status !== 'Programado' ? `(${m.status})` : ''}`,
-                value: m.id,
-              }))}
               value={selectedMatchId}
               onChange={setSelectedMatchId}
               loading={loadingMatches}
               showSearch
-              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
               notFoundContent={<Text style={{ color: '#555' }}>{loadingMatches ? 'Cargando...' : 'Sin partidos en esta jornada'}</Text>}
-            />
+            >
+              <Select.OptGroup label="⏳ PENDIENTES">
+                {filteredMatches
+                  .filter((m) => m.status !== 'Jugado')
+                  .map((m) => (
+                    <Select.Option key={m.id} value={m.id} label={`J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} ${m.status !== 'Programado' ? `(${m.status})` : ''}`}>
+                      {`J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name}${m.status !== 'Programado' ? ` (${m.status})` : ''}`}
+                    </Select.Option>
+                  ))}
+              </Select.OptGroup>
+              <Select.OptGroup label="✅ CAPTURADOS">
+                {filteredMatches
+                  .filter((m) => m.status === 'Jugado')
+                  .map((m) => (
+                    <Select.Option key={m.id} value={m.id} label={`J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} (${m.status})`}>
+                      {`J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} (${m.status})`}
+                    </Select.Option>
+                  ))}
+              </Select.OptGroup>
+            </Select>
           </div>
           {matches.length === 0 && !loadingMatches && (
             <Alert type="info" message="No hay partidos programados en esta temporada" showIcon style={{ width: '100%', marginTop: 10 }} />
@@ -294,7 +322,12 @@ export default function CapturePage() {
               homePlayers={homePlayers}
               awayPlayers={awayPlayers}
               initialResultType={initialResultType}
-              onSaved={() => setSelectedMatchId(null)}
+              onSaved={() => {
+                setSelectedMatchId(null);
+                if (seasonId) {
+                  queryClient.invalidateQueries({ queryKey: ['matches-programmed', seasonId] });
+                }
+              }}
             />
           )}
         </div>

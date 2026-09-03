@@ -7,6 +7,7 @@ import Link from 'next/link';
 
 import AdminLayout from '@/app/components/AdminLayout';
 import SeasonSelector from '@/app/components/SeasonSelector';
+import { useAdminStore } from '@/lib/admin-store';
 import { generateTeamCredentialPdf } from '@/lib/credential-pdf';
 import { renderCredentialImage } from '@/lib/credential-render';
 import { optimizePlayerPhoto } from '@/lib/image-client';
@@ -172,7 +173,8 @@ export default function TeamsPage() {
   const [playerModal, setPlayerModal] = useState<number | null>(null);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
-  const [seasonId, setSeasonId] = useState<number | null>(null);
+  const seasonId = useAdminStore((s) => s.selectedSeasonId);
+  const setSeasonId = useAdminStore((s) => s.setSelectedSeasonId);
   const [photoDraft, setPhotoDraft] = useState<PhotoDraft | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [credentialPreview, setCredentialPreview] = useState<CredentialPreviewState>({
@@ -182,6 +184,7 @@ export default function TeamsPage() {
   });
   const [credentialOverrides, setCredentialOverrides] = useState<CredentialMap>(new Map());
   const [viewportWidth, setViewportWidth] = useState(1280);
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   function replacePhotoDraft(next: PhotoDraft | null) {
@@ -425,19 +428,6 @@ export default function TeamsPage() {
     }
   }
 
-  useEffect(() => {
-    supabase
-      .from('seasons')
-      .select('id')
-      .eq('is_active', true)
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setSeasonId(data.id);
-        }
-      });
-  }, []);
 
   useEffect(() => {
     const syncViewport = () => setViewportWidth(window.innerWidth);
@@ -722,36 +712,44 @@ export default function TeamsPage() {
 
   const deleteTeam = useMutation({
     mutationFn: async (id: number) => {
-      const { data: teamMatches } = await supabase
-        .from('matches')
-        .select('id')
-        .or(`home_team_id.eq.${id},away_team_id.eq.${id}`);
-
-      const matchIds = (teamMatches ?? []).map((match: { id: number }) => match.id);
-
-      if (matchIds.length > 0) {
-        const { error: statsError } = await supabase
-          .from('player_match_stats')
-          .delete()
-          .in('match_id', matchIds);
-        if (statsError) throw statsError;
-      }
-
-      if (matchIds.length > 0) {
-        const { error: matchError } = await supabase
-          .from('matches')
-          .delete()
-          .in('id', matchIds);
-        if (matchError) throw matchError;
-      }
-
+      // Intentar borrado limpio si es un equipo recién creado sin historial
       const { error } = await supabase.from('teams').delete().eq('id', id);
-      if (error) throw error;
+
+      if (error) {
+        if (error.code === '23503') {
+          // Si tiene partidos o jugadores registrados, marcar como baja (soft-delete)
+          const { error: updateError } = await supabase
+            .from('teams')
+            .update({ status: 'Baja' })
+            .eq('id', id);
+          if (updateError) throw updateError;
+
+          // Desactivar también sus jugadores asociados
+          await supabase
+            .from('players')
+            .update({ is_active: false })
+            .eq('team_id', id);
+
+          return 'soft-deleted';
+        }
+        throw error;
+      }
+
+      return 'deleted';
     },
-    onSuccess: async () => {
-      qc.invalidateQueries({ queryKey: ['teams', 'players'] });
+    onSuccess: async (status) => {
+      qc.invalidateQueries({ queryKey: ['teams'] });
+      qc.invalidateQueries({ queryKey: ['teams-active'] });
+      qc.invalidateQueries({ queryKey: ['players'] });
       await invalidatePublicCache({ seasonId });
-      message.success('Equipo y todos sus datos eliminados correctamente');
+      if (status === 'soft-deleted') {
+        message.info(
+          'El equipo tiene historial registrado. Fue marcado como Baja para no afectar las estadísticas de la liga.',
+          5
+        );
+      } else {
+        message.success('Equipo eliminado permanentemente');
+      }
     },
     onError: (error: Error) => message.error(error.message),
   });
@@ -1137,6 +1135,15 @@ export default function TeamsPage() {
   ).length;
   const pendingSelectedTeamCredentialCount =
     selectedTeamActivePlayers.length - selectedTeamCredentialCount;
+
+  const filteredTeams = teams
+    .filter((team) => {
+      if (!searchQuery) return true;
+      const normalized = (text: string) =>
+        text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      return normalized(team.name).includes(normalized(searchQuery));
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
   const credentialModalWidth = viewportWidth < 640
     ? viewportWidth - 16
     : viewportWidth < 1024
@@ -1203,8 +1210,28 @@ export default function TeamsPage() {
       {!seasonId ? (
         <Text style={{ color: '#555' }}>Selecciona una temporada para ver los equipos.</Text>
       ) : (
-        <Table
-          dataSource={teams}
+        <>
+          {/* ── Barra de búsqueda A-Z ──────────────────────────── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <Input.Search
+              placeholder="Buscar equipo..."
+              allowClear
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onSearch={(val) => setSearchQuery(val)}
+              style={{ maxWidth: 320 }}
+            />
+            {searchQuery !== '' && (
+              <Button size="small" onClick={() => setSearchQuery('')}>
+                Limpiar filtros
+              </Button>
+            )}
+            <Text style={{ color: '#888', fontSize: 12 }}>
+              {filteredTeams.length} de {teams.length} equipos
+            </Text>
+          </div>
+          <Table
+            dataSource={filteredTeams}
           columns={teamCols}
           rowKey="id"
           loading={isLoading}
@@ -1268,6 +1295,7 @@ export default function TeamsPage() {
             },
           }}
         />
+        </>
       )}
 
       <Modal

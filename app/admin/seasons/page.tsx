@@ -8,6 +8,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { invalidatePublicCache } from '@/lib/public-cache-client';
+import { useAdminStore } from '@/lib/admin-store';
 import { useState } from 'react';
 
 const { Title, Text } = Typography;
@@ -79,6 +80,7 @@ export default function SeasonsPage() {
       return id;
     },
     onSuccess: async (seasonId) => {
+      useAdminStore.getState().setSelectedSeasonId(seasonId);
       qc.invalidateQueries({ queryKey: ['seasons'] });
       qc.invalidateQueries({ queryKey: ['active-season'] });
       qc.invalidateQueries({ queryKey: ['seasons-selector'] });
@@ -94,6 +96,9 @@ export default function SeasonsPage() {
       if (error) throw error;
     },
     onSuccess: async (_, seasonId) => {
+      if (useAdminStore.getState().selectedSeasonId === seasonId) {
+        useAdminStore.getState().clearSeason();
+      }
       qc.invalidateQueries({ queryKey: ['seasons'] });
       qc.invalidateQueries({ queryKey: ['seasons-selector'] });
       await invalidatePublicCache({ seasonId, seasons: true });

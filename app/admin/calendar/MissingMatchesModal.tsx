@@ -47,6 +47,8 @@ interface MissingMatch {
   pairKey: string;
   reason: string;
   suggestedJornada?: number;
+  vuelta?: 'ida' | 'vuelta';
+  reserveMirror?: boolean;
 }
 interface RegisteredMatchRow extends MatchData {
   key: string;
@@ -210,25 +212,30 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
             pairKey: audit.key,
             reason: 'No existe ningún juego entre estos equipos. Al crear la ida se reservará la vuelta espejo.',
             suggestedJornada: nextSuggestedJornada,
+            vuelta: 'ida',
+            reserveMirror: true,
           });
           return;
         }
 
         if (audit.total === 1) {
           const existingMatch = audit.orderedMatches[0];
+          const missingVuelta: 'ida' | 'vuelta' = existingMatch?.vuelta === 'vuelta' ? 'ida' : 'vuelta';
           const suggestedJornada = existingMatch?.jornada
             ? existingMatch.jornada + firstLegJornadaCount
             : nextSuggestedJornada;
           const missingHome = audit.homeByA === 0 ? audit.teamA : audit.teamB;
           const missingAway = missingHome.id === audit.teamA.id ? audit.teamB : audit.teamA;
           faltantes.push({
-            key: `${audit.key}-mirror`,
+            key: `${audit.key}-${missingVuelta}`,
             home: missingHome,
             away: missingAway,
             pairLabel: audit.pairLabel,
             pairKey: audit.key,
             reason: 'Falta únicamente el juego espejo.',
             suggestedJornada,
+            vuelta: missingVuelta,
+            reserveMirror: false,
           });
         }
       });
@@ -342,6 +349,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
               phase: 'Fase Regular',
               status: 'Programado',
               ...matchVars,
+              vuelta: 'ida',
             },
             {
               season_id: seasonId,
@@ -362,6 +370,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
               phase: 'Fase Regular',
               status: 'Programado',
               ...matchVars,
+              vuelta: matchVars.vuelta || 'vuelta',
             },
           ];
 
@@ -401,8 +410,8 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
       court: s.court || null,
       time_str: s.time_str || null,
       scheduled_date: s.scheduled_date ? s.scheduled_date.format('YYYY-MM-DD') : null,
-      vuelta: record.key.endsWith('-ida') ? 'ida' : 'vuelta',
-      reserveMirror: record.key.endsWith('-ida'),
+      vuelta: record.vuelta ?? (record.key.endsWith('-ida') ? 'ida' : 'vuelta'),
+      reserveMirror: record.reserveMirror ?? (record.key.endsWith('-ida') && !record.key.includes('-mirror')),
     };
 
     const scheduleCheck = checkSchedulingConflicts({
