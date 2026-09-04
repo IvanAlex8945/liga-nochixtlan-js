@@ -1166,7 +1166,6 @@ export default function TeamsPage() {
           <Title level={4} style={{ color: '#FAAD14', margin: 0 }}>
             👥 Equipos
           </Title>
-          <SeasonSelector value={seasonId} onChange={setSeasonId} style={{ marginTop: 8 }} />
         </div>
         <Space wrap>
           <Button

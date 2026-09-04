@@ -7,7 +7,7 @@ import {
 import { PlusOutlined, DeleteOutlined, EditOutlined, WhatsAppOutlined, CopyOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import SeasonSelector from '@/app/components/SeasonSelector';
 import AdminEditForm, { EditableMatch } from '@/app/components/AdminEditForm';
 import { invalidatePublicCache } from '@/lib/public-cache-client';
@@ -166,12 +166,10 @@ export default function CalendarPage() {
   const [assistantMaxMatches, setAssistantMaxMatches] = useState(6);
   const [assistantSuggestions, setAssistantSuggestions] = useState<AssistantSuggestion[]>([]);
 
-  const [prevSeasonId, setPrevSeasonId] = useState(seasonId);
-  if (seasonId !== prevSeasonId) {
-    setPrevSeasonId(seasonId);
+  useEffect(() => {
     setTeamFilterIds([]);
     setSelectedTeamCalendarId(null);
-  }
+  }, [seasonId]);
 
   const { data: teams = [] } = useQuery<Team[]>({
     queryKey: ['teams-active', seasonId],
@@ -636,15 +634,16 @@ export default function CalendarPage() {
   const progressBox = (label: string, value: string, helper: string, color: string) => (
     <div
       style={{
-        minWidth: 190,
-        flex: '1 1 190px',
-        padding: '12px 14px',
-        background: '#111',
-        border: `1px solid ${color}55`,
-        borderRadius: 8,
+        minWidth: 180,
+        flex: '1 1 180px',
+        padding: '14px 16px',
+        background: '#161616',
+        border: '1px solid #282828',
+        borderRadius: 10,
+        borderTop: `3px solid ${color}`,
       }}
     >
-      <div style={{ color, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ color: '#aaa', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
       <div style={{ color: '#fff', fontSize: 24, fontWeight: 800, marginTop: 6 }}>{value}</div>
       <div style={{ color: '#888', fontSize: 12, marginTop: 4 }}>{helper}</div>
     </div>
@@ -1110,76 +1109,28 @@ export default function CalendarPage() {
 
   return (
     <AdminLayout>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <Title level={4} style={{ color: '#FAAD14', margin: 0 }}>📅 Calendario</Title>
-          <SeasonSelector value={seasonId} onChange={setSeasonId} style={{ marginTop: 8 }} />
-          {seasonId && <Text style={{ color: '#888', fontSize: 12, display: 'block', marginTop: 4 }}>
-            {matches.length} partidos totales · {teams.length} equipos activos
-          </Text>}
           {seasonId && (
-            <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, maxWidth: 920 }}>
-              <Select
-                mode="multiple"
-                size="small"
-                allowClear
-                maxTagCount="responsive"
-                placeholder="Equipo"
-                value={teamFilterIds}
-                onChange={setTeamFilterIds}
-                options={teamOptions}
-                optionFilterProp="label"
-              />
-              <Select
-                size="small"
-                value={vueltaFilter}
-                onChange={setVueltaFilter}
-                options={[
-                  { label: 'Todas las vueltas', value: 'all' },
-                  { label: 'Ida', value: 'ida' },
-                  { label: 'Vuelta', value: 'vuelta' },
-                  { label: 'Liguilla', value: 'liguilla' },
-                ]}
-              />
-              <Select
-                size="small"
-                value={calendarStateFilter}
-                onChange={setCalendarStateFilter}
-                options={[
-                  { label: 'Todos los estados', value: 'all' },
-                  { label: 'Jugado', value: 'played' },
-                  { label: 'Pendiente sin fecha', value: 'pending_no_date' },
-                  { label: 'Programado sin resultado', value: 'scheduled_no_result' },
-                ]}
-              />
-              <Select
-                size="small"
-                value={courtFilter}
-                onChange={setCourtFilter}
-                options={[
-                  { label: 'Todas las canchas', value: 'all' },
-                  ...COURTS.map((court) => ({ label: court, value: court })),
-                ]}
-              />
-              <Select size="small" value={filterStatus} onChange={setFilterStatus} options={[
-                { label: 'Status: todos', value: 'Todos' },
-                { label: 'Pendientes', value: 'Pendiente' },
-                { label: 'Programados', value: 'Programado' },
-                { label: 'Jugados / W.O.', value: 'Jugado' }
-              ]} />
-              <Select size="small" value={jornadaFilter} onChange={setJornadaFilter} options={[
-                { label: 'Todas las jornadas', value: 'all' },
-                ...uniqueJornadas.map(j => ({ label: `Jornada ${j}`, value: j }))
-              ]} />
-            </div>
+            <Text style={{ color: '#888', fontSize: 13, display: 'block', marginTop: 2 }}>
+              {matches.length} partidos totales · {teams.length} equipos activos
+            </Text>
           )}
         </div>
-        <Space wrap>
-          <Button type="primary" icon={<PlusOutlined />} disabled={!seasonId || teams.length < 2}
-            onClick={() => setModalOpen(true)}>
+        <Space wrap size="small">
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            disabled={!seasonId || teams.length < 2}
+            onClick={() => setModalOpen(true)}
+          >
             Nuevo Partido
           </Button>
-          <Button onClick={() => setMissingModalOpen(true)} disabled={!seasonId || teams.length < 2}>
+          <Button
+            onClick={() => setMissingModalOpen(true)}
+            disabled={!seasonId || teams.length < 2}
+          >
             Partidos Faltantes
           </Button>
           <Button
@@ -1212,7 +1163,8 @@ export default function CalendarPage() {
               modal.confirm({
                 title: 'Generar Rol Automático',
                 content: 'Esto creará un torneo de 2 vueltas todos contra todos (ida y vuelta), asignando las canchas desde las 06:00 PM. Los partidos formarán "Fase Regular".',
-                okText: 'Sí, generar', cancelText: 'Cancelar',
+                okText: 'Sí, generar',
+                cancelText: 'Cancelar',
                 onOk: () => autoGenerate.mutate(),
               });
             }}
@@ -1230,6 +1182,81 @@ export default function CalendarPage() {
           </Button>
         </Space>
       </div>
+
+      {seasonId && (
+        <div
+          style={{
+            marginBottom: 16,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: 8,
+            maxWidth: 1080,
+          }}
+        >
+          <Select
+            mode="multiple"
+            size="middle"
+            allowClear
+            maxTagCount="responsive"
+            placeholder="Filtrar por equipo"
+            value={teamFilterIds}
+            onChange={setTeamFilterIds}
+            options={teamOptions}
+            optionFilterProp="label"
+          />
+          <Select
+            size="middle"
+            value={vueltaFilter}
+            onChange={setVueltaFilter}
+            options={[
+              { label: 'Todas las vueltas', value: 'all' },
+              { label: 'Ida', value: 'ida' },
+              { label: 'Vuelta', value: 'vuelta' },
+              { label: 'Liguilla', value: 'liguilla' },
+            ]}
+          />
+          <Select
+            size="middle"
+            value={calendarStateFilter}
+            onChange={setCalendarStateFilter}
+            options={[
+              { label: 'Todos los estados', value: 'all' },
+              { label: 'Jugado', value: 'played' },
+              { label: 'Pendiente sin fecha', value: 'pending_no_date' },
+              { label: 'Programado sin resultado', value: 'scheduled_no_result' },
+            ]}
+          />
+          <Select
+            size="middle"
+            value={courtFilter}
+            onChange={setCourtFilter}
+            options={[
+              { label: 'Todas las canchas', value: 'all' },
+              ...COURTS.map((court) => ({ label: court, value: court })),
+            ]}
+          />
+          <Select
+            size="middle"
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={[
+              { label: 'Status: todos', value: 'Todos' },
+              { label: 'Pendientes', value: 'Pendiente' },
+              { label: 'Programados', value: 'Programado' },
+              { label: 'Jugados / W.O.', value: 'Jugado' },
+            ]}
+          />
+          <Select
+            size="middle"
+            value={jornadaFilter}
+            onChange={setJornadaFilter}
+            options={[
+              { label: 'Todas las jornadas', value: 'all' },
+              ...uniqueJornadas.map((j) => ({ label: `Jornada ${j}`, value: j })),
+            ]}
+          />
+        </div>
+      )}
 
       {!seasonId ? (
         <Text style={{ color: '#555' }}>Selecciona una temporada.</Text>

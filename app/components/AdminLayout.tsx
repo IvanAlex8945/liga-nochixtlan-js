@@ -397,7 +397,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 onChange={(val) => setSeasonId(val)}
                 placeholder="Seleccionar temporada"
                 options={seasonOptions}
-                style={{ width: 175, minWidth: 140, maxWidth: 240 }}
+                style={{ width: 230, minWidth: 160 }}
                 styles={{ popup: { root: { background: '#1a1a1a', borderColor: '#333' } } }}
                 showSearch
                 filterOption={(input, opt) =>

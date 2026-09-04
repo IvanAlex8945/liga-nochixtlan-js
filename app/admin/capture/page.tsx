@@ -278,7 +278,6 @@ export default function CapturePage() {
           title="Fase 5: pase de lista rápido"
           description="Marca presentes desde la cédula digital del equipo. Usa 'Abrir' solo cuando necesites confirmar identidad o vigencia de una credencial."
         />
-        <SeasonSelector value={seasonId} onChange={(id) => { setSeasonId(id); setSelectedMatchId(null); setSelectedJornada(null); }} />
       </div>
 
       {!!seasonId && (

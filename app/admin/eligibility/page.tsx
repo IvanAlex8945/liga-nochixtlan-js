@@ -93,7 +93,6 @@ export default function EligibilityPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <Title level={4} style={{ color: '#FAAD14', margin: 0 }}>✅ Elegibilidad de Liguilla</Title>
-          <SeasonSelector value={seasonId} onChange={(id) => { setSeasonId(id); setSelectedTeamId(null); }} style={{ marginTop: 8 }} />
         </div>
         <Button icon={<FilePdfOutlined />} onClick={handlePDF} disabled={standings.length === 0} type="primary">
           Descargar PDF (Top 8)
