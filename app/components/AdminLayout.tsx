@@ -275,7 +275,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               options={seasonOptions}
               style={{ width: '100%' }}
               placeholder="Seleccionar temporada"
-              styles={{ popup: { root: { background: '#1a1a1a', borderColor: '#333' } } }}
+              getPopupContainer={() => document.body}
+              dropdownStyle={{ zIndex: 9999, background: '#1a1a1a', border: '1px solid #333' }}
             />
           </div>
         </div>
@@ -398,11 +399,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 placeholder="Seleccionar temporada"
                 options={seasonOptions}
                 style={{ width: 230, minWidth: 160 }}
-                styles={{ popup: { root: { background: '#1a1a1a', borderColor: '#333' } } }}
-                showSearch
-                filterOption={(input, opt) =>
-                  (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())
-                }
+                getPopupContainer={() => document.body}
+                dropdownStyle={{ zIndex: 9999, background: '#1a1a1a', border: '1px solid #333' }}
               />
             </div>
 

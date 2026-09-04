@@ -80,11 +80,8 @@ export default function SeasonSelector({
         options={options}
         style={{ minWidth: 240 }}
         placeholder="Seleccionar temporada"
-        styles={{ popup: { root: { background: '#1a1a1a', borderColor: '#333' } } }}
-        showSearch
-        filterOption={(input, opt) =>
-          (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())
-        }
+        getPopupContainer={() => document.body}
+        dropdownStyle={{ zIndex: 9999, background: '#1a1a1a', border: '1px solid #333' }}
       />
     </div>
   );
