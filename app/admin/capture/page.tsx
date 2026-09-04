@@ -302,8 +302,6 @@ export default function CapturePage() {
               value={selectedMatchId}
               onChange={setSelectedMatchId}
               loading={loadingMatches}
-              showSearch
-              filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
               notFoundContent={<Text style={{ color: '#555' }}>{loadingMatches ? 'Cargando...' : 'Sin partidos en esta jornada'}</Text>}
             >
               <Select.OptGroup label="⏳ PENDIENTES">
