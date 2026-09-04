@@ -91,17 +91,27 @@ export default function CapturePage() {
     setSelectedJornada(null);
   }
 
-  const { data: matches = [], isLoading: loadingMatches } = useQuery<Match[]>({
+  const {
+    data: matches = [],
+    isLoading: loadingMatches,
+    isError: matchesLoadFailed,
+    error: matchesLoadError,
+  } = useQuery<Match[], Error>({
     queryKey: ['matches-programmed', seasonId],
     enabled: !!seasonId,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('matches')
         .select(`id, jornada, status, phase,
           home_team:teams!matches_home_team_id_fkey(id, name),
           away_team:teams!matches_away_team_id_fkey(id, name)`)
         .eq('season_id', seasonId!)
         .order('jornada');
+
+      if (error) {
+        throw new Error(`No se pudieron cargar los partidos: ${error.message}`);
+      }
+
       return (data ?? []) as unknown as Match[];
     },
   });
@@ -111,7 +121,12 @@ export default function CapturePage() {
 
   const selectedMatch = matches.find((m) => m.id === selectedMatchId);
 
-  const { data: homePlayers = [], isLoading: loadingHome } = useQuery<PlayerRow[]>({
+  const {
+    data: homePlayers = [],
+    isLoading: loadingHome,
+    isError: homePlayersLoadFailed,
+    error: homePlayersLoadError,
+  } = useQuery<PlayerRow[], Error>({
     queryKey: ['players-capture-home', selectedMatch?.id, seasonId],
     enabled: !!selectedMatch,
     queryFn: async () => {
@@ -120,6 +135,13 @@ export default function CapturePage() {
           .eq('team_id', selectedMatch!.home_team.id).eq('is_active', true).order('number'),
         supabase.from('player_match_stats').select('*').eq('match_id', selectedMatch!.id)
       ]);
+
+      if (playersRes.error) {
+        throw new Error(`No se pudieron cargar los jugadores de ${selectedMatch!.home_team.name}: ${playersRes.error.message}`);
+      }
+      if (statsRes.error) {
+        throw new Error(`No se pudieron cargar las estadísticas del partido: ${statsRes.error.message}`);
+      }
       
       let playersData = sortPlayersByNumber((playersRes.data ?? []) as PlayerRecord[]);
       let eligibilityMap = new Map<number, { elegible: boolean; asistencias: number; min: number }>();
@@ -169,7 +191,12 @@ export default function CapturePage() {
     },
   });
 
-  const { data: awayPlayers = [], isLoading: loadingAway } = useQuery<PlayerRow[]>({
+  const {
+    data: awayPlayers = [],
+    isLoading: loadingAway,
+    isError: awayPlayersLoadFailed,
+    error: awayPlayersLoadError,
+  } = useQuery<PlayerRow[], Error>({
     queryKey: ['players-capture-away', selectedMatch?.id, seasonId],
     enabled: !!selectedMatch,
     queryFn: async () => {
@@ -178,6 +205,13 @@ export default function CapturePage() {
           .eq('team_id', selectedMatch!.away_team.id).eq('is_active', true).order('number'),
         supabase.from('player_match_stats').select('*').eq('match_id', selectedMatch!.id)
       ]);
+
+      if (playersRes.error) {
+        throw new Error(`No se pudieron cargar los jugadores de ${selectedMatch!.away_team.name}: ${playersRes.error.message}`);
+      }
+      if (statsRes.error) {
+        throw new Error(`No se pudieron cargar las estadísticas del partido: ${statsRes.error.message}`);
+      }
       
       let playersData = sortPlayersByNumber((playersRes.data ?? []) as PlayerRecord[]);
       let eligibilityMap = new Map<number, { elegible: boolean; asistencias: number; min: number }>();
@@ -294,7 +328,16 @@ export default function CapturePage() {
             </Select>
           </div>
           {matches.length === 0 && !loadingMatches && (
-            <Alert type="info" message="No hay partidos programados en esta temporada" showIcon style={{ width: '100%', marginTop: 10 }} />
+            <Alert
+              type={matchesLoadFailed ? 'error' : 'info'}
+              message={
+                matchesLoadFailed
+                  ? (matchesLoadError?.message ?? 'No se pudieron cargar los partidos de esta temporada.')
+                  : 'No hay partidos programados en esta temporada'
+              }
+              showIcon
+              style={{ width: '100%', marginTop: 10 }}
+            />
           )}
         </div>
       )}
@@ -314,6 +357,17 @@ export default function CapturePage() {
           </div>
           {loadingHome || loadingAway ? (
             <Spin description="Cargando cédulas..." />
+          ) : homePlayersLoadFailed || awayPlayersLoadFailed ? (
+            <Alert
+              type="error"
+              showIcon
+              message="No se pudo preparar la captura de este partido"
+              description={
+                homePlayersLoadError?.message ??
+                awayPlayersLoadError?.message ??
+                'Intenta seleccionar otra vez el partido o revisa permisos/datos de la temporada.'
+              }
+            />
           ) : (
             <CaptureForm
               key={selectedMatch.id}

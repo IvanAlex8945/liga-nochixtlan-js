@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Table, Checkbox, InputNumber, Typography, Button, Space, Tag } from 'antd';
 
@@ -41,6 +41,10 @@ export default function PlayerAttendanceTable({
   onOpenVerify,
 }: Props) {
   const [rows, setRows] = useState<PlayerRow[]>(players);
+
+  useEffect(() => {
+    setRows(players);
+  }, [players]);
 
   const update = (idx: number, patch: Partial<PlayerRow>) => {
     const updated = rows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
