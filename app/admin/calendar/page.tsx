@@ -7,8 +7,7 @@ import {
 import { PlusOutlined, DeleteOutlined, EditOutlined, WhatsAppOutlined, CopyOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useState, useMemo, useEffect } from 'react';
-import SeasonSelector from '@/app/components/SeasonSelector';
+import { useState, useMemo } from 'react';
 import AdminEditForm, { EditableMatch } from '@/app/components/AdminEditForm';
 import { invalidatePublicCache } from '@/lib/public-cache-client';
 import { checkSchedulingConflicts, SchedulingTeam } from '@/lib/scheduling';
@@ -147,7 +146,6 @@ export default function CalendarPage() {
   const [form] = Form.useForm();
   const [modalOpen, setModalOpen] = useState(false);
   const seasonId = useAdminStore((s) => s.selectedSeasonId);
-  const setSeasonId = useAdminStore((s) => s.setSelectedSeasonId);
   const [editingMatch, setEditingMatch] = useState<EditableMatch | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('Todos');
   const [waModalOpen, setWaModalOpen] = useState(false);
@@ -165,11 +163,13 @@ export default function CalendarPage() {
   const [assistantTimes, setAssistantTimes] = useState<string[]>(TIMES.slice(0, 6));
   const [assistantMaxMatches, setAssistantMaxMatches] = useState(6);
   const [assistantSuggestions, setAssistantSuggestions] = useState<AssistantSuggestion[]>([]);
+  const [prevSeasonId, setPrevSeasonId] = useState(seasonId);
 
-  useEffect(() => {
+  if (seasonId !== prevSeasonId) {
+    setPrevSeasonId(seasonId);
     setTeamFilterIds([]);
     setSelectedTeamCalendarId(null);
-  }, [seasonId]);
+  }
 
   const { data: teams = [] } = useQuery<Team[]>({
     queryKey: ['teams-active', seasonId],
@@ -1197,7 +1197,7 @@ export default function CalendarPage() {
             mode="multiple"
             size="middle"
             allowClear
-            maxTagCount="responsive"
+            maxTagCount={1}
             placeholder="Filtrar por equipo"
             value={teamFilterIds}
             onChange={setTeamFilterIds}

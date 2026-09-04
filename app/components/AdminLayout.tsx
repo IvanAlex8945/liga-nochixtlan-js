@@ -67,8 +67,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Ensure active season is initialized in store if not set
   useEffect(() => {
     if (seasons.length > 0) {
-      const activeSeasons = seasons.filter((s) => s.is_active);
-      initializeSeason(activeSeasons.length > 0 ? activeSeasons : seasons);
+      initializeSeason(seasons);
     }
   }, [seasons, initializeSeason]);
 
@@ -139,10 +138,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       items.push({
         title: <span style={{ color: '#FAAD14', fontWeight: 600 }}>Roles y Permisos</span>,
       });
-    } else {
-      items.push({
-        title: <span style={{ color: '#FAAD14', fontWeight: 600 }}>{segments[1]}</span>,
-      });
     }
 
     return items;
@@ -154,32 +149,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }));
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#121212' }}>
-      {/* ── Sidebar desktop ──────────────────────────────── */}
+    <Layout style={{ minHeight: '100vh', background: '#0a0a0a' }}>
+      {/* ── Fixed Desktop Sider ───────────────────────────── */}
       <Sider
-        breakpoint="md"
-        collapsedWidth={0}
-        theme="dark"
         width={220}
+        breakpoint="lg"
+        collapsedWidth={0}
+        trigger={null}
         style={{
+          position: 'sticky',
+          top: 0,
+          left: 0,
+          height: '100vh',
+          zIndex: 100,
           background: '#0d0d0d',
           borderRight: '1px solid #262626',
           display: 'flex',
           flexDirection: 'column',
-          height: '100vh',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
         }}
+        className="hidden md:flex"
       >
-        <div style={{ padding: '20px 16px 16px', textAlign: 'center', borderBottom: '1px solid #1f1f1f' }}>
-          <span style={{ fontSize: 32 }}>🏀</span>
-          <div style={{ color: '#FAAD14', fontWeight: 700, fontSize: 14, marginTop: 4 }}>
-            Liga Admin
-          </div>
-          <div style={{ color: '#888', fontSize: 11, marginTop: 4 }}>
-            {access.roleLabel}
-          </div>
+        <div
+          style={{
+            height: 56,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '0 16px',
+            borderBottom: '1px solid #222',
+          }}
+        >
+          <span style={{ fontSize: 20 }}>🏀</span>
+          <span style={{ color: '#FAAD14', fontWeight: 700, fontSize: 16 }}>Liga Admin</span>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', paddingTop: 8 }}>
@@ -275,8 +276,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               options={seasonOptions}
               style={{ width: '100%' }}
               placeholder="Seleccionar temporada"
-              getPopupContainer={() => document.body}
-              styles={{ popup: { root: { zIndex: 9999, background: '#1a1a1a', border: '1px solid #333' } } }}
             />
           </div>
         </div>
@@ -399,8 +398,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 placeholder="Seleccionar temporada"
                 options={seasonOptions}
                 style={{ width: 230, minWidth: 160 }}
-                getPopupContainer={() => document.body}
-                styles={{ popup: { root: { zIndex: 9999, background: '#1a1a1a', border: '1px solid #333' } } }}
               />
             </div>
 

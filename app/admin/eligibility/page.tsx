@@ -6,7 +6,6 @@ import { FilePdfOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useState } from 'react';
-import SeasonSelector from '@/app/components/SeasonSelector';
 import EligibilityTable from '@/app/components/EligibilityTable';
 import { useAdminStore } from '@/lib/admin-store';
 import { calcularElegibilidad } from '@/lib/eligibility';
@@ -17,7 +16,6 @@ const { Title, Text } = Typography;
 
 export default function EligibilityPage() {
   const seasonId = useAdminStore((s) => s.selectedSeasonId);
-  const setSeasonId = useAdminStore((s) => s.setSelectedSeasonId);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [prevSeasonId, setPrevSeasonId] = useState(seasonId);
 
@@ -120,7 +118,7 @@ export default function EligibilityPage() {
         </div>
       )}
 
-      {loadingElig && selectedTeamId && <Spin tip="Calculando..." />}
+      {loadingElig && selectedTeamId && <Spin description="Calculando..." />}
 
       {eligibilityData && !loadingElig && (
         <div>

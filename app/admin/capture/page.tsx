@@ -5,7 +5,6 @@ import { Select, Typography, Alert, Spin, Tag } from 'antd';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useState } from 'react';
-import SeasonSelector from '@/app/components/SeasonSelector';
 import CaptureForm from '@/app/components/CaptureForm';
 import type { PlayerRow } from '@/app/components/PlayerAttendanceTable';
 import { calcularElegibilidad } from '@/lib/eligibility';
@@ -79,7 +78,6 @@ async function fetchTeamCredentials(playerIds: number[], seasonId: number) {
 
 export default function CapturePage() {
   const seasonId = useAdminStore((s) => s.selectedSeasonId);
-  const setSeasonId = useAdminStore((s) => s.setSelectedSeasonId);
   const queryClient = useQueryClient();
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
   const [selectedJornada, setSelectedJornada] = useState<number | null>(null);
@@ -303,26 +301,27 @@ export default function CapturePage() {
               onChange={setSelectedMatchId}
               loading={loadingMatches}
               notFoundContent={<Text style={{ color: '#555' }}>{loadingMatches ? 'Cargando...' : 'Sin partidos en esta jornada'}</Text>}
-            >
-              <Select.OptGroup label="⏳ PENDIENTES">
-                {filteredMatches
-                  .filter((m) => m.status !== 'Jugado')
-                  .map((m) => (
-                    <Select.Option key={m.id} value={m.id} label={`J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} ${m.status !== 'Programado' ? `(${m.status})` : ''}`}>
-                      {`J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name}${m.status !== 'Programado' ? ` (${m.status})` : ''}`}
-                    </Select.Option>
-                  ))}
-              </Select.OptGroup>
-              <Select.OptGroup label="✅ CAPTURADOS">
-                {filteredMatches
-                  .filter((m) => m.status === 'Jugado')
-                  .map((m) => (
-                    <Select.Option key={m.id} value={m.id} label={`J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} (${m.status})`}>
-                      {`J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} (${m.status})`}
-                    </Select.Option>
-                  ))}
-              </Select.OptGroup>
-            </Select>
+              options={[
+                {
+                  label: '⏳ PENDIENTES',
+                  options: filteredMatches
+                    .filter((m) => m.status !== 'Jugado')
+                    .map((m) => ({
+                      value: m.id,
+                      label: `J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name}${m.status !== 'Programado' ? ` (${m.status})` : ''}`,
+                    })),
+                },
+                {
+                  label: '✅ CAPTURADOS',
+                  options: filteredMatches
+                    .filter((m) => m.status === 'Jugado')
+                    .map((m) => ({
+                      value: m.id,
+                      label: `J${m.jornada} – ${m.home_team?.name} vs ${m.away_team?.name} (${m.status})`,
+                    })),
+                },
+              ]}
+            />
           </div>
           {matches.length === 0 && !loadingMatches && (
             <Alert

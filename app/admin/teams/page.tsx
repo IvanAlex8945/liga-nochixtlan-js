@@ -6,7 +6,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 import AdminLayout from '@/app/components/AdminLayout';
-import SeasonSelector from '@/app/components/SeasonSelector';
 import { useAdminStore } from '@/lib/admin-store';
 import { generateTeamCredentialPdf } from '@/lib/credential-pdf';
 import { renderCredentialImage } from '@/lib/credential-render';
@@ -174,7 +173,6 @@ export default function TeamsPage() {
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const seasonId = useAdminStore((s) => s.selectedSeasonId);
-  const setSeasonId = useAdminStore((s) => s.setSelectedSeasonId);
   const [photoDraft, setPhotoDraft] = useState<PhotoDraft | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [credentialPreview, setCredentialPreview] = useState<CredentialPreviewState>({

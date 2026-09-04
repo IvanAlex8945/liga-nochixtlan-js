@@ -16,6 +16,16 @@ export default function AntdProvider({ children }: { children: React.ReactNode }
     <QueryClientProvider client={queryClient}>
       <ConfigProvider
         locale={esES}
+        getPopupContainer={(triggerNode) => {
+          if (triggerNode) {
+            if (triggerNode.classList.contains('ant-select')) {
+              return triggerNode;
+            }
+            const container = triggerNode.closest('.ant-modal-content, .ant-drawer-content');
+            if (container) return container as HTMLElement;
+          }
+          return document.body;
+        }}
         theme={{
           algorithm: theme.darkAlgorithm,
           token: {
@@ -25,8 +35,14 @@ export default function AntdProvider({ children }: { children: React.ReactNode }
             fontFamily:
               'var(--font-sora), "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif',
             borderRadius: 16,
+            motion: false,
+            zIndexPopupBase: 2000,
           },
           components: {
+            Select: {
+              zIndexPopup: 9999,
+              colorBgElevated: '#1a1a1a',
+            },
             Table: {
               colorBgContainer: 'rgba(13, 17, 23, 0.68)',
               colorBorderSecondary: 'rgba(255, 209, 102, 0.14)',

@@ -51,11 +51,10 @@ export default function SeasonSelector({
     },
   });
 
-  // Automatically initialize season store when active seasons load
+  // Automatically initialize season store when seasons load
   useEffect(() => {
     if (seasons.length > 0) {
-      const activeOnly = seasons.filter((s) => s.is_active);
-      initializeSeason(activeOnly.length > 0 ? activeOnly : seasons);
+      initializeSeason(seasons);
     }
   }, [seasons, initializeSeason]);
 
@@ -80,8 +79,6 @@ export default function SeasonSelector({
         options={options}
         style={{ minWidth: 240 }}
         placeholder="Seleccionar temporada"
-        getPopupContainer={() => document.body}
-        styles={{ popup: { root: { zIndex: 9999, background: '#1a1a1a', border: '1px solid #333' } } }}
       />
     </div>
   );
