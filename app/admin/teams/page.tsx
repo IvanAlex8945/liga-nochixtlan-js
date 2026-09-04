@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -183,6 +183,7 @@ export default function TeamsPage() {
   const [credentialOverrides, setCredentialOverrides] = useState<CredentialMap>(new Map());
   const [viewportWidth, setViewportWidth] = useState(1280);
   const [searchQuery, setSearchQuery] = useState('');
+  const [letterFilter, setLetterFilter] = useState<string>('all');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   function replacePhotoDraft(next: PhotoDraft | null) {
@@ -1134,8 +1135,21 @@ export default function TeamsPage() {
   const pendingSelectedTeamCredentialCount =
     selectedTeamActivePlayers.length - selectedTeamCredentialCount;
 
+  const alphabet = useMemo(() => {
+    const letters = new Set<string>();
+    teams.forEach((t) => {
+      const first = t.name.trim().charAt(0).toUpperCase();
+      if (first) letters.add(first);
+    });
+    return Array.from(letters).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [teams]);
+
   const filteredTeams = teams
     .filter((team) => {
+      if (letterFilter !== 'all') {
+        const first = team.name.trim().charAt(0).toUpperCase();
+        if (first !== letterFilter) return false;
+      }
       if (!searchQuery) return true;
       const normalized = (text: string) =>
         text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -1209,23 +1223,55 @@ export default function TeamsPage() {
       ) : (
         <>
           {/* ── Barra de búsqueda A-Z ──────────────────────────── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-            <Input.Search
-              placeholder="Buscar equipo..."
-              allowClear
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onSearch={(val) => setSearchQuery(val)}
-              style={{ maxWidth: 320 }}
-            />
-            {searchQuery !== '' && (
-              <Button size="small" onClick={() => setSearchQuery('')}>
-                Limpiar filtros
-              </Button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Input.Search
+                placeholder="Buscar equipo..."
+                allowClear
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onSearch={(val) => setSearchQuery(val)}
+                style={{ maxWidth: 320 }}
+              />
+              {(searchQuery !== '' || letterFilter !== 'all') && (
+                <Button
+                  size="small"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setLetterFilter('all');
+                  }}
+                >
+                  Limpiar filtros
+                </Button>
+              )}
+              <Tag color={searchQuery !== '' || letterFilter !== 'all' ? 'gold' : 'default'} style={{ margin: 0, padding: '2px 8px', fontSize: 12 }}>
+                {filteredTeams.length} de {teams.length} equipos
+              </Tag>
+            </div>
+
+            {alphabet.length > 1 && (
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Button
+                  size="small"
+                  type={letterFilter === 'all' ? 'primary' : 'default'}
+                  onClick={() => setLetterFilter('all')}
+                  style={{ minWidth: 32, padding: '0 8px', height: 26, fontSize: 11 }}
+                >
+                  Todos
+                </Button>
+                {alphabet.map((letter) => (
+                  <Button
+                    key={letter}
+                    size="small"
+                    type={letterFilter === letter ? 'primary' : 'default'}
+                    onClick={() => setLetterFilter(letterFilter === letter ? 'all' : letter)}
+                    style={{ minWidth: 26, padding: '0 6px', height: 26, fontSize: 11 }}
+                  >
+                    {letter}
+                  </Button>
+                ))}
+              </div>
             )}
-            <Text style={{ color: '#888', fontSize: 12 }}>
-              {filteredTeams.length} de {teams.length} equipos
-            </Text>
           </div>
           <Table
             dataSource={filteredTeams}

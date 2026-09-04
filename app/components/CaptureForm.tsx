@@ -173,16 +173,21 @@ export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers,
           </div>
         )}
 
-        {/* ── Marcador en vivo ──────────────────────────────── */}
+        {/* ── Marcador en vivo (Sticky Context) ─────────────── */}
         <div style={{
+          position: 'sticky',
+          top: 56,
+          zIndex: 80,
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          background: '#1a1a1a',
+          background: 'rgba(26, 26, 26, 0.96)',
+          backdropFilter: 'blur(8px)',
           border: '1px solid #333',
           borderRadius: 8,
-          padding: '16px 24px',
+          padding: '12px 24px',
           marginBottom: 16,
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
           gap: 24
         }}>
           <div style={{ textAlign: 'center', flex: 1 }}>

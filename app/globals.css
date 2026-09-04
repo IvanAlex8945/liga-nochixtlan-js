@@ -61,7 +61,8 @@
   --font-family-display: var(--font-display), "Cormorant Garamond", Georgia, serif;
 }
 
-html {
+html,
+body {
   scrollbar-gutter: stable;
 }
 

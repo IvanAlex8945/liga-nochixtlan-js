@@ -373,7 +373,14 @@ export default function CapturePage() {
               awayPlayers={awayPlayers}
               initialResultType={initialResultType}
               onSaved={() => {
-                setSelectedMatchId(null);
+                const nextPending = filteredMatches.find(
+                  (m) => m.id !== selectedMatch.id && m.status !== 'Jugado'
+                );
+                if (nextPending) {
+                  setSelectedMatchId(nextPending.id);
+                } else {
+                  setSelectedMatchId(null);
+                }
                 if (seasonId) {
                   queryClient.invalidateQueries({ queryKey: ['matches-programmed', seasonId] });
                 }

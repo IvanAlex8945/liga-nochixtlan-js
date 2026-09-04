@@ -2,7 +2,7 @@
 
 import AdminLayout from '@/app/components/AdminLayout';
 import {
-  Table, Button, Modal, Form, Select, InputNumber, Tag, Typography, Space, Empty, App, Progress,
+  Table, Button, Modal, Form, Select, Input, InputNumber, Tag, Typography, Space, Empty, App, Progress,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, WhatsAppOutlined, CopyOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -156,6 +156,7 @@ export default function CalendarPage() {
   const [vueltaFilter, setVueltaFilter] = useState<'all' | MatchLeg>('all');
   const [calendarStateFilter, setCalendarStateFilter] = useState<'all' | 'played' | 'pending_no_date' | 'scheduled_no_result'>('all');
   const [courtFilter, setCourtFilter] = useState<'all' | string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantJornada, setAssistantJornada] = useState<number | null>(null);
   const [assistantDate, setAssistantDate] = useState('');
@@ -169,6 +170,7 @@ export default function CalendarPage() {
     setPrevSeasonId(seasonId);
     setTeamFilterIds([]);
     setSelectedTeamCalendarId(null);
+    setSearchQuery('');
   }
 
   const { data: teams = [] } = useQuery<Team[]>({
@@ -1082,6 +1084,27 @@ export default function CalendarPage() {
   const [jornadaFilter, setJornadaFilter] = useState<number | 'all'>('all');
   const [liguillaModalOpen, setLiguillaModalOpen] = useState(false);
 
+  const hasActiveFilters =
+    filterStatus !== 'Todos' ||
+    jornadaFilter !== 'all' ||
+    teamFilterIds.length > 0 ||
+    vueltaFilter !== 'all' ||
+    courtFilter !== 'all' ||
+    calendarStateFilter !== 'all' ||
+    searchQuery.trim() !== '';
+
+  const handleClearFilters = () => {
+    setFilterStatus('Todos');
+    setJornadaFilter('all');
+    setTeamFilterIds([]);
+    setVueltaFilter('all');
+    setCourtFilter('all');
+    setCalendarStateFilter('all');
+    setSearchQuery('');
+  };
+
+  const normalizedSearch = searchQuery.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
   const displayedMatches = matches.filter(m => {
     let passStatus = false;
     if (filterStatus === 'Todos') passStatus = true;
@@ -1104,7 +1127,15 @@ export default function CalendarPage() {
       passCalendarState = m.status === 'Programado' && !isCompletedStatus(m.status);
     }
 
-    return passStatus && passJornada && passTeam && passVuelta && passCourt && passCalendarState;
+    let passSearch = true;
+    if (normalizedSearch) {
+      const homeName = (m.home_team?.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const awayName = (m.away_team?.name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const courtName = (m.court || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      passSearch = homeName.includes(normalizedSearch) || awayName.includes(normalizedSearch) || courtName.includes(normalizedSearch);
+    }
+
+    return passStatus && passJornada && passTeam && passVuelta && passCourt && passCalendarState && passSearch;
   });
 
   return (
@@ -1184,77 +1215,98 @@ export default function CalendarPage() {
       </div>
 
       {seasonId && (
-        <div
-          style={{
-            marginBottom: 16,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: 8,
-            maxWidth: 1080,
-          }}
-        >
-          <Select
-            mode="multiple"
-            size="middle"
-            allowClear
-            maxTagCount={1}
-            placeholder="Filtrar por equipo"
-            value={teamFilterIds}
-            onChange={setTeamFilterIds}
-            options={teamOptions}
-            optionFilterProp="label"
-          />
-          <Select
-            size="middle"
-            value={vueltaFilter}
-            onChange={setVueltaFilter}
-            options={[
-              { label: 'Todas las vueltas', value: 'all' },
-              { label: 'Ida', value: 'ida' },
-              { label: 'Vuelta', value: 'vuelta' },
-              { label: 'Liguilla', value: 'liguilla' },
-            ]}
-          />
-          <Select
-            size="middle"
-            value={calendarStateFilter}
-            onChange={setCalendarStateFilter}
-            options={[
-              { label: 'Todos los estados', value: 'all' },
-              { label: 'Jugado', value: 'played' },
-              { label: 'Pendiente sin fecha', value: 'pending_no_date' },
-              { label: 'Programado sin resultado', value: 'scheduled_no_result' },
-            ]}
-          />
-          <Select
-            size="middle"
-            value={courtFilter}
-            onChange={setCourtFilter}
-            options={[
-              { label: 'Todas las canchas', value: 'all' },
-              ...COURTS.map((court) => ({ label: court, value: court })),
-            ]}
-          />
-          <Select
-            size="middle"
-            value={filterStatus}
-            onChange={setFilterStatus}
-            options={[
-              { label: 'Status: todos', value: 'Todos' },
-              { label: 'Pendientes', value: 'Pendiente' },
-              { label: 'Programados', value: 'Programado' },
-              { label: 'Jugados / W.O.', value: 'Jugado' },
-            ]}
-          />
-          <Select
-            size="middle"
-            value={jornadaFilter}
-            onChange={setJornadaFilter}
-            options={[
-              { label: 'Todas las jornadas', value: 'all' },
-              ...uniqueJornadas.map((j) => ({ label: `Jornada ${j}`, value: j })),
-            ]}
-          />
+        <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', flex: 1 }}>
+              <Input.Search
+                placeholder="Buscar por equipo o cancha..."
+                allowClear
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: 280, maxWidth: '100%' }}
+              />
+              <Tag color={hasActiveFilters ? 'gold' : 'default'} style={{ margin: 0, padding: '4px 10px', fontSize: 13 }}>
+                {displayedMatches.length} de {matches.length} partidos
+              </Tag>
+              {hasActiveFilters && (
+                <Button size="small" onClick={handleClearFilters}>
+                  Limpiar filtros
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: 8,
+              maxWidth: 1080,
+            }}
+          >
+            <Select
+              mode="multiple"
+              size="middle"
+              allowClear
+              maxTagCount={1}
+              placeholder="Filtrar por equipo"
+              value={teamFilterIds}
+              onChange={setTeamFilterIds}
+              options={teamOptions}
+              optionFilterProp="label"
+            />
+            <Select
+              size="middle"
+              value={vueltaFilter}
+              onChange={setVueltaFilter}
+              options={[
+                { label: 'Todas las vueltas', value: 'all' },
+                { label: 'Ida', value: 'ida' },
+                { label: 'Vuelta', value: 'vuelta' },
+                { label: 'Liguilla', value: 'liguilla' },
+              ]}
+            />
+            <Select
+              size="middle"
+              value={calendarStateFilter}
+              onChange={setCalendarStateFilter}
+              options={[
+                { label: 'Todos los estados', value: 'all' },
+                { label: 'Jugado', value: 'played' },
+                { label: 'Pendiente sin fecha', value: 'pending_no_date' },
+                { label: 'Programado sin resultado', value: 'scheduled_no_result' },
+              ]}
+            />
+            <Select
+              size="middle"
+              value={courtFilter}
+              onChange={setCourtFilter}
+              options={[
+                { label: 'Todas las canchas', value: 'all' },
+                ...COURTS.map((court) => ({ label: court, value: court })),
+              ]}
+            />
+            <Select
+              size="middle"
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { label: 'Status: todos', value: 'Todos' },
+                { label: 'Pendientes', value: 'Pendiente' },
+                { label: 'Programados', value: 'Programado' },
+                { label: 'Jugados / W.O.', value: 'Jugado' },
+              ]}
+            />
+            <Select
+              size="middle"
+              value={jornadaFilter}
+              onChange={setJornadaFilter}
+              options={[
+                { label: 'Todas las jornadas', value: 'all' },
+                ...uniqueJornadas.map((j) => ({ label: `Jornada ${j}`, value: j })),
+              ]}
+            />
+          </div>
         </div>
       )}
 

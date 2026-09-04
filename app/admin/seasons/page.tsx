@@ -30,6 +30,9 @@ export default function SeasonsPage() {
   const [form] = Form.useForm();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Season | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   const { data: seasons = [], isLoading } = useQuery<Season[]>({
     queryKey: ['seasons'],
@@ -173,6 +176,26 @@ export default function SeasonsPage() {
     },
   ];
 
+  const hasActiveFilters = searchQuery.trim() !== '' || categoryFilter !== 'all' || statusFilter !== 'all';
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setCategoryFilter('all');
+    setStatusFilter('all');
+  };
+
+  const filteredSeasons = seasons.filter((s) => {
+    if (categoryFilter !== 'all' && s.category !== categoryFilter) return false;
+    if (statusFilter === 'active' && !s.is_active) return false;
+    if (statusFilter === 'inactive' && s.is_active) return false;
+    if (searchQuery.trim()) {
+      const normalized = (text: string) =>
+        text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      return normalized(s.name).includes(normalized(searchQuery));
+    }
+    return true;
+  });
+
   return (
     <AdminLayout>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -182,8 +205,45 @@ export default function SeasonsPage() {
         </Button>
       </div>
 
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 16 }}>
+        <Input.Search
+          placeholder="Buscar temporada..."
+          allowClear
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ width: 260, maxWidth: '100%' }}
+        />
+        <Select
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+          style={{ width: 140 }}
+          options={[
+            { label: 'Categorías: todas', value: 'all' },
+            ...CATEGORIES.map((c) => ({ label: c, value: c })),
+          ]}
+        />
+        <Select
+          value={statusFilter}
+          onChange={setStatusFilter}
+          style={{ width: 140 }}
+          options={[
+            { label: 'Estado: todos', value: 'all' },
+            { label: 'Activas', value: 'active' },
+            { label: 'Inactivas', value: 'inactive' },
+          ]}
+        />
+        <Tag color={hasActiveFilters ? 'gold' : 'default'} style={{ margin: 0, padding: '3px 8px', fontSize: 12 }}>
+          {filteredSeasons.length} de {seasons.length} temporadas
+        </Tag>
+        {hasActiveFilters && (
+          <Button size="small" onClick={handleClearFilters}>
+            Limpiar filtros
+          </Button>
+        )}
+      </div>
+
       <Table
-        dataSource={seasons}
+        dataSource={filteredSeasons}
         columns={columns}
         rowKey="id"
         loading={isLoading}
