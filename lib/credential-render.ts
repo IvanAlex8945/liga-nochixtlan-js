@@ -23,29 +23,45 @@ const TEMPLATE_BY_CATEGORY = {
   libre: '/credentials/base_credencial_bueno.png',
   master: '/credentials/credencial_base_master.png',
   tercera: '/credentials/credencial_base_tercera.png',
-  veteranos: '/credentials/credencial_base_veteranos.png',
+  veteranos: '/credentials/base_credencial_veteranos_v2.png',
 } as const;
 const templateImagePromises = new Map<string, Promise<HTMLImageElement>>();
 
 interface CredentialLayout {
   categoryCenterY: number;
+  categoryTextVisible: boolean;
   curpCenterX: number | null;
   curpY: number | null;
+  dorsalCenterX: number;
+  dorsalCenterY: number;
   fieldLeftX: number;
   fieldRightX: number;
   footerPeriodX: number;
   footerPeriodY: number;
   lowerFieldsY: number;
+  nameSingleLineMinFontSize: number;
+  nameBoxX: number;
   nameBoxHeight: number;
+  nameBoxWidth: number;
   nameBoxY: number;
+  nameWrapMinFontSize: number;
+  photoHeight: number;
+  photoWidth: number;
   photoX: number;
   photoY: number;
+  qrBoxHeight: number;
+  qrBoxWidth: number;
   qrBoxX: number;
   qrBoxY: number;
+  qrImageOffsetX: number;
+  qrImageOffsetY: number;
+  qrImageSize: number;
   seasonFieldsCentered: boolean;
   showFooterPeriod: boolean;
   statusValidColor: string;
+  teamCenterX: number;
   teamCenterY: number;
+  teamMaxWidth: number;
   upperFieldsY: number;
 }
 
@@ -77,18 +93,20 @@ export async function renderCredentialImage(input: CredentialRenderInput) {
   drawStatusBadge(context, input.statusLabel, layout);
   drawPlayerName(context, input.playerName, layout);
   drawCenteredGoldText(context, input.teamName, {
-    centerX: 796,
+    centerX: layout.teamCenterX,
     centerY: layout.teamCenterY,
     fontSize: 56,
-    maxWidth: 650,
+    maxWidth: layout.teamMaxWidth,
   });
-  drawCenteredGoldText(context, input.category || 'Libre', {
-    centerX: 798,
-    centerY: layout.categoryCenterY,
-    fontSize: 56,
-    maxWidth: 520,
-  });
-  drawDorsal(context, input);
+  if (layout.categoryTextVisible) {
+    drawCenteredGoldText(context, input.category || 'Libre', {
+      centerX: 798,
+      centerY: layout.categoryCenterY,
+      fontSize: 56,
+      maxWidth: 520,
+    });
+  }
+  drawDorsal(context, input, layout);
   drawSeasonFields(context, input, layout);
   drawVeteransCurp(context, input, layout);
   await drawQr(context, input.verifyUrl, layout);
@@ -108,8 +126,8 @@ async function drawPlayerPhoto(
   const photoBox = {
     x: layout.photoX,
     y: layout.photoY,
-    width: 318,
-    height: 363,
+    width: layout.photoWidth,
+    height: layout.photoHeight,
     radius: 8,
   };
 
@@ -196,12 +214,19 @@ function drawPlayerName(
 ) {
   const name = playerName.trim().toUpperCase();
   const box = {
-    x: 456,
+    x: layout.nameBoxX,
     y: layout.nameBoxY,
-    width: 690,
+    width: layout.nameBoxWidth,
     height: layout.nameBoxHeight,
   };
-  const lines = fitPlayerName(context, name, box.width, box.height);
+  const lines = fitPlayerName(
+    context,
+    name,
+    box.width,
+    box.height,
+    layout.nameSingleLineMinFontSize,
+    layout.nameWrapMinFontSize
+  );
   const lineHeight = lines.fontSize * 1.02;
   const firstY = box.y + box.height / 2 - ((lines.text.length - 1) * lineHeight) / 2;
 
@@ -219,15 +244,19 @@ function drawPlayerName(
   context.restore();
 }
 
-function drawDorsal(context: CanvasRenderingContext2D, input: CredentialRenderInput) {
+function drawDorsal(
+  context: CanvasRenderingContext2D,
+  input: CredentialRenderInput,
+  layout: CredentialLayout
+) {
   const numberText = formatPlayerNumber(input.number, '--');
 
   context.save();
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   drawGoldText(context, numberText, {
-    x: 220,
-    y: 764,
+    x: layout.dorsalCenterX,
+    y: layout.dorsalCenterY,
     fontSize: numberText.length > 2 ? 128 : 188,
     fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
     maxWidth: 270,
@@ -320,14 +349,14 @@ async function drawQr(
     },
   });
   const qrImage = await loadImage(qrDataUrl);
-  const qrImageX = layout.qrBoxX + 8;
-  const qrImageY = layout.qrBoxY + 10;
+  const qrImageX = layout.qrBoxX + layout.qrImageOffsetX;
+  const qrImageY = layout.qrBoxY + layout.qrImageOffsetY;
 
   context.save();
-  roundRect(context, layout.qrBoxX, layout.qrBoxY, 293, 322, 10);
+  roundRect(context, layout.qrBoxX, layout.qrBoxY, layout.qrBoxWidth, layout.qrBoxHeight, 10);
   context.fillStyle = COLORS.white;
   context.fill();
-  context.drawImage(qrImage, qrImageX, qrImageY, 276, 276);
+  context.drawImage(qrImage, qrImageX, qrImageY, layout.qrImageSize, layout.qrImageSize);
   context.restore();
 }
 
@@ -475,9 +504,11 @@ function fitPlayerName(
   context: CanvasRenderingContext2D,
   text: string,
   maxWidth: number,
-  maxHeight: number
+  maxHeight: number,
+  singleLineMinFontSize = 46,
+  wrapMinFontSize = 34
 ) {
-  for (let fontSize = 74; fontSize >= 46; fontSize -= 2) {
+  for (let fontSize = 74; fontSize >= singleLineMinFontSize; fontSize -= 2) {
     context.font = `900 ${fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
 
     if (context.measureText(text).width <= maxWidth) {
@@ -485,7 +516,7 @@ function fitPlayerName(
     }
   }
 
-  for (let fontSize = 52; fontSize >= 34; fontSize -= 2) {
+  for (let fontSize = 52; fontSize >= wrapMinFontSize; fontSize -= 2) {
     context.font = `900 ${fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
     const lines = wrapText(context, text, maxWidth);
     const requiredHeight = lines.length * fontSize * 1.02;
@@ -495,8 +526,8 @@ function fitPlayerName(
     }
   }
 
-  context.font = '900 34px "Arial Narrow", Impact, system-ui, sans-serif';
-  return { fontSize: 34, text: wrapText(context, text, maxWidth).slice(0, 2) };
+  context.font = `900 ${wrapMinFontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
+  return { fontSize: wrapMinFontSize, text: wrapText(context, text, maxWidth).slice(0, 2) };
 }
 
 function wrapText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
@@ -679,94 +710,158 @@ function getCredentialLayout(category: string): CredentialLayout {
   if (isFemenil) {
     return {
       categoryCenterY: 532,
+      categoryTextVisible: true,
       curpCenterX: null,
       curpY: null,
+      dorsalCenterX: 220,
+      dorsalCenterY: 764,
       fieldLeftX: 544,
       fieldRightX: 894,
       footerPeriodX: 1380,
       footerPeriodY: 919,
       lowerFieldsY: 793,
+      nameSingleLineMinFontSize: 46,
+      nameBoxX: 456,
       nameBoxHeight: 92,
+      nameBoxWidth: 690,
       nameBoxY: 214,
+      nameWrapMinFontSize: 34,
+      photoHeight: 363,
+      photoWidth: 318,
       photoX: 64,
       photoY: 183,
+      qrBoxHeight: 322,
+      qrBoxWidth: 293,
       qrBoxX: 1216,
       qrBoxY: 240,
+      qrImageOffsetX: 8,
+      qrImageOffsetY: 10,
+      qrImageSize: 276,
       seasonFieldsCentered: false,
       showFooterPeriod: true,
       statusValidColor: COLORS.cyan,
+      teamCenterX: 796,
       teamCenterY: 402,
+      teamMaxWidth: 650,
       upperFieldsY: 671,
     };
   }
 
   if (isVeteranos) {
     return {
-      categoryCenterY: 425,
-      curpCenterX: 800,
-      curpY: 770,
-      fieldLeftX: 601,
-      fieldRightX: 982,
+      categoryCenterY: 0,
+      categoryTextVisible: false,
+      curpCenterX: null,
+      curpY: null,
+      dorsalCenterX: 220,
+      dorsalCenterY: 744,
+      fieldLeftX: 636,
+      fieldRightX: 1014,
       footerPeriodX: 0,
       footerPeriodY: 0,
-      lowerFieldsY: 655,
-      nameBoxHeight: 70,
-      nameBoxY: 182,
-      photoX: 67,
-      photoY: 179,
-      qrBoxX: 1218,
-      qrBoxY: 228,
+      lowerFieldsY: 766,
+      nameSingleLineMinFontSize: 60,
+      nameBoxX: 520,
+      nameBoxHeight: 66,
+      nameBoxWidth: 610,
+      nameBoxY: 212,
+      nameWrapMinFontSize: 30,
+      photoHeight: 358,
+      photoWidth: 323,
+      photoX: 58,
+      photoY: 178,
+      qrBoxHeight: 310,
+      qrBoxWidth: 310,
+      qrBoxX: 1210,
+      qrBoxY: 248,
+      qrImageOffsetX: 12,
+      qrImageOffsetY: 12,
+      qrImageSize: 286,
       seasonFieldsCentered: true,
       showFooterPeriod: false,
       statusValidColor: '#F6E71D',
-      teamCenterY: 320,
-      upperFieldsY: 540,
+      teamCenterX: 796,
+      teamCenterY: 382,
+      teamMaxWidth: 650,
+      upperFieldsY: 632,
     };
   }
 
   if (isMaster) {
     return {
       categoryCenterY: 557,
+      categoryTextVisible: true,
       curpCenterX: null,
       curpY: null,
+      dorsalCenterX: 220,
+      dorsalCenterY: 764,
       fieldLeftX: 544,
       fieldRightX: 894,
       footerPeriodX: 1346,
       footerPeriodY: 935,
       lowerFieldsY: 813,
+      nameSingleLineMinFontSize: 46,
+      nameBoxX: 456,
       nameBoxHeight: 102,
+      nameBoxWidth: 690,
       nameBoxY: 222,
+      nameWrapMinFontSize: 34,
+      photoHeight: 363,
+      photoWidth: 318,
       photoX: 64,
       photoY: 173,
+      qrBoxHeight: 322,
+      qrBoxWidth: 293,
       qrBoxX: 1224,
       qrBoxY: 228,
+      qrImageOffsetX: 8,
+      qrImageOffsetY: 10,
+      qrImageSize: 276,
       seasonFieldsCentered: false,
       showFooterPeriod: true,
       statusValidColor: COLORS.cyan,
+      teamCenterX: 796,
       teamCenterY: 424,
+      teamMaxWidth: 650,
       upperFieldsY: 691,
     };
   }
 
   return {
     categoryCenterY: 557,
+    categoryTextVisible: true,
     curpCenterX: null,
     curpY: null,
+    dorsalCenterX: 220,
+    dorsalCenterY: 764,
     fieldLeftX: 544,
     fieldRightX: 894,
     footerPeriodX: 1346,
     footerPeriodY: 935,
     lowerFieldsY: 813,
+    nameSingleLineMinFontSize: 46,
+    nameBoxX: 456,
     nameBoxHeight: 102,
+    nameBoxWidth: 690,
     nameBoxY: 222,
+    nameWrapMinFontSize: 34,
+    photoHeight: 363,
+    photoWidth: 318,
     photoX: 64,
     photoY: 173,
+    qrBoxHeight: 322,
+    qrBoxWidth: 293,
     qrBoxX: 1224,
     qrBoxY: 228,
+    qrImageOffsetX: 8,
+    qrImageOffsetY: 10,
+    qrImageSize: 276,
     seasonFieldsCentered: false,
     showFooterPeriod: true,
     statusValidColor: COLORS.cyan,
+    teamCenterX: 796,
     teamCenterY: 424,
+    teamMaxWidth: 650,
     upperFieldsY: 691,
   };
 }
