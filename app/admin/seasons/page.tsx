@@ -32,7 +32,7 @@ export default function SeasonsPage() {
   const [editing, setEditing] = useState<Season | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('active');
 
   const { data: seasons = [], isLoading } = useQuery<Season[]>({
     queryKey: ['seasons'],
@@ -65,6 +65,7 @@ export default function SeasonsPage() {
     onSuccess: async (seasonId) => {
       qc.invalidateQueries({ queryKey: ['seasons'] });
       qc.invalidateQueries({ queryKey: ['seasons-selector'] });
+      qc.invalidateQueries({ queryKey: ['admin-shell-seasons'] });
       await invalidatePublicCache({ seasonId, seasons: true });
       message.success(editing ? 'Temporada actualizada' : 'Temporada creada');
       setModalOpen(false);
@@ -87,6 +88,7 @@ export default function SeasonsPage() {
       qc.invalidateQueries({ queryKey: ['seasons'] });
       qc.invalidateQueries({ queryKey: ['active-season'] });
       qc.invalidateQueries({ queryKey: ['seasons-selector'] });
+      qc.invalidateQueries({ queryKey: ['admin-shell-seasons'] });
       await invalidatePublicCache({ seasonId, seasons: true });
       message.success('Temporada activada');
     },
@@ -104,6 +106,7 @@ export default function SeasonsPage() {
       }
       qc.invalidateQueries({ queryKey: ['seasons'] });
       qc.invalidateQueries({ queryKey: ['seasons-selector'] });
+      qc.invalidateQueries({ queryKey: ['admin-shell-seasons'] });
       await invalidatePublicCache({ seasonId, seasons: true });
       message.success('Temporada eliminada');
     },
@@ -181,7 +184,7 @@ export default function SeasonsPage() {
   const handleClearFilters = () => {
     setSearchQuery('');
     setCategoryFilter('all');
-    setStatusFilter('all');
+    setStatusFilter('active');
   };
 
   const filteredSeasons = seasons.filter((s) => {
