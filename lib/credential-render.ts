@@ -45,6 +45,14 @@ interface CredentialLayout {
   nameBoxWidth: number;
   nameBoxY: number;
   nameWrapMinFontSize: number;
+  officialBarcodeHeight: number;
+  officialBarcodeWidth: number;
+  officialBarcodeX: number;
+  officialBarcodeY: number;
+  officialCodeCenterX: number;
+  officialCodeY: number;
+  officialCodeTracking: number;
+  officialCodeVisible: boolean;
   photoHeight: number;
   photoWidth: number;
   photoX: number;
@@ -58,6 +66,7 @@ interface CredentialLayout {
   qrImageSize: number;
   seasonFieldsCentered: boolean;
   showFooterPeriod: boolean;
+  statusBadgeVisible: boolean;
   statusValidColor: string;
   teamCenterX: number;
   teamCenterY: number;
@@ -90,7 +99,9 @@ export async function renderCredentialImage(input: CredentialRenderInput) {
   context.drawImage(template, 0, 0, CARD_WIDTH, CARD_HEIGHT);
 
   await drawPlayerPhoto(context, input, layout);
-  drawStatusBadge(context, input.statusLabel, layout);
+  if (layout.statusBadgeVisible) {
+    drawStatusBadge(context, input.statusLabel, layout);
+  }
   drawPlayerName(context, input.playerName, layout);
   drawCenteredGoldText(context, input.teamName, {
     centerX: layout.teamCenterX,
@@ -110,7 +121,7 @@ export async function renderCredentialImage(input: CredentialRenderInput) {
   drawSeasonFields(context, input, layout);
   drawVeteransCurp(context, input, layout);
   await drawQr(context, input.verifyUrl, layout);
-  drawOfficialDocument(context, input.credentialCode);
+  drawOfficialDocument(context, input.credentialCode, layout);
   if (layout.showFooterPeriod) {
     drawFooterSeason(context, input.seasonName, layout);
   }
@@ -360,19 +371,38 @@ async function drawQr(
   context.restore();
 }
 
-function drawOfficialDocument(context: CanvasRenderingContext2D, credentialCode: string) {
+function drawOfficialDocument(
+  context: CanvasRenderingContext2D,
+  credentialCode: string,
+  layout: CredentialLayout
+) {
   const shortCode = credentialCode.replace(/[^A-Z0-9]/gi, '').slice(-10).toUpperCase();
 
   context.save();
-  drawBarcode(context, 1216, 700, 300, 68, credentialCode);
+  drawBarcode(
+    context,
+    layout.officialBarcodeX,
+    layout.officialBarcodeY,
+    layout.officialBarcodeWidth,
+    layout.officialBarcodeHeight,
+    credentialCode
+  );
 
-  context.font = '900 26px "Arial Narrow", Impact, ui-monospace, monospace';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillStyle = COLORS.accent;
-  context.shadowColor = 'rgba(245,166,35,0.5)';
-  context.shadowBlur = 8;
-  drawTrackedText(context, shortCode, 1366 - measureTrackedText(context, shortCode, 6) / 2, 793, 6);
+  if (layout.officialCodeVisible) {
+    context.font = '900 26px "Arial Narrow", Impact, ui-monospace, monospace';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = COLORS.accent;
+    context.shadowColor = 'rgba(245,166,35,0.5)';
+    context.shadowBlur = 8;
+    drawTrackedText(
+      context,
+      shortCode,
+      layout.officialCodeCenterX - measureTrackedText(context, shortCode, layout.officialCodeTracking) / 2,
+      layout.officialCodeY,
+      layout.officialCodeTracking
+    );
+  }
   context.restore();
 }
 
@@ -726,6 +756,14 @@ function getCredentialLayout(category: string): CredentialLayout {
       nameBoxWidth: 690,
       nameBoxY: 214,
       nameWrapMinFontSize: 34,
+      officialBarcodeHeight: 68,
+      officialBarcodeWidth: 300,
+      officialBarcodeX: 1216,
+      officialBarcodeY: 700,
+      officialCodeCenterX: 1366,
+      officialCodeY: 793,
+      officialCodeTracking: 6,
+      officialCodeVisible: true,
       photoHeight: 363,
       photoWidth: 318,
       photoX: 64,
@@ -739,6 +777,7 @@ function getCredentialLayout(category: string): CredentialLayout {
       qrImageSize: 276,
       seasonFieldsCentered: false,
       showFooterPeriod: true,
+      statusBadgeVisible: true,
       statusValidColor: COLORS.cyan,
       teamCenterX: 796,
       teamCenterY: 402,
@@ -766,6 +805,14 @@ function getCredentialLayout(category: string): CredentialLayout {
       nameBoxWidth: 610,
       nameBoxY: 212,
       nameWrapMinFontSize: 30,
+      officialBarcodeHeight: 42,
+      officialBarcodeWidth: 238,
+      officialBarcodeX: 1264,
+      officialBarcodeY: 724,
+      officialCodeCenterX: 1366,
+      officialCodeY: 790,
+      officialCodeTracking: 4,
+      officialCodeVisible: false,
       photoHeight: 358,
       photoWidth: 323,
       photoX: 58,
@@ -779,6 +826,7 @@ function getCredentialLayout(category: string): CredentialLayout {
       qrImageSize: 286,
       seasonFieldsCentered: true,
       showFooterPeriod: false,
+      statusBadgeVisible: false,
       statusValidColor: '#F6E71D',
       teamCenterX: 796,
       teamCenterY: 382,
@@ -806,6 +854,14 @@ function getCredentialLayout(category: string): CredentialLayout {
       nameBoxWidth: 690,
       nameBoxY: 222,
       nameWrapMinFontSize: 34,
+      officialBarcodeHeight: 68,
+      officialBarcodeWidth: 300,
+      officialBarcodeX: 1216,
+      officialBarcodeY: 700,
+      officialCodeCenterX: 1366,
+      officialCodeY: 793,
+      officialCodeTracking: 6,
+      officialCodeVisible: true,
       photoHeight: 363,
       photoWidth: 318,
       photoX: 64,
@@ -819,6 +875,7 @@ function getCredentialLayout(category: string): CredentialLayout {
       qrImageSize: 276,
       seasonFieldsCentered: false,
       showFooterPeriod: true,
+      statusBadgeVisible: true,
       statusValidColor: COLORS.cyan,
       teamCenterX: 796,
       teamCenterY: 424,
@@ -845,6 +902,14 @@ function getCredentialLayout(category: string): CredentialLayout {
     nameBoxWidth: 690,
     nameBoxY: 222,
     nameWrapMinFontSize: 34,
+    officialBarcodeHeight: 68,
+    officialBarcodeWidth: 300,
+    officialBarcodeX: 1216,
+    officialBarcodeY: 700,
+    officialCodeCenterX: 1366,
+    officialCodeY: 793,
+    officialCodeTracking: 6,
+    officialCodeVisible: true,
     photoHeight: 363,
     photoWidth: 318,
     photoX: 64,
@@ -858,6 +923,7 @@ function getCredentialLayout(category: string): CredentialLayout {
     qrImageSize: 276,
     seasonFieldsCentered: false,
     showFooterPeriod: true,
+    statusBadgeVisible: true,
     statusValidColor: COLORS.cyan,
     teamCenterX: 796,
     teamCenterY: 424,
