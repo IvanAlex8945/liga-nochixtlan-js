@@ -71,6 +71,8 @@ interface CredentialLayout {
   teamCenterX: number;
   teamCenterY: number;
   teamMaxWidth: number;
+  textColor?: string;
+  textShadowColor?: string;
   upperFieldsY: number;
 }
 
@@ -103,12 +105,23 @@ export async function renderCredentialImage(input: CredentialRenderInput) {
     drawStatusBadge(context, input.statusLabel, layout);
   }
   drawPlayerName(context, input.playerName, layout);
-  drawCenteredGoldText(context, input.teamName, {
-    centerX: layout.teamCenterX,
-    centerY: layout.teamCenterY,
-    fontSize: 56,
-    maxWidth: layout.teamMaxWidth,
-  });
+  if (layout.textColor) {
+    drawCenteredText(context, input.teamName, {
+      centerX: layout.teamCenterX,
+      centerY: layout.teamCenterY,
+      color: layout.textColor,
+      fontSize: 56,
+      maxWidth: layout.teamMaxWidth,
+      shadowColor: layout.textShadowColor,
+    });
+  } else {
+    drawCenteredGoldText(context, input.teamName, {
+      centerX: layout.teamCenterX,
+      centerY: layout.teamCenterY,
+      fontSize: 56,
+      maxWidth: layout.teamMaxWidth,
+    });
+  }
   if (layout.categoryTextVisible) {
     drawCenteredGoldText(context, input.category || 'Libre', {
       centerX: 798,
@@ -242,9 +255,15 @@ function drawPlayerName(
   const firstY = box.y + box.height / 2 - ((lines.text.length - 1) * lineHeight) / 2;
 
   context.save();
-  context.fillStyle = COLORS.white;
-  context.shadowColor = 'rgba(255,255,255,0.38)';
-  context.shadowBlur = 4;
+  if (layout.textColor) {
+    context.fillStyle = layout.textColor;
+    context.shadowColor = layout.textShadowColor ?? 'transparent';
+    context.shadowBlur = layout.textShadowColor && layout.textShadowColor !== 'transparent' ? 4 : 0;
+  } else {
+    context.fillStyle = COLORS.white;
+    context.shadowColor = 'rgba(255,255,255,0.38)';
+    context.shadowBlur = 4;
+  }
   context.font = `900 ${lines.fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
   context.textAlign = 'left';
   context.textBaseline = 'middle';
@@ -289,37 +308,46 @@ function drawSeasonFields(
     context.textBaseline = 'middle';
   }
 
-  drawGoldText(context, period, {
-    x: layout.fieldLeftX,
-    y: layout.upperFieldsY,
-    fontSize: 34,
-    fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
-    maxWidth: 190,
-  });
+  const renderField = (
+    text: string,
+    x: number,
+    y: number,
+    fontSize: number,
+    maxWidth: number,
+    fontFamily: string = '"Arial Narrow", Impact, system-ui, sans-serif'
+  ) => {
+    if (layout.textColor) {
+      drawPlainText(context, text, {
+        color: layout.textColor,
+        fontFamily,
+        fontSize,
+        maxWidth,
+        shadowColor: layout.textShadowColor,
+        x,
+        y,
+      });
+    } else {
+      drawGoldText(context, text, {
+        fontFamily,
+        fontSize,
+        maxWidth,
+        x,
+        y,
+      });
+    }
+  };
 
-  drawGoldText(context, issued, {
-    x: layout.fieldRightX,
-    y: layout.upperFieldsY,
-    fontSize: 38,
-    fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
-    maxWidth: 250,
-  });
-
-  drawGoldText(context, period, {
-    x: layout.fieldLeftX,
-    y: layout.lowerFieldsY,
-    fontSize: 34,
-    fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
-    maxWidth: 190,
-  });
-
-  drawGoldText(context, input.credentialCode.toUpperCase(), {
-    x: layout.fieldRightX,
-    y: layout.lowerFieldsY,
-    fontSize: 35,
-    fontFamily: '"Arial Narrow", Impact, ui-monospace, monospace',
-    maxWidth: 260,
-  });
+  renderField(period, layout.fieldLeftX, layout.upperFieldsY, 34, 190);
+  renderField(issued, layout.fieldRightX, layout.upperFieldsY, 38, 250);
+  renderField(period, layout.fieldLeftX, layout.lowerFieldsY, 34, 190);
+  renderField(
+    input.credentialCode.toUpperCase(),
+    layout.fieldRightX,
+    layout.lowerFieldsY,
+    35,
+    260,
+    '"Arial Narrow", Impact, ui-monospace, monospace'
+  );
   context.restore();
 }
 
@@ -483,6 +511,70 @@ function drawGoldText(
   context.restore();
 }
 
+function drawCenteredText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  options: {
+    centerX: number;
+    centerY: number;
+    color: string;
+    fontSize: number;
+    maxWidth: number;
+    shadowColor?: string;
+  }
+) {
+  const value = text.trim().toUpperCase();
+  context.save();
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  drawPlainText(context, value, {
+    color: options.color,
+    fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
+    fontSize: options.fontSize,
+    maxWidth: options.maxWidth,
+    shadowColor: options.shadowColor,
+    x: options.centerX,
+    y: options.centerY,
+  });
+  context.restore();
+}
+
+function drawPlainText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  options: {
+    color: string;
+    fontFamily: string;
+    fontSize: number;
+    maxWidth: number;
+    shadowColor?: string;
+    x: number;
+    y: number;
+  }
+) {
+  let fontSize = options.fontSize;
+
+  while (fontSize > 18) {
+    context.font = `900 ${fontSize}px ${options.fontFamily}`;
+    if (context.measureText(text).width <= options.maxWidth) {
+      break;
+    }
+    fontSize -= 2;
+  }
+
+  context.save();
+  context.fillStyle = options.color;
+  if (options.shadowColor && options.shadowColor !== 'transparent') {
+    context.shadowColor = options.shadowColor;
+    context.shadowBlur = 4;
+  } else {
+    context.shadowColor = 'transparent';
+    context.shadowBlur = 0;
+  }
+  context.fillText(text, options.x, options.y);
+  context.restore();
+}
+
 function drawFallbackPortrait(
   context: CanvasRenderingContext2D,
   playerName: string,
@@ -514,6 +606,10 @@ function drawBarcode(
   height: number,
   seed: string
 ) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
+
   const chars = seed.replace(/[^A-Z0-9]/gi, '') || 'LNN2026';
   let cursor = x;
   context.fillStyle = COLORS.white;
@@ -739,50 +835,52 @@ function getCredentialLayout(category: string): CredentialLayout {
 
   if (isFemenil) {
     return {
-      categoryCenterY: 532,
-      categoryTextVisible: true,
+      categoryCenterY: 0,
+      categoryTextVisible: false,
       curpCenterX: null,
       curpY: null,
-      dorsalCenterX: 220,
-      dorsalCenterY: 764,
-      fieldLeftX: 544,
-      fieldRightX: 894,
-      footerPeriodX: 1380,
-      footerPeriodY: 919,
-      lowerFieldsY: 793,
+      dorsalCenterX: 212,
+      dorsalCenterY: 755,
+      fieldLeftX: 622,
+      fieldRightX: 995,
+      footerPeriodX: 1400,
+      footerPeriodY: 917,
+      lowerFieldsY: 768,
       nameSingleLineMinFontSize: 46,
-      nameBoxX: 456,
-      nameBoxHeight: 92,
-      nameBoxWidth: 690,
-      nameBoxY: 214,
+      nameBoxX: 500,
+      nameBoxHeight: 68,
+      nameBoxWidth: 630,
+      nameBoxY: 200,
       nameWrapMinFontSize: 34,
-      officialBarcodeHeight: 68,
-      officialBarcodeWidth: 300,
-      officialBarcodeX: 1216,
+      officialBarcodeHeight: 0,
+      officialBarcodeWidth: 0,
+      officialBarcodeX: 1246,
       officialBarcodeY: 700,
       officialCodeCenterX: 1366,
       officialCodeY: 793,
       officialCodeTracking: 6,
-      officialCodeVisible: true,
-      photoHeight: 363,
-      photoWidth: 318,
-      photoX: 64,
-      photoY: 183,
-      qrBoxHeight: 322,
-      qrBoxWidth: 293,
-      qrBoxX: 1216,
-      qrBoxY: 240,
-      qrImageOffsetX: 8,
-      qrImageOffsetY: 10,
-      qrImageSize: 276,
-      seasonFieldsCentered: false,
+      officialCodeVisible: false,
+      photoHeight: 320,
+      photoWidth: 264,
+      photoX: 88,
+      photoY: 190,
+      qrBoxHeight: 236,
+      qrBoxWidth: 236,
+      qrBoxX: 1246,
+      qrBoxY: 486,
+      qrImageOffsetX: 6,
+      qrImageOffsetY: 6,
+      qrImageSize: 224,
+      seasonFieldsCentered: true,
       showFooterPeriod: true,
-      statusBadgeVisible: true,
+      statusBadgeVisible: false,
       statusValidColor: COLORS.cyan,
-      teamCenterX: 796,
-      teamCenterY: 402,
-      teamMaxWidth: 650,
-      upperFieldsY: 671,
+      teamCenterX: 815,
+      teamCenterY: 366,
+      teamMaxWidth: 640,
+      textColor: '#300E23',
+      textShadowColor: 'transparent',
+      upperFieldsY: 636,
     };
   }
 
