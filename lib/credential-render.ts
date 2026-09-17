@@ -18,6 +18,10 @@ export interface CredentialRenderInput {
 
 const CARD_WIDTH = 1586;
 const CARD_HEIGHT = 992;
+const pctX = (value: number) => Math.round(CARD_WIDTH * value / 100);
+const pctY = (value: number) => Math.round(CARD_HEIGHT * value / 100);
+const pctW = pctX;
+const pctH = pctY;
 const TEMPLATE_BY_CATEGORY = {
   femenil: '/credentials/credencial_base_femenil.png',
   libre: '/credentials/base_credencial_bueno.png',
@@ -32,11 +36,14 @@ interface CredentialLayout {
   categoryTextVisible: boolean;
   codeCenterX?: number;
   codeFontSize?: number;
+  codeMaxWidth?: number;
   curpCenterX: number | null;
   curpY: number | null;
   dorsalCenterX: number;
   dorsalCenterY: number;
+  dorsalFontSize?: number;
   fieldLeftX: number;
+  fieldMaxWidth?: number;
   fieldRightX: number;
   footerPeriodX: number;
   footerPeriodY: number;
@@ -49,6 +56,7 @@ interface CredentialLayout {
   nameBoxY: number;
   nameWrapMinFontSize: number;
   officialBarcodeHeight: number;
+  officialBarcodeColor?: string;
   officialBarcodeWidth: number;
   officialBarcodeX: number;
   officialBarcodeY: number;
@@ -57,6 +65,7 @@ interface CredentialLayout {
   officialCodeTracking: number;
   officialCodeVisible: boolean;
   photoHeight: number;
+  photoRadius?: number;
   photoWidth: number;
   photoX: number;
   photoY: number;
@@ -73,7 +82,12 @@ interface CredentialLayout {
   statusValidColor: string;
   teamCenterX: number;
   teamCenterY: number;
+  teamBoxHeight?: number;
+  teamBoxWidth?: number;
+  teamBoxX?: number;
+  teamBoxY?: number;
   teamMaxWidth: number;
+  centerNameText?: boolean;
   textColor?: string;
   textShadowColor?: string;
   upperFieldsY: number;
@@ -108,7 +122,19 @@ export async function renderCredentialImage(input: CredentialRenderInput) {
     drawStatusBadge(context, input.statusLabel, layout);
   }
   drawPlayerName(context, input.playerName, layout);
-  if (layout.textColor) {
+  if (layout.teamBoxX !== undefined && layout.teamBoxY !== undefined && layout.teamBoxWidth !== undefined && layout.teamBoxHeight !== undefined) {
+    drawFittedBoxText(context, input.teamName, {
+      boxHeight: layout.teamBoxHeight,
+      boxWidth: layout.teamBoxWidth,
+      boxX: layout.teamBoxX,
+      boxY: layout.teamBoxY,
+      color: layout.textColor ?? COLORS.white,
+      maxFontSize: 48,
+      shadowColor: layout.textShadowColor,
+      singleLineMinFontSize: 34,
+      wrapFontSize: 24,
+    });
+  } else if (layout.textColor) {
     drawCenteredText(context, input.teamName, {
       centerX: layout.teamCenterX,
       centerY: layout.teamCenterY,
@@ -155,7 +181,7 @@ async function drawPlayerPhoto(
     y: layout.photoY,
     width: layout.photoWidth,
     height: layout.photoHeight,
-    radius: 8,
+    radius: layout.photoRadius ?? 8,
   };
 
   context.save();
@@ -246,6 +272,22 @@ function drawPlayerName(
     width: layout.nameBoxWidth,
     height: layout.nameBoxHeight,
   };
+
+  if (layout.centerNameText) {
+    drawFittedBoxText(context, name, {
+      boxHeight: box.height,
+      boxWidth: box.width,
+      boxX: box.x,
+      boxY: box.y,
+      color: layout.textColor ?? COLORS.white,
+      maxFontSize: layout.nameMaxFontSize ?? 74,
+      shadowColor: layout.textShadowColor,
+      singleLineMinFontSize: layout.nameSingleLineMinFontSize,
+      wrapFontSize: layout.nameWrapMinFontSize,
+    });
+    return;
+  }
+
   const lines = fitPlayerName(
     context,
     name,
@@ -285,13 +327,16 @@ function drawDorsal(
 ) {
   const numberText = formatPlayerNumber(input.number, '--');
 
+  const defaultFontSize = numberText.length > 2 ? 128 : 188;
+  const fontSize = layout.dorsalFontSize ?? defaultFontSize;
+
   context.save();
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   drawGoldText(context, numberText, {
     x: layout.dorsalCenterX,
     y: layout.dorsalCenterY,
-    fontSize: numberText.length > 2 ? 128 : 188,
+    fontSize,
     fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
     maxWidth: 270,
   });
@@ -341,15 +386,15 @@ function drawSeasonFields(
     }
   };
 
-  renderField(period, layout.fieldLeftX, layout.upperFieldsY, 34, 190);
-  renderField(issued, layout.fieldRightX, layout.upperFieldsY, 38, 250);
-  renderField(period, layout.fieldLeftX, layout.lowerFieldsY, 34, 190);
+  renderField(period, layout.fieldLeftX, layout.upperFieldsY, 34, layout.fieldMaxWidth ?? 190);
+  renderField(issued, layout.fieldRightX, layout.upperFieldsY, 38, layout.fieldMaxWidth ?? 250);
+  renderField(period, layout.fieldLeftX, layout.lowerFieldsY, 34, layout.fieldMaxWidth ?? 190);
   renderField(
     input.credentialCode.toUpperCase(),
     layout.codeCenterX ?? layout.fieldRightX,
     layout.lowerFieldsY,
     layout.codeFontSize ?? 35,
-    260,
+    layout.codeMaxWidth ?? 260,
     '"Arial Narrow", Impact, ui-monospace, monospace'
   );
   context.restore();
@@ -411,6 +456,7 @@ function drawOfficialDocument(
   const shortCode = credentialCode.replace(/[^A-Z0-9]/gi, '').slice(-10).toUpperCase();
 
   context.save();
+  context.fillStyle = layout.officialBarcodeColor ?? COLORS.white;
   drawBarcode(
     context,
     layout.officialBarcodeX,
@@ -616,7 +662,6 @@ function drawBarcode(
 
   const chars = seed.replace(/[^A-Z0-9]/gi, '') || 'LNN2026';
   let cursor = x;
-  context.fillStyle = COLORS.white;
 
   for (let index = 0; cursor < x + width && index < chars.length * 8; index += 1) {
     const code = chars.charCodeAt(index % chars.length);
@@ -659,6 +704,101 @@ function fitPlayerName(
 
   context.font = `900 ${wrapMinFontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
   return { fontSize: wrapMinFontSize, text: wrapText(context, text, maxWidth).slice(0, 2) };
+}
+
+function drawFittedBoxText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  options: {
+    boxHeight: number;
+    boxWidth: number;
+    boxX: number;
+    boxY: number;
+    color: string;
+    maxFontSize: number;
+    shadowColor?: string;
+    singleLineMinFontSize: number;
+    wrapFontSize: number;
+  }
+) {
+  const value = text.trim().toUpperCase();
+  const innerWidth = options.boxWidth * 0.9;
+  const lines = fitSingleOrBalancedLines(
+    context,
+    value,
+    innerWidth,
+    options.maxFontSize,
+    options.singleLineMinFontSize,
+    options.wrapFontSize
+  );
+  const lineHeight = lines.fontSize * 1.02;
+  const centerY = options.boxY + options.boxHeight / 2;
+  const firstY = centerY - ((lines.text.length - 1) * lineHeight) / 2;
+
+  context.save();
+  context.fillStyle = options.color;
+  context.font = `900 ${lines.fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  if (options.shadowColor && options.shadowColor !== 'transparent') {
+    context.shadowColor = options.shadowColor;
+    context.shadowBlur = 4;
+  } else {
+    context.shadowColor = 'transparent';
+    context.shadowBlur = 0;
+  }
+
+  lines.text.forEach((line, index) => {
+    context.fillText(line, options.boxX + options.boxWidth / 2, firstY + index * lineHeight);
+  });
+  context.restore();
+}
+
+function fitSingleOrBalancedLines(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxFontSize: number,
+  singleLineMinFontSize: number,
+  wrapFontSize: number
+) {
+  for (let fontSize = maxFontSize; fontSize >= singleLineMinFontSize; fontSize -= 2) {
+    context.font = `900 ${fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
+
+    if (context.measureText(text).width <= maxWidth) {
+      return { fontSize, text: [text] };
+    }
+  }
+
+  const lines = splitNearMiddle(text);
+  return { fontSize: wrapFontSize, text: lines };
+}
+
+function splitNearMiddle(text: string) {
+  const words = text.split(/\s+/).filter(Boolean);
+
+  if (words.length < 2) {
+    return [text];
+  }
+
+  const midpoint = text.length / 2;
+  let bestIndex = 1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  let cursor = 0;
+
+  for (let index = 1; index < words.length; index += 1) {
+    cursor += words[index - 1].length;
+    const distance = Math.abs(cursor - midpoint);
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+
+    cursor += 1;
+  }
+
+  return [words.slice(0, bestIndex).join(' '), words.slice(bestIndex).join(' ')];
 }
 
 function wrapText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
@@ -942,51 +1082,123 @@ function getCredentialLayout(category: string): CredentialLayout {
   }
 
   if (isMaster) {
+    const nameBox = {
+      x: pctX(30),
+      y: pctY(34.5),
+      width: pctW(47.6),
+      height: pctH(7.5),
+    };
+    const teamBox = {
+      x: pctX(30),
+      y: pctY(50.1),
+      width: pctW(47.6),
+      height: pctH(7.5),
+    };
+    const dorsalBox = {
+      x: pctX(5.4),
+      y: pctY(73.9),
+      width: pctW(20),
+      height: pctH(10.6),
+    };
+    const seasonBox = {
+      x: pctX(50.6),
+      y: pctY(65.5),
+      width: pctW(12.9),
+      height: pctH(6.1),
+    };
+    const issuedBox = {
+      x: pctX(64.7),
+      y: pctY(65.5),
+      width: pctW(12.9),
+      height: pctH(6.1),
+    };
+    const validityBox = {
+      x: pctX(50.6),
+      y: pctY(78.7),
+      width: pctW(12.9),
+      height: pctH(5.9),
+    };
+    const photoBox = {
+      x: pctX(6.4),
+      y: pctY(27.3),
+      width: pctW(18),
+      height: pctH(33.1),
+    };
+    const qrBox = {
+      x: pctX(81.7),
+      y: pctY(33.6),
+      width: pctW(13.2),
+      height: pctH(22.6),
+    };
+    const barcodeBox = {
+      x: pctX(81.6),
+      y: pctY(68),
+      width: pctW(13.3),
+      height: pctH(16.3),
+    };
+    const fieldMaxWidth = Math.round(seasonBox.width * 0.9);
+    const qrImageSize = Math.min(qrBox.width, qrBox.height) - 24;
+
     return {
-      categoryCenterY: 557,
-      categoryTextVisible: true,
+      categoryCenterY: 0,
+      categoryTextVisible: false,
+      centerNameText: true,
+      codeCenterX: issuedBox.x + issuedBox.width / 2,
+      codeFontSize: 30,
+      codeMaxWidth: fieldMaxWidth,
       curpCenterX: null,
       curpY: null,
-      dorsalCenterX: 220,
-      dorsalCenterY: 764,
-      fieldLeftX: 544,
-      fieldRightX: 894,
-      footerPeriodX: 1346,
-      footerPeriodY: 935,
-      lowerFieldsY: 813,
-      nameSingleLineMinFontSize: 46,
-      nameBoxX: 456,
-      nameBoxHeight: 102,
-      nameBoxWidth: 690,
-      nameBoxY: 222,
-      nameWrapMinFontSize: 34,
-      officialBarcodeHeight: 68,
-      officialBarcodeWidth: 300,
-      officialBarcodeX: 1216,
-      officialBarcodeY: 700,
-      officialCodeCenterX: 1366,
-      officialCodeY: 793,
-      officialCodeTracking: 6,
-      officialCodeVisible: true,
-      photoHeight: 363,
-      photoWidth: 318,
-      photoX: 64,
-      photoY: 173,
-      qrBoxHeight: 322,
-      qrBoxWidth: 293,
-      qrBoxX: 1224,
-      qrBoxY: 228,
-      qrImageOffsetX: 8,
-      qrImageOffsetY: 10,
-      qrImageSize: 276,
-      seasonFieldsCentered: false,
-      showFooterPeriod: true,
-      statusBadgeVisible: true,
+      dorsalCenterX: dorsalBox.x + dorsalBox.width / 2,
+      dorsalCenterY: dorsalBox.y + dorsalBox.height / 2,
+      dorsalFontSize: 110,
+      fieldLeftX: seasonBox.x + seasonBox.width / 2,
+      fieldMaxWidth,
+      fieldRightX: issuedBox.x + issuedBox.width / 2,
+      footerPeriodX: 0,
+      footerPeriodY: 0,
+      lowerFieldsY: validityBox.y + validityBox.height / 2,
+      nameMaxFontSize: 48,
+      nameSingleLineMinFontSize: 34,
+      nameBoxX: nameBox.x,
+      nameBoxHeight: nameBox.height,
+      nameBoxWidth: nameBox.width,
+      nameBoxY: nameBox.y,
+      nameWrapMinFontSize: 24,
+      officialBarcodeColor: COLORS.dark,
+      officialBarcodeHeight: barcodeBox.height,
+      officialBarcodeWidth: barcodeBox.width,
+      officialBarcodeX: barcodeBox.x,
+      officialBarcodeY: barcodeBox.y,
+      officialCodeCenterX: barcodeBox.x + barcodeBox.width / 2,
+      officialCodeY: barcodeBox.y + barcodeBox.height / 2,
+      officialCodeTracking: 4,
+      officialCodeVisible: false,
+      photoHeight: photoBox.height,
+      photoRadius: 12,
+      photoWidth: photoBox.width,
+      photoX: photoBox.x,
+      photoY: photoBox.y,
+      qrBoxHeight: qrBox.height,
+      qrBoxWidth: qrBox.width,
+      qrBoxX: qrBox.x,
+      qrBoxY: qrBox.y,
+      qrImageOffsetX: (qrBox.width - qrImageSize) / 2,
+      qrImageOffsetY: (qrBox.height - qrImageSize) / 2,
+      qrImageSize,
+      seasonFieldsCentered: true,
+      showFooterPeriod: false,
+      statusBadgeVisible: false,
       statusValidColor: COLORS.cyan,
-      teamCenterX: 796,
-      teamCenterY: 424,
-      teamMaxWidth: 650,
-      upperFieldsY: 691,
+      teamBoxHeight: teamBox.height,
+      teamBoxWidth: teamBox.width,
+      teamBoxX: teamBox.x,
+      teamBoxY: teamBox.y,
+      teamCenterX: teamBox.x + teamBox.width / 2,
+      teamCenterY: teamBox.y + teamBox.height / 2,
+      teamMaxWidth: teamBox.width * 0.9,
+      textColor: '#2D0A14',
+      textShadowColor: 'transparent',
+      upperFieldsY: seasonBox.y + seasonBox.height / 2,
     };
   }
 
