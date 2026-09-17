@@ -30,6 +30,8 @@ const templateImagePromises = new Map<string, Promise<HTMLImageElement>>();
 interface CredentialLayout {
   categoryCenterY: number;
   categoryTextVisible: boolean;
+  codeCenterX?: number;
+  codeFontSize?: number;
   curpCenterX: number | null;
   curpY: number | null;
   dorsalCenterX: number;
@@ -39,6 +41,7 @@ interface CredentialLayout {
   footerPeriodX: number;
   footerPeriodY: number;
   lowerFieldsY: number;
+  nameMaxFontSize?: number;
   nameSingleLineMinFontSize: number;
   nameBoxX: number;
   nameBoxHeight: number;
@@ -249,7 +252,8 @@ function drawPlayerName(
     box.width,
     box.height,
     layout.nameSingleLineMinFontSize,
-    layout.nameWrapMinFontSize
+    layout.nameWrapMinFontSize,
+    layout.nameMaxFontSize
   );
   const lineHeight = lines.fontSize * 1.02;
   const firstY = box.y + box.height / 2 - ((lines.text.length - 1) * lineHeight) / 2;
@@ -342,9 +346,9 @@ function drawSeasonFields(
   renderField(period, layout.fieldLeftX, layout.lowerFieldsY, 34, 190);
   renderField(
     input.credentialCode.toUpperCase(),
-    layout.fieldRightX,
+    layout.codeCenterX ?? layout.fieldRightX,
     layout.lowerFieldsY,
-    35,
+    layout.codeFontSize ?? 35,
     260,
     '"Arial Narrow", Impact, ui-monospace, monospace'
   );
@@ -632,9 +636,10 @@ function fitPlayerName(
   maxWidth: number,
   maxHeight: number,
   singleLineMinFontSize = 46,
-  wrapMinFontSize = 34
+  wrapMinFontSize = 34,
+  maxFontSize = 74
 ) {
-  for (let fontSize = 74; fontSize >= singleLineMinFontSize; fontSize -= 2) {
+  for (let fontSize = maxFontSize; fontSize >= singleLineMinFontSize; fontSize -= 2) {
     context.font = `900 ${fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
 
     if (context.measureText(text).width <= maxWidth) {
@@ -642,7 +647,7 @@ function fitPlayerName(
     }
   }
 
-  for (let fontSize = 52; fontSize >= wrapMinFontSize; fontSize -= 2) {
+  for (let fontSize = Math.min(maxFontSize, 38); fontSize >= wrapMinFontSize; fontSize -= 2) {
     context.font = `900 ${fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
     const lines = wrapText(context, text, maxWidth);
     const requiredHeight = lines.length * fontSize * 1.02;
@@ -837,6 +842,8 @@ function getCredentialLayout(category: string): CredentialLayout {
     return {
       categoryCenterY: 0,
       categoryTextVisible: false,
+      codeCenterX: 1025,
+      codeFontSize: 30,
       curpCenterX: null,
       curpY: null,
       dorsalCenterX: 212,
@@ -846,12 +853,13 @@ function getCredentialLayout(category: string): CredentialLayout {
       footerPeriodX: 1400,
       footerPeriodY: 917,
       lowerFieldsY: 768,
-      nameSingleLineMinFontSize: 46,
-      nameBoxX: 500,
+      nameMaxFontSize: 46,
+      nameSingleLineMinFontSize: 34,
+      nameBoxX: 520,
       nameBoxHeight: 68,
-      nameBoxWidth: 630,
-      nameBoxY: 200,
-      nameWrapMinFontSize: 34,
+      nameBoxWidth: 620,
+      nameBoxY: 204,
+      nameWrapMinFontSize: 24,
       officialBarcodeHeight: 0,
       officialBarcodeWidth: 0,
       officialBarcodeX: 1246,
@@ -864,19 +872,19 @@ function getCredentialLayout(category: string): CredentialLayout {
       photoWidth: 264,
       photoX: 88,
       photoY: 190,
-      qrBoxHeight: 236,
-      qrBoxWidth: 236,
-      qrBoxX: 1246,
-      qrBoxY: 486,
-      qrImageOffsetX: 6,
-      qrImageOffsetY: 6,
-      qrImageSize: 224,
+      qrBoxHeight: 216,
+      qrBoxWidth: 216,
+      qrBoxX: 1256,
+      qrBoxY: 496,
+      qrImageOffsetX: 8,
+      qrImageOffsetY: 8,
+      qrImageSize: 200,
       seasonFieldsCentered: true,
-      showFooterPeriod: true,
+      showFooterPeriod: false,
       statusBadgeVisible: false,
       statusValidColor: COLORS.cyan,
       teamCenterX: 815,
-      teamCenterY: 366,
+      teamCenterY: 382,
       teamMaxWidth: 640,
       textColor: '#300E23',
       textShadowColor: 'transparent',
