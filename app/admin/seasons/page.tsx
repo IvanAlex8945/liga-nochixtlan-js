@@ -65,6 +65,7 @@ export default function SeasonsPage() {
     onSuccess: async (seasonId) => {
       qc.invalidateQueries({ queryKey: ['seasons'] });
       qc.invalidateQueries({ queryKey: ['seasons-selector'] });
+      qc.invalidateQueries({ queryKey: ['admin-shell-seasons'] });
       await invalidatePublicCache({ seasonId, seasons: true });
       message.success(editing ? 'Temporada actualizada' : 'Temporada creada');
       setModalOpen(false);
@@ -87,6 +88,7 @@ export default function SeasonsPage() {
       qc.invalidateQueries({ queryKey: ['seasons'] });
       qc.invalidateQueries({ queryKey: ['active-season'] });
       qc.invalidateQueries({ queryKey: ['seasons-selector'] });
+      qc.invalidateQueries({ queryKey: ['admin-shell-seasons'] });
       await invalidatePublicCache({ seasonId, seasons: true });
       message.success('Temporada activada');
     },
@@ -104,6 +106,7 @@ export default function SeasonsPage() {
       }
       qc.invalidateQueries({ queryKey: ['seasons'] });
       qc.invalidateQueries({ queryKey: ['seasons-selector'] });
+      qc.invalidateQueries({ queryKey: ['admin-shell-seasons'] });
       await invalidatePublicCache({ seasonId, seasons: true });
       message.success('Temporada eliminada');
     },

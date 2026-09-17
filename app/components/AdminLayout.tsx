@@ -52,13 +52,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const setSeasonId = useAdminStore((s) => s.setSelectedSeasonId);
   const initializeSeason = useAdminStore((s) => s.initializeSeason);
 
-  // Load seasons to keep Topbar selector synced across all admin modules
+  // Load ONLY active seasons to keep Topbar selector synced across all admin modules
   const { data: seasons = [] } = useQuery<SeasonOption[]>({
     queryKey: ['admin-shell-seasons'],
     queryFn: async () => {
       const { data } = await supabase
         .from('seasons')
         .select('id, name, category, is_active')
+        .eq('is_active', true)
         .order('id', { ascending: false });
       return data ?? [];
     },
@@ -144,7 +145,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   const seasonOptions = seasons.map((s) => ({
-    label: `${s.name} (${s.category})${s.is_active ? ' ✓' : ''}`,
+    label: `${s.name} (${s.category})`,
     value: s.id,
   }));
 
