@@ -25,7 +25,7 @@ const pctH = pctY;
 const TEMPLATE_BY_CATEGORY = {
   femenil: '/credentials/credencial_base_femenil.png',
   libre: '/credentials/base_credencial_bueno.png',
-  master: '/credentials/credencial_base_master.png',
+  master: '/credentials/credencial_base_master.png?v=20260917-master',
   tercera: '/credentials/credencial_base_tercera.png',
   veteranos: '/credentials/base_credencial_veteranos_v2.png',
 } as const;
