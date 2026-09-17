@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 
-import { formatPlayerNumber, type PlayerNumberValue } from './player-number';
+import { formatPlayerNumber, type PlayerNumberValue } from '@/lib/player-number';
 
 export interface CredentialRenderInput {
   category: string;
@@ -41,7 +41,6 @@ interface CredentialLayout {
   footerPeriodX: number;
   footerPeriodY: number;
   lowerFieldsY: number;
-  nameCentered?: boolean;
   nameMaxFontSize?: number;
   nameSingleLineMinFontSize: number;
   nameBoxX: number;
@@ -72,14 +71,9 @@ interface CredentialLayout {
   showFooterPeriod: boolean;
   statusBadgeVisible: boolean;
   statusValidColor: string;
-  teamBoxHeight?: number;
-  teamBoxWidth?: number;
   teamCenterX: number;
   teamCenterY: number;
-  teamMaxFontSize?: number;
   teamMaxWidth: number;
-  teamSingleLineMinFontSize?: number;
-  teamWrapMinFontSize?: number;
   textColor?: string;
   textShadowColor?: string;
   upperFieldsY: number;
@@ -114,7 +108,23 @@ export async function renderCredentialImage(input: CredentialRenderInput) {
     drawStatusBadge(context, input.statusLabel, layout);
   }
   drawPlayerName(context, input.playerName, layout);
-  drawTeamName(context, input.teamName, layout);
+  if (layout.textColor) {
+    drawCenteredText(context, input.teamName, {
+      centerX: layout.teamCenterX,
+      centerY: layout.teamCenterY,
+      color: layout.textColor,
+      fontSize: 56,
+      maxWidth: layout.teamMaxWidth,
+      shadowColor: layout.textShadowColor,
+    });
+  } else {
+    drawCenteredGoldText(context, input.teamName, {
+      centerX: layout.teamCenterX,
+      centerY: layout.teamCenterY,
+      fontSize: 56,
+      maxWidth: layout.teamMaxWidth,
+    });
+  }
   if (layout.categoryTextVisible) {
     drawCenteredGoldText(context, input.category || 'Libre', {
       centerX: 798,
@@ -224,82 +234,6 @@ function drawStatusBadge(
   context.restore();
 }
 
-export function splitClosestToMidpoint(text: string): string[] {
-  const normalized = text.trim().replace(/\s+/g, ' ');
-  const midpoint = normalized.length / 2;
-  let bestSpaceIndex = -1;
-  let minDiff = Infinity;
-
-  for (let i = 0; i < normalized.length; i += 1) {
-    if (normalized[i] === ' ') {
-      const diff = Math.abs(i - midpoint);
-      if (diff < minDiff) {
-        minDiff = diff;
-        bestSpaceIndex = i;
-      }
-    }
-  }
-
-  if (bestSpaceIndex === -1) {
-    return [normalized];
-  }
-
-  const first = normalized.slice(0, bestSpaceIndex).trim();
-  const second = normalized.slice(bestSpaceIndex + 1).trim();
-  return second ? [first, second] : [first];
-}
-
-export interface FitTextOptions {
-  baseFontSize?: number;
-  fontFamily?: string;
-  maxWidth: number;
-  minSingleLineFontSize?: number;
-  twoLineFontSize?: number;
-}
-
-export function fitAutoAdjustText(
-  context: CanvasRenderingContext2D,
-  text: string,
-  options: FitTextOptions
-): { fontSize: number; lines: string[] } {
-  const fontFamily = options.fontFamily ?? '"Arial Narrow", Impact, system-ui, sans-serif';
-  const baseFontSize = options.baseFontSize ?? 50;
-  const minSingleLineFontSize = options.minSingleLineFontSize ?? Math.round(baseFontSize * 0.68);
-  const twoLineFontSize = options.twoLineFontSize ?? Math.round(baseFontSize * 0.48);
-  const allowedWidth = options.maxWidth * 0.9;
-
-  for (let fontSize = baseFontSize; fontSize >= minSingleLineFontSize; fontSize -= 2) {
-    context.font = `900 ${fontSize}px ${fontFamily}`;
-    if (context.measureText(text).width <= allowedWidth) {
-      return { fontSize, lines: [text] };
-    }
-  }
-
-  const twoLines = splitClosestToMidpoint(text);
-  if (twoLines.length > 1) {
-    let fontSize = twoLineFontSize;
-    while (fontSize > 16) {
-      context.font = `900 ${fontSize}px ${fontFamily}`;
-      const fits = twoLines.every((line) => context.measureText(line).width <= allowedWidth);
-      if (fits) {
-        break;
-      }
-      fontSize -= 1;
-    }
-    return { fontSize, lines: twoLines };
-  }
-
-  let fontSize = minSingleLineFontSize;
-  while (fontSize > 16) {
-    context.font = `900 ${fontSize}px ${fontFamily}`;
-    if (context.measureText(text).width <= allowedWidth) {
-      break;
-    }
-    fontSize -= 2;
-  }
-  return { fontSize, lines: [text] };
-}
-
 function drawPlayerName(
   context: CanvasRenderingContext2D,
   playerName: string,
@@ -312,20 +246,17 @@ function drawPlayerName(
     width: layout.nameBoxWidth,
     height: layout.nameBoxHeight,
   };
-  const baseFontSize = layout.nameMaxFontSize ?? (layout.nameSingleLineMinFontSize > 50 ? 74 : 50);
-  const minSingleLineFontSize = layout.nameSingleLineMinFontSize;
-  const twoLineFontSize = layout.nameWrapMinFontSize;
-
-  const fitted = fitAutoAdjustText(context, name, {
-    baseFontSize,
-    maxWidth: box.width,
-    minSingleLineFontSize,
-    twoLineFontSize,
-  });
-
-  const lineHeight = fitted.fontSize * 1.05;
-  const firstY = box.y + box.height / 2 - ((fitted.lines.length - 1) * lineHeight) / 2;
-  const textX = layout.nameCentered ? box.x + box.width / 2 : box.x;
+  const lines = fitPlayerName(
+    context,
+    name,
+    box.width,
+    box.height,
+    layout.nameSingleLineMinFontSize,
+    layout.nameWrapMinFontSize,
+    layout.nameMaxFontSize
+  );
+  const lineHeight = lines.fontSize * 1.02;
+  const firstY = box.y + box.height / 2 - ((lines.text.length - 1) * lineHeight) / 2;
 
   context.save();
   if (layout.textColor) {
@@ -337,64 +268,13 @@ function drawPlayerName(
     context.shadowColor = 'rgba(255,255,255,0.38)';
     context.shadowBlur = 4;
   }
-  context.font = `900 ${fitted.fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
-  context.textAlign = layout.nameCentered ? 'center' : 'left';
+  context.font = `900 ${lines.fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
+  context.textAlign = 'left';
   context.textBaseline = 'middle';
 
-  fitted.lines.forEach((line, index) => {
-    context.fillText(line, textX, firstY + index * lineHeight);
+  lines.text.forEach((line, index) => {
+    context.fillText(line, box.x, firstY + index * lineHeight);
   });
-  context.restore();
-}
-
-function drawTeamName(
-  context: CanvasRenderingContext2D,
-  teamName: string,
-  layout: CredentialLayout
-) {
-  const name = teamName.trim().toUpperCase();
-  const boxWidth = layout.teamBoxWidth ?? Math.round(layout.teamMaxWidth / 0.9);
-  const baseFontSize = layout.teamMaxFontSize ?? (layout.textColor ? 50 : 56);
-  const minSingleLineFontSize = layout.teamSingleLineMinFontSize ?? Math.round(baseFontSize * 0.68);
-  const twoLineFontSize = layout.teamWrapMinFontSize ?? Math.round(baseFontSize * 0.48);
-
-  const fitted = fitAutoAdjustText(context, name, {
-    baseFontSize,
-    maxWidth: boxWidth,
-    minSingleLineFontSize,
-    twoLineFontSize,
-  });
-
-  const lineHeight = fitted.fontSize * 1.05;
-  const firstY = layout.teamCenterY - ((fitted.lines.length - 1) * lineHeight) / 2;
-
-  context.save();
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-
-  fitted.lines.forEach((line, index) => {
-    const y = firstY + index * lineHeight;
-    if (layout.textColor) {
-      drawPlainText(context, line, {
-        color: layout.textColor,
-        fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
-        fontSize: fitted.fontSize,
-        maxWidth: layout.teamMaxWidth,
-        shadowColor: layout.textShadowColor,
-        x: layout.teamCenterX,
-        y,
-      });
-    } else {
-      drawGoldText(context, line, {
-        fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
-        fontSize: fitted.fontSize,
-        maxWidth: layout.teamMaxWidth,
-        x: layout.teamCenterX,
-        y,
-      });
-    }
-  });
-
   context.restore();
 }
 
@@ -537,17 +417,16 @@ function drawOfficialDocument(
     layout.officialBarcodeY,
     layout.officialBarcodeWidth,
     layout.officialBarcodeHeight,
-    credentialCode,
-    layout.textColor
+    credentialCode
   );
 
   if (layout.officialCodeVisible) {
     context.font = '900 26px "Arial Narrow", Impact, ui-monospace, monospace';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillStyle = layout.textColor ?? COLORS.accent;
-    context.shadowColor = layout.textColor ? (layout.textShadowColor ?? 'transparent') : 'rgba(245,166,35,0.5)';
-    context.shadowBlur = layout.textColor ? 0 : 8;
+    context.fillStyle = COLORS.accent;
+    context.shadowColor = 'rgba(245,166,35,0.5)';
+    context.shadowBlur = 8;
     drawTrackedText(
       context,
       shortCode,
@@ -636,6 +515,33 @@ function drawGoldText(
   context.restore();
 }
 
+function drawCenteredText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  options: {
+    centerX: number;
+    centerY: number;
+    color: string;
+    fontSize: number;
+    maxWidth: number;
+    shadowColor?: string;
+  }
+) {
+  const value = text.trim().toUpperCase();
+  context.save();
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  drawPlainText(context, value, {
+    color: options.color,
+    fontFamily: '"Arial Narrow", Impact, system-ui, sans-serif',
+    fontSize: options.fontSize,
+    maxWidth: options.maxWidth,
+    shadowColor: options.shadowColor,
+    x: options.centerX,
+    y: options.centerY,
+  });
+  context.restore();
+}
 
 function drawPlainText(
   context: CanvasRenderingContext2D,
@@ -702,8 +608,7 @@ function drawBarcode(
   y: number,
   width: number,
   height: number,
-  seed: string,
-  color?: string
+  seed: string
 ) {
   if (width <= 0 || height <= 0) {
     return;
@@ -711,7 +616,7 @@ function drawBarcode(
 
   const chars = seed.replace(/[^A-Z0-9]/gi, '') || 'LNN2026';
   let cursor = x;
-  context.fillStyle = color ?? COLORS.white;
+  context.fillStyle = COLORS.white;
 
   for (let index = 0; cursor < x + width && index < chars.length * 8; index += 1) {
     const code = chars.charCodeAt(index % chars.length);
@@ -725,6 +630,59 @@ function drawBarcode(
   }
 }
 
+function fitPlayerName(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxHeight: number,
+  singleLineMinFontSize = 46,
+  wrapMinFontSize = 34,
+  maxFontSize = 74
+) {
+  for (let fontSize = maxFontSize; fontSize >= singleLineMinFontSize; fontSize -= 2) {
+    context.font = `900 ${fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
+
+    if (context.measureText(text).width <= maxWidth) {
+      return { fontSize, text: [text] };
+    }
+  }
+
+  for (let fontSize = Math.min(maxFontSize, 38); fontSize >= wrapMinFontSize; fontSize -= 2) {
+    context.font = `900 ${fontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
+    const lines = wrapText(context, text, maxWidth);
+    const requiredHeight = lines.length * fontSize * 1.02;
+
+    if (lines.length <= 2 && requiredHeight <= maxHeight - 6) {
+      return { fontSize, text: lines };
+    }
+  }
+
+  context.font = `900 ${wrapMinFontSize}px "Arial Narrow", Impact, system-ui, sans-serif`;
+  return { fontSize: wrapMinFontSize, text: wrapText(context, text, maxWidth).slice(0, 2) };
+}
+
+function wrapText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+
+    if (context.measureText(candidate).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+
+  if (line) {
+    lines.push(line);
+  }
+
+  return lines;
+}
 
 function drawCoverImage(
   context: CanvasRenderingContext2D,
@@ -871,7 +829,7 @@ function getCredentialTemplateSrc(category: string) {
   return TEMPLATE_BY_CATEGORY.libre;
 }
 
-export function getCredentialLayout(category: string): CredentialLayout {
+function getCredentialLayout(category: string): CredentialLayout {
   const normalizedCategory = normalizeCategory(category);
   const isFemenil =
     normalizedCategory === 'femenil' ||
@@ -985,61 +943,50 @@ export function getCredentialLayout(category: string): CredentialLayout {
 
   if (isMaster) {
     return {
-      categoryCenterY: 0,
-      categoryTextVisible: false,
-      codeCenterX: 1129,
-      codeFontSize: 35,
+      categoryCenterY: 557,
+      categoryTextVisible: true,
       curpCenterX: null,
       curpY: null,
-      dorsalCenterX: 245,
-      dorsalCenterY: 786,
-      fieldLeftX: 905,
-      fieldRightX: 1129,
-      footerPeriodX: 0,
-      footerPeriodY: 0,
-      lowerFieldsY: 810,
-      nameCentered: true,
-      nameMaxFontSize: 50,
-      nameSingleLineMinFontSize: 34,
-      nameBoxX: 476,
-      nameBoxHeight: 74,
-      nameBoxWidth: 755,
-      nameBoxY: 342,
-      nameWrapMinFontSize: 24,
-      officialBarcodeHeight: 52,
-      officialBarcodeWidth: 198,
-      officialBarcodeX: 1301,
+      dorsalCenterX: 220,
+      dorsalCenterY: 764,
+      fieldLeftX: 544,
+      fieldRightX: 894,
+      footerPeriodX: 1346,
+      footerPeriodY: 935,
+      lowerFieldsY: 813,
+      nameSingleLineMinFontSize: 46,
+      nameBoxX: 456,
+      nameBoxHeight: 102,
+      nameBoxWidth: 690,
+      nameBoxY: 222,
+      nameWrapMinFontSize: 34,
+      officialBarcodeHeight: 68,
+      officialBarcodeWidth: 300,
+      officialBarcodeX: 1216,
       officialBarcodeY: 700,
-      officialCodeCenterX: 1400,
-      officialCodeY: 790,
-      officialCodeTracking: 4,
+      officialCodeCenterX: 1366,
+      officialCodeY: 793,
+      officialCodeTracking: 6,
       officialCodeVisible: true,
-      photoHeight: 328,
-      photoWidth: 285,
-      photoX: 102,
-      photoY: 271,
-      qrBoxHeight: 225,
-      qrBoxWidth: 209,
-      qrBoxX: 1296,
-      qrBoxY: 333,
-      qrImageOffsetX: 7,
-      qrImageOffsetY: 15,
-      qrImageSize: 195,
-      seasonFieldsCentered: true,
-      showFooterPeriod: false,
-      statusBadgeVisible: false,
+      photoHeight: 363,
+      photoWidth: 318,
+      photoX: 64,
+      photoY: 173,
+      qrBoxHeight: 322,
+      qrBoxWidth: 293,
+      qrBoxX: 1224,
+      qrBoxY: 228,
+      qrImageOffsetX: 8,
+      qrImageOffsetY: 10,
+      qrImageSize: 276,
+      seasonFieldsCentered: false,
+      showFooterPeriod: true,
+      statusBadgeVisible: true,
       statusValidColor: COLORS.cyan,
-      teamBoxHeight: 74,
-      teamBoxWidth: 755,
-      teamCenterX: 853,
-      teamCenterY: 534,
-      teamMaxFontSize: 50,
-      teamMaxWidth: 680,
-      teamSingleLineMinFontSize: 34,
-      teamWrapMinFontSize: 24,
-      textColor: '#2D0A14',
-      textShadowColor: 'transparent',
-      upperFieldsY: 680,
+      teamCenterX: 796,
+      teamCenterY: 424,
+      teamMaxWidth: 650,
+      upperFieldsY: 691,
     };
   }
 
