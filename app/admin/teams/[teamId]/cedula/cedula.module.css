@@ -337,11 +337,12 @@
   :global(.ant-layout-sider),
   :global(.ant-layout-header),
   :global(.ant-drawer),
-  :global(header),
-  :global(nav),
-  :global(.ant-layout > .ant-layout > div:first-child),
   .cedula-print-toolbar {
     display: none !important;
+  }
+
+  .cedula-header {
+    display: grid !important;
   }
 
   :global(html),
