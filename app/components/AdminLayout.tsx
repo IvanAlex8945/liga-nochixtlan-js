@@ -167,7 +167,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           display: 'flex',
           flexDirection: 'column',
         }}
-        className="hidden md:flex"
+        className="hidden md:flex print:hidden"
       >
         <div
           style={{
@@ -244,6 +244,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         placement="left"
+        rootClassName="print:hidden"
         styles={{
           body: {
             padding: 0,
@@ -342,6 +343,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <Layout style={{ background: '#121212', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* Contextual Topbar */}
         <Header
+          className="print:hidden"
           style={{
             position: 'sticky',
             top: 0,
@@ -453,6 +455,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Content: Fluid & High Density (no 960px lock) */}
         <Content
+          className="print:p-0 print:m-0 print:max-w-none print:w-full"
           style={{
             padding: '20px 24px',
             margin: '0 auto',

@@ -335,6 +335,10 @@
 
 @media print {
   :global(.ant-layout-sider),
+  :global(.ant-layout-header),
+  :global(.ant-drawer),
+  :global(header),
+  :global(nav),
   :global(.ant-layout > .ant-layout > div:first-child),
   .cedula-print-toolbar {
     display: none !important;
@@ -346,6 +350,7 @@
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: visible !important;
   }
 
   :global(.ant-layout),
@@ -359,17 +364,21 @@
   }
 
   .cedula-page-shell {
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
   }
 
   .cedula-sheet {
-    border: none;
-    box-shadow: none;
-    height: 11in;
-    margin: 0;
-    page-break-after: avoid;
-    transform: none;
-    width: 8.5in;
+    border: none !important;
+    box-shadow: none !important;
+    height: 11in !important;
+    margin: 0 auto !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    transform: none !important;
+    width: 8.5in !important;
   }
 }

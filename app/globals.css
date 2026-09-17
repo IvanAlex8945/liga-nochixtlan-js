@@ -954,3 +954,14 @@ body {
   font-weight: 600;
   border-radius: 6px;
 }
+
+/* Reglas globales de impresión */
+@media print {
+  .ant-layout-sider,
+  .ant-layout-header,
+  .ant-drawer,
+  .no-print {
+    display: none !important;
+  }
+}
+
