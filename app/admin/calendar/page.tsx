@@ -706,8 +706,12 @@ export default function CalendarPage() {
   const uniqueJornadas = Array.from(new Set(matches.map(m => m.jornada).filter((j): j is number => typeof j === 'number'))).sort((a,b) => a - b);
   const regularMatches = matches.filter((match) => isRegularPhase(match.phase));
   const completedRegularMatches = regularMatches.filter((match) => isCompletedStatus(match.status));
-  const totalRegularMatchesExpected = teams.length >= 2 ? teams.length * (teams.length - 1) : 0;
-  const totalRegularJornadasExpected = teams.length >= 2 ? (teams.length % 2 === 0 ? teams.length - 1 : teams.length) * 2 : 0;
+  const totalRegularMatchesExpected = teams.length >= 2
+    ? (teams.length * (teams.length - 1)) * (isMaster ? 2 : 1)
+    : 0;
+  const totalRegularJornadasExpected = teams.length >= 2
+    ? (teams.length % 2 === 0 ? teams.length - 1 : teams.length) * (isMaster ? 4 : 2)
+    : 0;
   const completedJornadas = completedRegularMatches
     .map((match) => match.jornada)
     .filter((jornada): jornada is number => typeof jornada === 'number');
@@ -724,6 +728,8 @@ export default function CalendarPage() {
   const regularPairAudit = (() => {
     let missing = 0;
     let conflicts = 0;
+    const expectedMatches = isMaster ? 4 : 2;
+    const expectedHome = isMaster ? 2 : 1;
 
     for (let i = 0; i < teams.length; i++) {
       for (let j = i + 1; j < teams.length; j++) {
@@ -733,9 +739,9 @@ export default function CalendarPage() {
         const homeByA = matchesBetween.filter((match) => match.home_team_id === teamA.id).length;
         const homeByB = matchesBetween.filter((match) => match.home_team_id === teamB.id).length;
 
-        if (matchesBetween.length < 2) {
-          missing += 2 - matchesBetween.length;
-        } else if (matchesBetween.length > 2 || homeByA !== 1 || homeByB !== 1) {
+        if (matchesBetween.length < expectedMatches) {
+          missing += expectedMatches - matchesBetween.length;
+        } else if (matchesBetween.length > expectedMatches || homeByA > expectedHome || homeByB > expectedHome) {
           conflicts++;
         }
       }
