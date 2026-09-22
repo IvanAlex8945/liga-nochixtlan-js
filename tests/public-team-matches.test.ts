@@ -51,6 +51,15 @@ describe('buildTeamEncounters', () => {
     const jaguares = buildTeamEncounters(1, teams, [playoff]).filter((item) => item.opponent.id === 2);
     expect(jaguares.every((item) => item.match === null)).toBe(true);
   });
+
+  it('soporta 4 vueltas para categoría Master generando 4 ranuras por rival', () => {
+    const encounters = buildTeamEncounters(1, teams, [], 4);
+    // 2 rivales x 4 vueltas = 8 ranuras
+    expect(encounters).toHaveLength(8);
+    const jaguares = encounters.filter((e) => e.opponent.id === 2);
+    expect(jaguares).toHaveLength(4);
+    expect(jaguares.map((e) => e.leg)).toEqual(['ida', 'vuelta', 'ida', 'vuelta']);
+  });
 });
 
 describe('isPlayedStatus', () => {

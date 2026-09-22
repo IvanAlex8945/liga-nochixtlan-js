@@ -173,6 +173,24 @@ export default function CalendarPage() {
     setSearchQuery('');
   }
 
+  const { data: currentSeason } = useQuery<{ id: number; name: string; category: string }>({
+    queryKey: ['season-current', seasonId],
+    enabled: !!seasonId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('seasons')
+        .select('id, name, category')
+        .eq('id', seasonId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const isMaster =
+    currentSeason?.category?.trim().toLowerCase() === 'master' ||
+    currentSeason?.name?.trim().toLowerCase().includes('master');
+
   const { data: teams = [] } = useQuery<Team[]>({
     queryKey: ['teams-active', seasonId],
     enabled: !!seasonId,
@@ -245,8 +263,14 @@ export default function CalendarPage() {
         const homeName = teams.find((team) => team.id === v.home_team_id)?.name ?? `Equipo #${v.home_team_id}`;
         const awayName = teams.find((team) => team.id === v.away_team_id)?.name ?? `Equipo #${v.away_team_id}`;
 
-        if (existingRegularMatches.length >= 2) {
-          throw new Error(`No se puede crear otro partido entre ${homeName} y ${awayName}: ya existen ida y vuelta registrados.`);
+        const maxRegularMatches = isMaster ? 4 : 2;
+
+        if (existingRegularMatches.length >= maxRegularMatches) {
+          throw new Error(
+            isMaster
+              ? `No se puede crear otro partido entre ${homeName} y ${awayName}: ya existen las 4 vueltas registradas.`
+              : `No se puede crear otro partido entre ${homeName} y ${awayName}: ya existen ida y vuelta registrados.`
+          );
         }
 
         if (existingRegularMatches.length === 0) {
@@ -280,33 +304,88 @@ export default function CalendarPage() {
           return 2;
         }
 
-        const firstLeg = existingRegularMatches[0];
-        const targetLeg: MatchLeg = firstLeg.vuelta === 'vuelta' ? 'ida' : 'vuelta';
-        if (existingRegularMatches.some((match) => match.vuelta === targetLeg)) {
-          throw new Error(`Ya existe un partido de ${legLabels[targetLeg].toLowerCase()} entre ${homeName} y ${awayName}.`);
+        if (isMaster && existingRegularMatches.length === 2) {
+          const mirrorJornada = v.jornada + getFirstLegJornadaCount(teams.length);
+          const matchValues = { ...v };
+          delete matchValues.forceMirrorMismatch;
+          delete matchValues.forceScheduleWarnings;
+          const { error } = await supabase.from('matches').insert([
+            {
+              ...matchValues,
+              phase,
+              scheduled_date: scheduledDate,
+              season_id: seasonId!,
+              status: 'Programado',
+              vuelta: 'ida',
+            },
+            {
+              season_id: seasonId!,
+              jornada: mirrorJornada,
+              phase,
+              status: 'Pendiente',
+              home_team_id: v.away_team_id,
+              away_team_id: v.home_team_id,
+              scheduled_date: null,
+              court: null,
+              time_str: null,
+              vuelta: 'vuelta',
+            },
+          ]);
+          if (error) throw error;
+          return 2;
         }
 
-        const expectedHomeId = firstLeg.away_team_id;
-        const expectedAwayId = firstLeg.home_team_id;
-        const respectsMirror = v.home_team_id === expectedHomeId && v.away_team_id === expectedAwayId;
-        if (!respectsMirror && !v.forceMirrorMismatch) {
-          const firstHomeName = firstLeg.home_team?.name ?? teams.find((team) => team.id === firstLeg.home_team_id)?.name ?? `Equipo #${firstLeg.home_team_id}`;
-          throw new Error(`Este cruce no respeta el espejo de la ida. En la ida ${firstHomeName} fue local.`);
-        }
+        if (!isMaster) {
+          const firstLeg = existingRegularMatches[0];
+          const targetLeg: MatchLeg = firstLeg.vuelta === 'vuelta' ? 'ida' : 'vuelta';
+          if (existingRegularMatches.some((match) => match.vuelta === targetLeg)) {
+            throw new Error(`Ya existe un partido de ${legLabels[targetLeg].toLowerCase()} entre ${homeName} y ${awayName}.`);
+          }
 
-        const matchValues = { ...v };
-        delete matchValues.forceMirrorMismatch;
-        delete matchValues.forceScheduleWarnings;
-        const { error } = await supabase.from('matches').insert({
-          ...matchValues,
-          phase,
-          scheduled_date: scheduledDate,
-          season_id: seasonId!,
-          status: 'Programado',
-          vuelta: targetLeg,
-        });
-        if (error) throw error;
-        return 1;
+          const expectedHomeId = firstLeg.away_team_id;
+          const expectedAwayId = firstLeg.home_team_id;
+          const respectsMirror = v.home_team_id === expectedHomeId && v.away_team_id === expectedAwayId;
+          if (!respectsMirror && !v.forceMirrorMismatch) {
+            const firstHomeName = firstLeg.home_team?.name ?? teams.find((team) => team.id === firstLeg.home_team_id)?.name ?? `Equipo #${firstLeg.home_team_id}`;
+            throw new Error(`Este cruce no respeta el espejo de la ida. En la ida ${firstHomeName} fue local.`);
+          }
+
+          const matchValues = { ...v };
+          delete matchValues.forceMirrorMismatch;
+          delete matchValues.forceScheduleWarnings;
+          const { error } = await supabase.from('matches').insert({
+            ...matchValues,
+            phase,
+            scheduled_date: scheduledDate,
+            season_id: seasonId!,
+            status: 'Programado',
+            vuelta: targetLeg,
+          });
+          if (error) throw error;
+          return 1;
+        } else {
+          const homeMatchesCount = existingRegularMatches.filter((m) => m.home_team_id === v.home_team_id).length;
+          if (homeMatchesCount >= 2 && !v.forceMirrorMismatch) {
+            throw new Error(`${homeName} ya tiene 2 partidos como local contra ${awayName} en las 4 vueltas.`);
+          }
+
+          const idaCount = existingRegularMatches.filter((m) => m.vuelta === 'ida').length;
+          const targetLeg: MatchLeg = idaCount < 2 ? 'ida' : 'vuelta';
+
+          const matchValues = { ...v };
+          delete matchValues.forceMirrorMismatch;
+          delete matchValues.forceScheduleWarnings;
+          const { error } = await supabase.from('matches').insert({
+            ...matchValues,
+            phase,
+            scheduled_date: scheduledDate,
+            season_id: seasonId!,
+            status: 'Programado',
+            vuelta: targetLeg,
+          });
+          if (error) throw error;
+          return 1;
+        }
       }
 
       const matchValues = { ...v };
@@ -498,6 +577,38 @@ export default function CalendarPage() {
           time_str: null,
           vuelta: 'vuelta',
         })));
+      }
+
+      if (isMaster) {
+        // Tercera vuelta (exclusiva Master): espejo con localia de la primera vuelta.
+        for (const roundMatches of firstLegRounds) {
+          newMatches.push(...roundMatches.map((match): GeneratedMatch => ({
+            season_id: match.season_id,
+            jornada: (match.jornada ?? 0) + (2 * numRounds),
+            phase: match.phase,
+            status: 'Pendiente',
+            home_team_id: match.home_team_id,
+            away_team_id: match.away_team_id,
+            court: null,
+            time_str: null,
+            vuelta: 'ida',
+          })));
+        }
+
+        // Cuarta vuelta (exclusiva Master): espejo con localia invertida de la segunda vuelta.
+        for (const roundMatches of firstLegRounds) {
+          newMatches.push(...roundMatches.map((match): GeneratedMatch => ({
+            season_id: match.season_id,
+            jornada: (match.jornada ?? 0) + (3 * numRounds),
+            phase: match.phase,
+            status: 'Pendiente',
+            home_team_id: match.away_team_id,
+            away_team_id: match.home_team_id,
+            court: null,
+            time_str: null,
+            vuelta: 'vuelta',
+          })));
+        }
       }
 
       const { error } = await supabase.from('matches').insert(newMatches);
@@ -851,55 +962,107 @@ export default function CalendarPage() {
           awayTeamName: match.away_team?.name ?? null,
         });
 
-        const persistedFirstLeg = matchesBetween.find((match) => match.vuelta === 'ida') ?? null;
-        const persistedSecondLeg = matchesBetween.find((match) => match.vuelta === 'vuelta') ?? null;
-        const firstLeg = persistedFirstLeg ?? matchesBetween[0] ?? null;
-        const secondLeg = persistedSecondLeg ?? matchesBetween.find((match) => match.id !== firstLeg?.id) ?? null;
+        if (isMaster) {
+          const idaMatches = matchesBetween.filter((m) => m.vuelta === 'ida');
+          const vueltaMatches = matchesBetween.filter((m) => m.vuelta === 'vuelta');
+          const unassigned = matchesBetween.filter((m) => m.vuelta !== 'ida' && m.vuelta !== 'vuelta');
 
-        if (firstLeg) {
-          rows.push(toRow(firstLeg, 'Ida'));
+          for (let idx = 0; idx < 2; idx++) {
+            const match = idaMatches[idx] ?? unassigned.shift() ?? null;
+            if (match) {
+              rows.push(toRow(match, 'Ida'));
+            } else {
+              rows.push({
+                key: `${selectedTeamCalendar.id}-${opponent.id}-ida-${idx + 1}-missing`,
+                opponentName: opponent.name,
+                leg: 'Ida',
+                side: 'Por definir',
+                jornada: null,
+                scheduled_date: null,
+                time_str: null,
+                court: null,
+                status: 'Pendiente',
+                home_score: null,
+                away_score: null,
+                homeTeamName: null,
+                awayTeamName: null,
+              });
+            }
+          }
+
+          for (let idx = 0; idx < 2; idx++) {
+            const match = vueltaMatches[idx] ?? unassigned.shift() ?? null;
+            if (match) {
+              rows.push(toRow(match, 'Vuelta'));
+            } else {
+              rows.push({
+                key: `${selectedTeamCalendar.id}-${opponent.id}-vuelta-${idx + 1}-missing`,
+                opponentName: opponent.name,
+                leg: 'Vuelta',
+                side: 'Por definir',
+                jornada: null,
+                scheduled_date: null,
+                time_str: null,
+                court: null,
+                status: 'Pendiente',
+                home_score: null,
+                away_score: null,
+                homeTeamName: null,
+                awayTeamName: null,
+              });
+            }
+          }
         } else {
-          rows.push({
-            key: `${selectedTeamCalendar.id}-${opponent.id}-ida-missing`,
-            opponentName: opponent.name,
-            leg: 'Ida',
-            side: 'Por definir',
-            jornada: null,
-            scheduled_date: null,
-            time_str: null,
-            court: null,
-            status: 'Pendiente',
-            home_score: null,
-            away_score: null,
-            homeTeamName: null,
-            awayTeamName: null,
-          });
-        }
+          const persistedFirstLeg = matchesBetween.find((match) => match.vuelta === 'ida') ?? null;
+          const persistedSecondLeg = matchesBetween.find((match) => match.vuelta === 'vuelta') ?? null;
+          const firstLeg = persistedFirstLeg ?? matchesBetween[0] ?? null;
+          const secondLeg = persistedSecondLeg ?? matchesBetween.find((match) => match.id !== firstLeg?.id) ?? null;
 
-        if (secondLeg) {
-          rows.push(toRow(secondLeg, 'Vuelta'));
-        } else {
-          const expectedSide: TeamSide = firstLeg
-            ? firstLeg.home_team_id === selectedTeamCalendar.id
-              ? 'Visitante'
-              : 'Local'
-            : 'Por definir';
+          if (firstLeg) {
+            rows.push(toRow(firstLeg, 'Ida'));
+          } else {
+            rows.push({
+              key: `${selectedTeamCalendar.id}-${opponent.id}-ida-missing`,
+              opponentName: opponent.name,
+              leg: 'Ida',
+              side: 'Por definir',
+              jornada: null,
+              scheduled_date: null,
+              time_str: null,
+              court: null,
+              status: 'Pendiente',
+              home_score: null,
+              away_score: null,
+              homeTeamName: null,
+              awayTeamName: null,
+            });
+          }
 
-          rows.push({
-            key: `${selectedTeamCalendar.id}-${opponent.id}-vuelta-missing`,
-            opponentName: opponent.name,
-            leg: 'Vuelta',
-            side: expectedSide,
-            jornada: null,
-            scheduled_date: null,
-            time_str: null,
-            court: null,
-            status: 'Pendiente',
-            home_score: null,
-            away_score: null,
-            homeTeamName: null,
-            awayTeamName: null,
-          });
+          if (secondLeg) {
+            rows.push(toRow(secondLeg, 'Vuelta'));
+          } else {
+            const expectedSide: TeamSide = firstLeg
+              ? firstLeg.home_team_id === selectedTeamCalendar.id
+                ? 'Visitante'
+                : 'Local'
+              : 'Por definir';
+
+            rows.push({
+              key: `${selectedTeamCalendar.id}-${opponent.id}-vuelta-missing`,
+              opponentName: opponent.name,
+              leg: 'Vuelta',
+              side: expectedSide,
+              jornada: null,
+              scheduled_date: null,
+              time_str: null,
+              court: null,
+              status: 'Pendiente',
+              home_score: null,
+              away_score: null,
+              homeTeamName: null,
+              awayTeamName: null,
+            });
+          }
         }
       });
 
@@ -1193,7 +1356,9 @@ export default function CalendarPage() {
             onClick={() => {
               modal.confirm({
                 title: 'Generar Rol Automático',
-                content: 'Esto creará un torneo de 2 vueltas todos contra todos (ida y vuelta), asignando las canchas desde las 06:00 PM. Los partidos formarán "Fase Regular".',
+                content: isMaster
+                  ? 'Esto creará un torneo de 4 vueltas todos contra todos para la categoría Master, asignando las canchas desde las 06:00 PM. Los partidos formarán "Fase Regular".'
+                  : 'Esto creará un torneo de 2 vueltas todos contra todos (ida y vuelta), asignando las canchas desde las 06:00 PM. Los partidos formarán "Fase Regular".',
                 okText: 'Sí, generar',
                 cancelText: 'Cancelar',
                 onOk: () => autoGenerate.mutate(),
@@ -1689,6 +1854,7 @@ export default function CalendarPage() {
           open={missingModalOpen}
           onClose={() => setMissingModalOpen(false)}
           seasonId={seasonId}
+          category={currentSeason?.category}
           matches={matches}
           teams={teams}
         />

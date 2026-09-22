@@ -75,6 +75,7 @@ interface MissingMatchesModalProps {
   open: boolean;
   onClose: () => void;
   seasonId: number;
+  category?: string;
   teams: Team[];
   matches: MatchData[];
 }
@@ -102,7 +103,8 @@ function getFirstLegJornadaCount(teamCount: number) {
   return teamCount % 2 === 0 ? teamCount - 1 : teamCount;
 }
 
-export default function MissingMatchesModal({ open, onClose, seasonId, teams, matches }: MissingMatchesModalProps) {
+export default function MissingMatchesModal({ open, onClose, seasonId, category, teams, matches }: MissingMatchesModalProps) {
+  const isMaster = category?.trim().toLowerCase() === 'master' || category?.trim().toLowerCase().includes('master');
   const { message: messageApi, modal } = App.useApp();
   const qc = useQueryClient();
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
@@ -156,23 +158,28 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
             })
             .join(' | ');
 
+        const expectedMatches = isMaster ? 4 : 2;
+        const expectedHome = isMaster ? 2 : 1;
+
         let status: PairAudit['status'] = 'completo';
-        let notes = 'Serie regular completa: una localía por equipo.';
+        let notes = isMaster ? 'Serie regular completa (4 vueltas: 2 localías por equipo).' : 'Serie regular completa: una localía por equipo.';
 
         if (matchesBetween.length === 0) {
           status = 'faltante';
-          notes = 'Faltan ida y vuelta.';
-        } else if (matchesBetween.length === 1) {
+          notes = isMaster ? 'Faltan las 4 vueltas.' : 'Faltan ida y vuelta.';
+        } else if (matchesBetween.length < expectedMatches) {
           status = 'faltante';
-          notes = 'Falta el partido espejo.';
-        } else if (matchesBetween.length === 2 && homeByA === 1 && homeByB === 1) {
+          notes = isMaster
+            ? `Faltan ${expectedMatches - matchesBetween.length} partido(s) de las 4 vueltas.`
+            : 'Falta el partido espejo.';
+        } else if (matchesBetween.length === expectedMatches && homeByA === expectedHome && homeByB === expectedHome) {
           status = 'completo';
         } else {
           status = 'conflicto';
-          if (matchesBetween.length > 2) {
-            notes = 'Hay más de 2 partidos capturados para esta pareja.';
-          } else if (homeByA === 2 || homeByB === 2) {
-            notes = 'Hay 2 partidos con la misma localía. No programes otro hasta corregirlo.';
+          if (matchesBetween.length > expectedMatches) {
+            notes = `Hay más de ${expectedMatches} partidos capturados para esta pareja.`;
+          } else if (homeByA > expectedHome || homeByB > expectedHome) {
+            notes = `Hay más de ${expectedHome} partidos con la misma localía. No programes otro hasta corregirlo.`;
           } else {
             notes = 'La serie necesita revisión manual.';
           }
@@ -195,7 +202,7 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
     }
 
     return audits.sort((a, b) => a.pairLabel.localeCompare(b.pairLabel));
-  }, [teams, matches]);
+  }, [isMaster, teams, matches]);
 
   const missingMatches = useMemo(() => {
     const faltantes: MissingMatch[] = [];
@@ -203,45 +210,80 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
     pairAudit
       .filter((audit) => audit.status === 'faltante')
       .forEach((audit) => {
-        if (audit.total === 0) {
+        if (!isMaster) {
+          if (audit.total === 0) {
+            faltantes.push({
+              key: `${audit.key}-ida`,
+              home: audit.teamA,
+              away: audit.teamB,
+              pairLabel: audit.pairLabel,
+              pairKey: audit.key,
+              reason: 'No existe ningún juego entre estos equipos. Al crear la ida se reservará la vuelta espejo.',
+              suggestedJornada: nextSuggestedJornada,
+              vuelta: 'ida',
+              reserveMirror: true,
+            });
+            return;
+          }
+
+          if (audit.total === 1) {
+            const existingMatch = audit.orderedMatches[0];
+            const missingVuelta: 'ida' | 'vuelta' = existingMatch?.vuelta === 'vuelta' ? 'ida' : 'vuelta';
+            const suggestedJornada = existingMatch?.jornada
+              ? existingMatch.jornada + firstLegJornadaCount
+              : nextSuggestedJornada;
+            const missingHome = audit.homeByA === 0 ? audit.teamA : audit.teamB;
+            const missingAway = missingHome.id === audit.teamA.id ? audit.teamB : audit.teamA;
+            faltantes.push({
+              key: `${audit.key}-${missingVuelta}`,
+              home: missingHome,
+              away: missingAway,
+              pairLabel: audit.pairLabel,
+              pairKey: audit.key,
+              reason: 'Falta únicamente el juego espejo.',
+              suggestedJornada,
+              vuelta: missingVuelta,
+              reserveMirror: false,
+            });
+          }
+          return;
+        }
+
+        // --- MASTER (4 Vueltas) ---
+        const neededForA = 2 - audit.homeByA;
+        const neededForB = 2 - audit.homeByB;
+
+        for (let k = 0; k < neededForA; k++) {
           faltantes.push({
-            key: `${audit.key}-ida`,
+            key: `${audit.key}-homeA-${audit.homeByA + k + 1}`,
             home: audit.teamA,
             away: audit.teamB,
             pairLabel: audit.pairLabel,
             pairKey: audit.key,
-            reason: 'No existe ningún juego entre estos equipos. Al crear la ida se reservará la vuelta espejo.',
+            reason: `Falta juego de localía para ${audit.teamA.name} (${audit.homeByA + k + 1}/2).`,
             suggestedJornada: nextSuggestedJornada,
             vuelta: 'ida',
-            reserveMirror: true,
+            reserveMirror: false,
           });
-          return;
         }
 
-        if (audit.total === 1) {
-          const existingMatch = audit.orderedMatches[0];
-          const missingVuelta: 'ida' | 'vuelta' = existingMatch?.vuelta === 'vuelta' ? 'ida' : 'vuelta';
-          const suggestedJornada = existingMatch?.jornada
-            ? existingMatch.jornada + firstLegJornadaCount
-            : nextSuggestedJornada;
-          const missingHome = audit.homeByA === 0 ? audit.teamA : audit.teamB;
-          const missingAway = missingHome.id === audit.teamA.id ? audit.teamB : audit.teamA;
+        for (let k = 0; k < neededForB; k++) {
           faltantes.push({
-            key: `${audit.key}-${missingVuelta}`,
-            home: missingHome,
-            away: missingAway,
+            key: `${audit.key}-homeB-${audit.homeByB + k + 1}`,
+            home: audit.teamB,
+            away: audit.teamA,
             pairLabel: audit.pairLabel,
             pairKey: audit.key,
-            reason: 'Falta únicamente el juego espejo.',
-            suggestedJornada,
-            vuelta: missingVuelta,
+            reason: `Falta juego de localía para ${audit.teamB.name} (${audit.homeByB + k + 1}/2).`,
+            suggestedJornada: nextSuggestedJornada,
+            vuelta: 'vuelta',
             reserveMirror: false,
           });
         }
       });
 
     return faltantes;
-  }, [firstLegJornadaCount, nextSuggestedJornada, pairAudit]);
+  }, [firstLegJornadaCount, isMaster, nextSuggestedJornada, pairAudit]);
 
   const applyPairFilters = (homeId: number, awayId: number, vuelta?: 'ida' | 'vuelta', match?: MatchData | null) => {
     const passTeam = teamFilterIds.length === 0 || teamFilterIds.includes(homeId) || teamFilterIds.includes(awayId);
@@ -317,23 +359,36 @@ export default function MissingMatchesModal({ open, onClose, seasonId, teams, ma
         .filter((match) => isRegularPhase(match.phase) && isSamePair(match, vars.home_team_id, vars.away_team_id))
         .sort(sortMatchesBySchedule);
 
-      if (existingRegularMatches.length >= 2) {
-        throw new Error('No se puede crear otro partido: esta pareja ya tiene ida y vuelta registrados.');
+      const maxMatches = isMaster ? 4 : 2;
+      if (existingRegularMatches.length >= maxMatches) {
+        throw new Error(
+          isMaster
+            ? 'No se puede crear otro partido: esta pareja ya tiene las 4 vueltas registradas.'
+            : 'No se puede crear otro partido: esta pareja ya tiene ida y vuelta registrados.'
+        );
       }
 
-      if (existingRegularMatches.some((match) => match.vuelta === vars.vuelta)) {
-        throw new Error(`Ya existe un partido de ${vars.vuelta} para esta pareja.`);
-      }
+      if (!isMaster) {
+        if (existingRegularMatches.some((match) => match.vuelta === vars.vuelta)) {
+          throw new Error(`Ya existe un partido de ${vars.vuelta} para esta pareja.`);
+        }
 
-      if (vars.reserveMirror && existingRegularMatches.length > 0) {
-        throw new Error('No se puede reservar ida y vuelta porque esta pareja ya tiene un partido registrado.');
-      }
+        if (vars.reserveMirror && existingRegularMatches.length > 0) {
+          throw new Error('No se puede reservar ida y vuelta porque esta pareja ya tiene un partido registrado.');
+        }
 
-      if (!vars.reserveMirror && existingRegularMatches.length === 1) {
-        const firstLeg = existingRegularMatches[0];
-        const respectsMirror = vars.home_team_id === firstLeg.away_team_id && vars.away_team_id === firstLeg.home_team_id;
-        if (!respectsMirror) {
-          throw new Error('Este cruce no respeta el espejo de la ida. Corrige la localía antes de programarlo.');
+        if (!vars.reserveMirror && existingRegularMatches.length === 1) {
+          const firstLeg = existingRegularMatches[0];
+          const respectsMirror = vars.home_team_id === firstLeg.away_team_id && vars.away_team_id === firstLeg.home_team_id;
+          if (!respectsMirror) {
+            throw new Error('Este cruce no respeta el espejo de la ida. Corrige la localía antes de programarlo.');
+          }
+        }
+      } else {
+        const homeMatchesCount = existingRegularMatches.filter((m) => m.home_team_id === vars.home_team_id).length;
+        if (homeMatchesCount >= 2) {
+          const homeTeamName = teamsById[vars.home_team_id]?.name ?? `Equipo #${vars.home_team_id}`;
+          throw new Error(`${homeTeamName} ya tiene 2 partidos como local contra este rival en las 4 vueltas.`);
         }
       }
 

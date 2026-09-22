@@ -40,7 +40,8 @@ function sortRegisteredMatches<TMatch extends TeamMatchRecord>(a: TMatch, b: TMa
 export function buildTeamEncounters<TMatch extends TeamMatchRecord>(
   teamId: number,
   teams: TeamMatchTeam[],
-  matches: TMatch[]
+  matches: TMatch[],
+  totalVueltas: number = 2
 ): TeamEncounter<TMatch>[] {
   return teams
     .filter((team) => team.id !== teamId)
@@ -53,6 +54,37 @@ export function buildTeamEncounters<TMatch extends TeamMatchRecord>(
             (match.home_team_id === opponent.id && match.away_team_id === teamId))
         )
         .sort(sortRegisteredMatches);
+
+      if (totalVueltas === 4) {
+        const slots: { leg: 'ida' | 'vuelta'; match: TMatch | null; key: string }[] = [
+          { leg: 'ida', match: null, key: `${teamId}-${opponent.id}-ida-1` },
+          { leg: 'vuelta', match: null, key: `${teamId}-${opponent.id}-vuelta-1` },
+          { leg: 'ida', match: null, key: `${teamId}-${opponent.id}-ida-2` },
+          { leg: 'vuelta', match: null, key: `${teamId}-${opponent.id}-vuelta-2` },
+        ];
+
+        const unassigned: TMatch[] = [];
+        for (const match of registered) {
+          const targetLeg = match.vuelta === 'vuelta' ? 'vuelta' : 'ida';
+          const freeSlot = slots.find((s) => s.leg === targetLeg && s.match === null);
+          if (freeSlot) {
+            freeSlot.match = match;
+          } else {
+            unassigned.push(match);
+          }
+        }
+
+        for (const slot of slots) {
+          if (!slot.match) slot.match = unassigned.shift() ?? null;
+        }
+
+        return slots.map((s) => ({
+          key: s.key,
+          opponent,
+          leg: s.leg,
+          match: s.match,
+        }));
+      }
 
       const assigned: Partial<Record<'ida' | 'vuelta', TMatch>> = {};
       const unassigned: TMatch[] = [];
