@@ -20,7 +20,9 @@ import { supabase } from '@/lib/supabase';
 import {
   DeleteOutlined,
   EditOutlined,
+  FilePdfOutlined,
   PlusOutlined,
+  PrinterOutlined,
   UploadOutlined,
   UserAddOutlined,
 } from '@ant-design/icons';
@@ -29,6 +31,7 @@ import {
   Alert,
   App,
   Button,
+  Checkbox,
   Collapse,
   Form,
   Input,
@@ -184,6 +187,12 @@ export default function TeamsPage() {
   const [viewportWidth, setViewportWidth] = useState(1280);
   const [searchQuery, setSearchQuery] = useState('');
   const [letterFilter, setLetterFilter] = useState<string>('all');
+  const [pdfSelectionModalOpen, setPdfSelectionModalOpen] = useState(false);
+  const [selectedPlayerIdsForPdf, setSelectedPlayerIdsForPdf] = useState<number[]>([]);
+  const [multiTeamPdfModalOpen, setMultiTeamPdfModalOpen] = useState(false);
+  const [selectedPlayerIdsForMultiPdf, setSelectedPlayerIdsForMultiPdf] = useState<number[]>([]);
+  const [multiTeamFilterTeamId, setMultiTeamFilterTeamId] = useState<number | 'all'>('all');
+  const [multiTeamSearchQuery, setMultiTeamSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   function replacePhotoDraft(next: PhotoDraft | null) {
@@ -775,14 +784,19 @@ export default function TeamsPage() {
   });
 
   const downloadTeamCredentialsPdf = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (playerIds?: number[]) => {
       const team = teams.find((row) => row.id === playerModal);
 
       if (!team || !selectedSeason) {
         throw new Error('No se encontraron los datos del equipo o temporada.');
       }
 
-      const printablePlayers = selectedTeamActivePlayers
+      const targetPlayers =
+        playerIds && playerIds.length > 0
+          ? selectedTeamActivePlayers.filter((player) => playerIds.includes(player.id))
+          : selectedTeamActivePlayers;
+
+      const printablePlayers = targetPlayers
         .map((player) => {
           const credential = getPlayerCredential(player.id);
 
@@ -807,6 +821,10 @@ export default function TeamsPage() {
         })
         .filter((credential): credential is NonNullable<typeof credential> => credential !== null);
 
+      if (printablePlayers.length === 0) {
+        throw new Error('No hay credenciales vigentes seleccionadas para generar el PDF.');
+      }
+
       await generateTeamCredentialPdf({
         credentials: printablePlayers,
         teamName: team.name,
@@ -815,7 +833,70 @@ export default function TeamsPage() {
       return printablePlayers.length;
     },
     onSuccess: (count) => {
-      message.success(`PDF generado con ${count} credenciales.`);
+      message.success(`PDF generado con ${count} credencial${count === 1 ? '' : 'es'}.`);
+      setPdfSelectionModalOpen(false);
+    },
+    onError: (error: Error) => message.error(error.message),
+  });
+
+  function openPdfSelectionModal() {
+    const activeWithCredentials = selectedTeamActivePlayers
+      .filter((player) => Boolean(getPlayerCredential(player.id)))
+      .map((player) => player.id);
+
+    setSelectedPlayerIdsForPdf(activeWithCredentials);
+    setPdfSelectionModalOpen(true);
+  }
+
+  const downloadMultiTeamCredentialsPdf = useMutation({
+    mutationFn: async (playerIds: number[]) => {
+      if (!selectedSeason) {
+        throw new Error('No se encontró la temporada activa.');
+      }
+      if (!playerIds || playerIds.length === 0) {
+        throw new Error('Selecciona al menos una credencial para generar el PDF.');
+      }
+
+      const printablePlayers = playerIds
+        .map((id) => {
+          const player = players.find((p) => p.id === id);
+          if (!player) return null;
+          const credential = getPlayerCredential(player.id);
+          if (!credential) return null;
+          const team = teams.find((t) => t.id === player.team_id);
+
+          return {
+            category: player.category ?? selectedSeason.category ?? team?.category ?? 'Libre',
+            credentialCode: credential.credential_code,
+            curp: player.curp ?? null,
+            fileSafeName: player.name,
+            issuedAt: credential.issued_at,
+            number: player.number,
+            photoUrl: player.photo_url ?? null,
+            playerName: player.name,
+            seasonName: selectedSeason.name,
+            statusLabel: getCredentialStatusLabel(credential.status),
+            teamName: team?.name ?? 'Equipo',
+            verifyUrl: `${window.location.origin}/verificar/${credential.verify_token}`,
+          };
+        })
+        .filter((c): c is NonNullable<typeof c> => c !== null);
+
+      if (printablePlayers.length === 0) {
+        throw new Error('No se encontraron credenciales vigentes para los jugadores seleccionados.');
+      }
+
+      await generateTeamCredentialPdf({
+        credentials: printablePlayers,
+        teamName: `multi_equipo_${printablePlayers.length}_jugadores`,
+      });
+
+      return printablePlayers.length;
+    },
+    onSuccess: (count) => {
+      message.success(`PDF combinado generado con ${count} credencial${count === 1 ? '' : 'es'}.`);
+      setMultiTeamPdfModalOpen(false);
+      setSelectedPlayerIdsForMultiPdf([]);
     },
     onError: (error: Error) => message.error(error.message),
   });
@@ -1134,6 +1215,9 @@ export default function TeamsPage() {
   ).length;
   const pendingSelectedTeamCredentialCount =
     selectedTeamActivePlayers.length - selectedTeamCredentialCount;
+  const selectedTeamCredentialPlayers = selectedTeamActivePlayers.filter((player) =>
+    Boolean(getPlayerCredential(player.id))
+  );
 
   const alphabet = useMemo(() => {
     const letters = new Set<string>();
@@ -1156,6 +1240,42 @@ export default function TeamsPage() {
       return normalized(team.name).includes(normalized(searchQuery));
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
+  const allSeasonCredentialPlayers = useMemo(() => {
+    return players
+      .filter((player) => player.is_active && Boolean(getPlayerCredential(player.id)))
+      .map((player) => {
+        const team = teams.find((t) => t.id === player.team_id);
+        return {
+          ...player,
+          teamName: team?.name ?? 'Sin equipo',
+          teamCategory: team?.category ?? 'Libre',
+        };
+      })
+      .sort((a, b) => {
+        const teamCompare = a.teamName.localeCompare(b.teamName, 'es');
+        if (teamCompare !== 0) return teamCompare;
+        return a.name.localeCompare(b.name, 'es');
+      });
+  }, [players, teams, credentialOverrides, credentials]);
+
+  const filteredMultiTeamPlayers = useMemo(() => {
+    return allSeasonCredentialPlayers.filter((p) => {
+      if (multiTeamFilterTeamId !== 'all' && p.team_id !== multiTeamFilterTeamId) {
+        return false;
+      }
+      if (multiTeamSearchQuery.trim()) {
+        const q = multiTeamSearchQuery.toLowerCase().trim();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          p.teamName.toLowerCase().includes(q) ||
+          (p.curp && p.curp.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    });
+  }, [allSeasonCredentialPlayers, multiTeamFilterTeamId, multiTeamSearchQuery]);
+
   const credentialModalWidth = viewportWidth < 640
     ? viewportWidth - 16
     : viewportWidth < 1024
@@ -1180,6 +1300,18 @@ export default function TeamsPage() {
           </Title>
         </div>
         <Space wrap>
+          <Button
+            icon={<PrinterOutlined />}
+            disabled={!seasonId || activeSeasonCredentialCount <= 0}
+            onClick={() => {
+              setSelectedPlayerIdsForMultiPdf([]);
+              setMultiTeamFilterTeamId('all');
+              setMultiTeamSearchQuery('');
+              setMultiTeamPdfModalOpen(true);
+            }}
+          >
+            Imprimir Multi-equipo
+          </Button>
           <Button
             onClick={() => bulkIssueCredentials.mutate(undefined)}
             loading={bulkIssueCredentials.isPending}
@@ -1215,6 +1347,21 @@ export default function TeamsPage() {
           style={{ marginBottom: 16 }}
           title="Control de credenciales"
           description={`${activeSeasonCredentialCount} de ${activeSeasonPlayers.length} jugadores activos ya tienen credencial vigente. ${pendingSeasonCredentialCount} siguen pendientes en esta temporada.`}
+          action={
+            <Button
+              size="small"
+              icon={<PrinterOutlined />}
+              disabled={activeSeasonCredentialCount <= 0}
+              onClick={() => {
+                setSelectedPlayerIdsForMultiPdf([]);
+                setMultiTeamFilterTeamId('all');
+                setMultiTeamSearchQuery('');
+                setMultiTeamPdfModalOpen(true);
+              }}
+            >
+              Imprimir Multi-equipo
+            </Button>
+          }
         />
       )}
 
@@ -1395,6 +1542,8 @@ export default function TeamsPage() {
         onCancel={() => {
           setPlayerModal(null);
           resetPlayerEditorState();
+          setPdfSelectionModalOpen(false);
+          setSelectedPlayerIdsForPdf([]);
         }}
         footer={null}
         width={760}
@@ -1487,11 +1636,19 @@ export default function TeamsPage() {
                 </Button>
                 <Button
                   size="small"
+                  icon={<PrinterOutlined />}
+                  disabled={!playerModal || selectedTeamCredentialCount <= 0}
+                  onClick={openPdfSelectionModal}
+                >
+                  Seleccionar para PDF
+                </Button>
+                <Button
+                  size="small"
                   loading={downloadTeamCredentialsPdf.isPending}
                   disabled={!playerModal || selectedTeamCredentialCount <= 0}
-                  onClick={() => downloadTeamCredentialsPdf.mutate()}
+                  onClick={() => downloadTeamCredentialsPdf.mutate(undefined)}
                 >
-                  PDF equipo
+                  PDF todo el equipo
                 </Button>
               </Space>
             }
@@ -1523,6 +1680,14 @@ export default function TeamsPage() {
               <Space wrap style={{ marginTop: 10 }}>
                 <Button size="small" onClick={() => openCredentialPreview(editingPlayer)}>
                   Ver credencial
+                </Button>
+                <Button
+                  size="small"
+                  icon={<FilePdfOutlined />}
+                  loading={downloadTeamCredentialsPdf.isPending}
+                  onClick={() => downloadTeamCredentialsPdf.mutate([editingPlayer.id])}
+                >
+                  Descargar PDF (1 credencial)
                 </Button>
                 <Button
                   size="small"
@@ -1806,6 +1971,346 @@ export default function TeamsPage() {
             No se pudo generar la previsualización.
           </div>
         )}
+      </Modal>
+
+      <Modal
+        title={`Seleccionar credenciales para PDF – ${teams.find((team) => team.id === playerModal)?.name ?? ''}`}
+        open={pdfSelectionModalOpen}
+        onCancel={() => setPdfSelectionModalOpen(false)}
+        width={680}
+        style={{ top: viewportWidth < 640 ? 10 : 30 }}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: 8 }}>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              {selectedPlayerIdsForPdf.length} de {selectedTeamCredentialPlayers.length} seleccionados
+            </Text>
+            <Space wrap>
+              <Button onClick={() => setPdfSelectionModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="primary"
+                icon={<FilePdfOutlined />}
+                loading={downloadTeamCredentialsPdf.isPending}
+                disabled={selectedPlayerIdsForPdf.length === 0}
+                onClick={() => downloadTeamCredentialsPdf.mutate(selectedPlayerIdsForPdf)}
+              >
+                Descargar PDF ({selectedPlayerIdsForPdf.length} {selectedPlayerIdsForPdf.length === 1 ? 'credencial' : 'credenciales'})
+              </Button>
+            </Space>
+          </div>
+        }
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          description={
+            <div>
+              <span>
+                Selecciona únicamente las credenciales que deseas imprimir. El documento se generará con las tarjetas seleccionadas y sus reversos calibrados para impresión a doble cara.
+              </span>
+              {selectedPlayerIdsForPdf.length > 0 && (
+                <div style={{ marginTop: 6, fontWeight: 500, color: '#1677ff' }}>
+                  {selectedPlayerIdsForPdf.length} credencial{selectedPlayerIdsForPdf.length === 1 ? '' : 'es'} = {Math.ceil(selectedPlayerIdsForPdf.length / 8)} hoja(s) carta ({Math.ceil(selectedPlayerIdsForPdf.length / 8) * 2} páginas frente y vuelta).
+                </div>
+              )}
+            </div>
+          }
+        />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <Space>
+            <Button
+              size="small"
+              onClick={() => setSelectedPlayerIdsForPdf(selectedTeamCredentialPlayers.map((p) => p.id))}
+            >
+              Seleccionar todos
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setSelectedPlayerIdsForPdf([])}
+            >
+              Deseleccionar todos
+            </Button>
+          </Space>
+          <Text style={{ fontSize: 12, color: '#888' }}>
+            {selectedPlayerIdsForPdf.length} de {selectedTeamCredentialPlayers.length} elegidos
+          </Text>
+        </div>
+
+        <div
+          style={{
+            maxHeight: 380,
+            overflowY: 'auto',
+            border: '1px solid #303030',
+            borderRadius: 8,
+            padding: '8px 12px',
+            background: '#141414',
+          }}
+        >
+          {selectedTeamCredentialPlayers.length === 0 ? (
+            <div style={{ padding: '24px 0', textAlign: 'center', color: '#888' }}>
+              No hay jugadores con credencial activa en este equipo.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {selectedTeamCredentialPlayers.map((player) => {
+                const cred = getPlayerCredential(player.id);
+                const isChecked = selectedPlayerIdsForPdf.includes(player.id);
+
+                return (
+                  <div
+                    key={player.id}
+                    onClick={() => {
+                      setSelectedPlayerIdsForPdf((prev) =>
+                        prev.includes(player.id)
+                          ? prev.filter((id) => id !== player.id)
+                          : [...prev, player.id]
+                      );
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: isChecked ? 'rgba(22, 119, 255, 0.12)' : '#1f1f1f',
+                      border: `1px solid ${isChecked ? '#1677ff' : '#2a2a2a'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <Space>
+                      <Checkbox
+                        checked={isChecked}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          setSelectedPlayerIdsForPdf((prev) =>
+                            e.target.checked
+                              ? [...prev, player.id]
+                              : prev.filter((id) => id !== player.id)
+                          );
+                        }}
+                      />
+                      <Text strong style={{ color: '#fff' }}>
+                        #{formatPlayerNumber(player.number, '?')} {player.name}
+                      </Text>
+                    </Space>
+                    <Space size={6}>
+                      {player.curp && (
+                        <Text style={{ fontSize: 11, color: '#888' }}>
+                          {player.curp}
+                        </Text>
+                      )}
+                      <Tag color="gold" style={{ margin: 0 }}>
+                        {cred?.credential_code}
+                      </Tag>
+                    </Space>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        title={
+          <Space>
+            <PrinterOutlined style={{ color: '#FAAD14' }} />
+            <span>Impresión combinada de credenciales (Multi-equipo)</span>
+          </Space>
+        }
+        open={multiTeamPdfModalOpen}
+        onCancel={() => setMultiTeamPdfModalOpen(false)}
+        width={780}
+        style={{ top: viewportWidth < 640 ? 10 : 30 }}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: 8 }}>
+            <Text type="secondary" style={{ fontSize: 13 }}>
+              {selectedPlayerIdsForMultiPdf.length} de {allSeasonCredentialPlayers.length} seleccionadas
+            </Text>
+            <Space wrap>
+              <Button onClick={() => setMultiTeamPdfModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="primary"
+                icon={<FilePdfOutlined />}
+                loading={downloadMultiTeamCredentialsPdf.isPending}
+                disabled={selectedPlayerIdsForMultiPdf.length === 0}
+                onClick={() => downloadMultiTeamCredentialsPdf.mutate(selectedPlayerIdsForMultiPdf)}
+              >
+                Descargar PDF combinado ({selectedPlayerIdsForMultiPdf.length} {selectedPlayerIdsForMultiPdf.length === 1 ? 'credencial' : 'credenciales'})
+              </Button>
+            </Space>
+          </div>
+        }
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          description={
+            <div>
+              <span>
+                Selecciona credenciales de diferentes equipos para agruparlas en un solo PDF. Caben 8 credenciales por hoja carta (frente y vuelta alineados).
+              </span>
+              {selectedPlayerIdsForMultiPdf.length > 0 && (
+                <div style={{ marginTop: 6, fontWeight: 500, color: '#1677ff' }}>
+                  {selectedPlayerIdsForMultiPdf.length} credencial{selectedPlayerIdsForMultiPdf.length === 1 ? '' : 'es'} seleccionada{selectedPlayerIdsForMultiPdf.length === 1 ? '' : 's'} = {Math.ceil(selectedPlayerIdsForMultiPdf.length / 8)} hoja(s) carta ({Math.ceil(selectedPlayerIdsForMultiPdf.length / 8) * 2} páginas frente y vuelta).
+                </div>
+              )}
+            </div>
+          }
+        />
+
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Select
+            value={multiTeamFilterTeamId}
+            onChange={(val) => setMultiTeamFilterTeamId(val)}
+            style={{ width: 220 }}
+            options={[
+              { value: 'all', label: `Todos los equipos (${teams.length})` },
+              ...teams.map((t) => ({
+                value: t.id,
+                label: `${t.name} (${allSeasonCredentialPlayers.filter((p) => p.team_id === t.id).length})`,
+              })),
+            ]}
+          />
+          <Input.Search
+            placeholder="Buscar por jugador, equipo o CURP..."
+            allowClear
+            value={multiTeamSearchQuery}
+            onChange={(e) => setMultiTeamSearchQuery(e.target.value)}
+            style={{ maxWidth: 280 }}
+          />
+          <Space>
+            <Button
+              size="small"
+              onClick={() => {
+                const visibleIds = filteredMultiTeamPlayers.map((p) => p.id);
+                setSelectedPlayerIdsForMultiPdf((prev) => Array.from(new Set([...prev, ...visibleIds])));
+              }}
+            >
+              Seleccionar visibles ({filteredMultiTeamPlayers.length})
+            </Button>
+            {selectedPlayerIdsForMultiPdf.length > 0 && (
+              <Button
+                size="small"
+                onClick={() => setSelectedPlayerIdsForMultiPdf([])}
+              >
+                Limpiar selección
+              </Button>
+            )}
+          </Space>
+        </div>
+
+        {selectedPlayerIdsForMultiPdf.length > 0 && (
+          <div style={{ marginBottom: 12, padding: '8px 12px', background: '#191919', borderRadius: 6, border: '1px solid #333' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Text style={{ fontSize: 12, color: '#aaa' }}>
+                Seleccionados ({selectedPlayerIdsForMultiPdf.length}):
+              </Text>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 90, overflowY: 'auto' }}>
+              {selectedPlayerIdsForMultiPdf.map((id) => {
+                const player = allSeasonCredentialPlayers.find((p) => p.id === id);
+                if (!player) return null;
+                return (
+                  <Tag
+                    key={id}
+                    closable
+                    color="blue"
+                    onClose={() => setSelectedPlayerIdsForMultiPdf((prev) => prev.filter((pId) => pId !== id))}
+                    style={{ margin: 0, padding: '2px 6px' }}
+                  >
+                    <b>{player.teamName}:</b> #{formatPlayerNumber(player.number, '?')} {player.name}
+                  </Tag>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div
+          style={{
+            maxHeight: 340,
+            overflowY: 'auto',
+            border: '1px solid #303030',
+            borderRadius: 8,
+            padding: '8px 12px',
+            background: '#141414',
+          }}
+        >
+          {filteredMultiTeamPlayers.length === 0 ? (
+            <div style={{ padding: '24px 0', textAlign: 'center', color: '#888' }}>
+              No se encontraron jugadores con credencial para los filtros seleccionados.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filteredMultiTeamPlayers.map((player) => {
+                const cred = getPlayerCredential(player.id);
+                const isChecked = selectedPlayerIdsForMultiPdf.includes(player.id);
+
+                return (
+                  <div
+                    key={player.id}
+                    onClick={() => {
+                      setSelectedPlayerIdsForMultiPdf((prev) =>
+                        prev.includes(player.id)
+                          ? prev.filter((id) => id !== player.id)
+                          : [...prev, player.id]
+                      );
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      background: isChecked ? 'rgba(22, 119, 255, 0.12)' : '#1f1f1f',
+                      border: `1px solid ${isChecked ? '#1677ff' : '#2a2a2a'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <Space>
+                      <Checkbox
+                        checked={isChecked}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          setSelectedPlayerIdsForMultiPdf((prev) =>
+                            e.target.checked
+                              ? [...prev, player.id]
+                              : prev.filter((id) => id !== player.id)
+                          );
+                        }}
+                      />
+                      <Tag color="geekblue" style={{ margin: 0, fontWeight: 600 }}>
+                        {player.teamName}
+                      </Tag>
+                      <Text strong style={{ color: '#fff' }}>
+                        #{formatPlayerNumber(player.number, '?')} {player.name}
+                      </Text>
+                    </Space>
+                    <Space size={6}>
+                      {player.curp && (
+                        <Text style={{ fontSize: 11, color: '#888' }}>
+                          {player.curp}
+                        </Text>
+                      )}
+                      <Tag color="gold" style={{ margin: 0 }}>
+                        {cred?.credential_code}
+                      </Tag>
+                    </Space>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </Modal>
     </AdminLayout>
   );
