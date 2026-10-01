@@ -110,9 +110,12 @@ export default function LoginPage() {
           </Form.Item>
         </Form>
         
-        <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <Link href="/" style={{ color: '#555', fontSize: 13, textDecoration: 'underline' }}>
+        <div style={{ textAlign: 'center', marginTop: 20, display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <Link href="/" style={{ color: '#777', fontSize: 13, textDecoration: 'underline' }}>
             ← Volver al inicio público
+          </Link>
+          <Link href="/aviso-de-privacidad" style={{ color: '#777', fontSize: 13, textDecoration: 'underline' }}>
+            Aviso de Privacidad
           </Link>
         </div>
       </Card>

@@ -13,6 +13,7 @@ import {
   type TouchEvent,
 } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { Typography, Tag, Select, Button, Spin } from 'antd';
 import { FilePdfOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import StandingsTable from './StandingsTable';
@@ -1169,7 +1170,24 @@ export default function PublicPageClient(props: Props) {
         <div>
           © {new Date().getFullYear()} Liga Municipal de Básquetbol Nochixtlán · Todos los derechos reservados.
         </div>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+          <Link
+            href="/aviso-de-privacidad"
+            style={{
+              color: '#94a3b8',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              transition: 'color 0.18s ease',
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.color = 'var(--oro-cantera)')}
+            onMouseOut={(e) => (e.currentTarget.style.color = '#94a3b8')}
+          >
+            🔒 Aviso de Privacidad
+          </Link>
           <a
             href="/admin"
             style={{

@@ -99,9 +99,15 @@ export default async function VerifyCredentialPage({ params, searchParams }: Pag
           <EmptyVerificationState />
         )}
 
-        <Link href="/" style={linkStyle}>
-          Volver al inicio
-        </Link>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 14 }}>
+          <Link href="/" style={linkStyle}>
+            Volver al inicio
+          </Link>
+          <span style={{ color: '#475569' }}>·</span>
+          <Link href="/aviso-de-privacidad" style={{ ...linkStyle, color: '#94a3b8', fontSize: 13 }}>
+            Aviso de Privacidad
+          </Link>
+        </div>
       </section>
     </main>
   );
