@@ -22,6 +22,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/es';
 import GameDayBillboard from './GameDayBillboard';
 import { LiguillaBracketTab } from './LiguillaBracket';
+import { DynamicSportsBackground } from './DynamicSportsBackground';
 import { buildTeamEncounters, isPlayedStatus, isRegularPhase, type TeamEncounter } from '@/lib/public-team-matches';
 
 // Carga diferida de TeamDetailModal para optimizar bundle inicial
@@ -435,6 +436,9 @@ export default function PublicPageClient(props: Props) {
 
   return (
     <main className="public-glass-shell" style={{ minHeight: '100vh', padding: '0 0 48px' }}>
+      {/* ── FONDO CINEMÁTICO DINÁMICO REACTIVO A PESTAÑAS ── */}
+      <DynamicSportsBackground activeTab={activeTab} />
+
       {/* ── BARRA DE NAVEGACIÓN PRINCIPAL (SPORTS NAV RIBBON STICKY) ── */}
       <div style={{ maxWidth: 1280, margin: '14px auto 0', padding: '0 20px' }}>
         <nav
@@ -622,20 +626,20 @@ export default function PublicPageClient(props: Props) {
                       {/* Matriz 2x2 de KPIs Oficiales */}
                       <div className="hero-kpi-grid">
                         <div className="hero-kpi-box">
-                          <div className="hero-kpi-value">{activeTeamsCount}</div>
+                          <div className="hero-kpi-value"><AnimatedNumber value={activeTeamsCount} /></div>
                           <div className="hero-kpi-label">Clubes Activos</div>
                         </div>
                         <div className="hero-kpi-box">
-                          <div className="hero-kpi-value">{seasonMatches.length}</div>
+                          <div className="hero-kpi-value"><AnimatedNumber value={seasonMatches.length} /></div>
                           <div className="hero-kpi-label">Partidos Totales</div>
                         </div>
                         <div className="hero-kpi-box">
-                          <div className="hero-kpi-value">{jornadasDropdown.length}</div>
+                          <div className="hero-kpi-value"><AnimatedNumber value={jornadasDropdown.length} /></div>
                           <div className="hero-kpi-label">Jornadas</div>
                         </div>
                         <div className="hero-kpi-box">
                           <div className="hero-kpi-value" style={{ color: 'var(--oro-mixteco)' }}>
-                            {leaders[0]?.puntos ?? '0'}
+                            <AnimatedNumber value={leaders[0]?.puntos ?? 0} />
                           </div>
                           <div className="hero-kpi-label">Pts Líder Top</div>
                         </div>
@@ -666,14 +670,24 @@ export default function PublicPageClient(props: Props) {
                 </section>
 
                 {/* Bloque 2: Cartelera Panorámica / Billboard Hub */}
-                <GameDayBillboard seasonMatches={seasonMatches as never[]} />
+                <GameDayBillboard
+                  seasonMatches={seasonMatches as never[]}
+                  seasonName={selectedSeason?.name}
+                  category={selectedSeason?.category}
+                  onNavigateToBracket={() => {
+                    startTransition(() => {
+                      setActiveTab('bracket');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    });
+                  }}
+                />
 
                 {/* Bloque 3: League Pulse Bento Grid (El Pulso de la Competición) */}
                 <section className="premium-section-card" style={{ padding: '22px 24px' }}>
                   <h2 className="premium-section-label">⚡ El Pulso de la Temporada</h2>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginTop: 10 }}>
                     {/* Tarjeta: Puntero General */}
-                    <div style={{ background: 'rgba(20, 26, 38, 0.65)', border: '1px solid rgba(255, 255, 255, 0.07)', borderRadius: 12, padding: '16px 14px' }}>
+                    <div className="dribbble-card" style={{ padding: '16px 14px' }}>
                       <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--oro-cantera)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                         🏆 Puntero de la Tabla
                       </div>
@@ -688,7 +702,7 @@ export default function PublicPageClient(props: Props) {
                     </div>
 
                     {/* Tarjeta: Canastero de Oro */}
-                    <div style={{ background: 'rgba(20, 26, 38, 0.65)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: 12, padding: '16px 14px' }}>
+                    <div className="dribbble-card" style={{ padding: '16px 14px' }}>
                       <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--oro-mixteco)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                         👑 Canastero Líder
                       </div>
@@ -703,7 +717,7 @@ export default function PublicPageClient(props: Props) {
                     </div>
 
                     {/* Tarjeta: Rey de Triples */}
-                    <div style={{ background: 'rgba(20, 26, 38, 0.65)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: 12, padding: '16px 14px' }}>
+                    <div className="dribbble-card" style={{ padding: '16px 14px' }}>
                       <div style={{ fontSize: 11, fontWeight: 800, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                         🎯 Rey del Triple
                       </div>
@@ -718,12 +732,12 @@ export default function PublicPageClient(props: Props) {
                     </div>
 
                     {/* Tarjeta: Espectáculo Acumulado */}
-                    <div style={{ background: 'rgba(20, 26, 38, 0.65)', border: '1px solid rgba(255, 255, 255, 0.07)', borderRadius: 12, padding: '16px 14px' }}>
+                    <div className="dribbble-card" style={{ padding: '16px 14px' }}>
                       <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--verde-victoria)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                         🏀 Puntos de la Liga
                       </div>
                       <div style={{ color: '#fff', fontWeight: 800, fontSize: 18, marginTop: 8 }}>
-                        {totalPointsScored.toLocaleString('es-MX')} PTS
+                        <AnimatedNumber value={totalPointsScored} /> PTS
                       </div>
                       <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
                         Anotados a lo largo de {seasonMatches.length} partidos oficiales
@@ -844,26 +858,43 @@ export default function PublicPageClient(props: Props) {
                 2. SECCIÓN POSICIONES — TABLA OFICIAL
                ══════════════════════════════════════════════════════════ */}
             {activeTab === 'standings' && (
-              <GlassSectionCard
-                action={(
-                  <Button
-                    icon={<FilePdfOutlined />}
-                    onClick={handlePDF}
-                    disabled={standings.length === 0}
-                    className="premium-button"
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="section-athletic-header dribbble-stagger-1">
+                  <div className="section-athletic-header__badge">
+                    <span>🏆</span>
+                    <span>{selectedSeason ? `${selectedSeason.name} · ${selectedSeason.category}` : 'Clasificación Oficial'}</span>
+                  </div>
+                  <h1 className="section-athletic-header__title">
+                    TABLA GENERAL DE POSICIONES
+                  </h1>
+                  <p className="section-athletic-header__desc">
+                    Puntaje oficial 3-1-0, diferencia de canastas y clasificación a postemporada de la Liga Nochixtlán
+                  </p>
+                </div>
+
+                <div className="dribbble-stagger-2">
+                  <GlassSectionCard
+                    action={(
+                      <Button
+                        icon={<FilePdfOutlined />}
+                        onClick={handlePDF}
+                        disabled={standings.length === 0}
+                        className="premium-button"
+                      >
+                        Reporte de Elegibilidad PDF
+                      </Button>
+                    )}
                   >
-                    Reporte de Elegibilidad PDF
-                  </Button>
-                )}
-              >
-                {standings.length === 0 ? (
-                  <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 40 }}>
-                    Sin partidos registrados en esta temporada
-                  </Text>
-                ) : (
-                  <StandingsTable data={standings} onTeamClick={setSelectedTeam} />
-                )}
-              </GlassSectionCard>
+                    {standings.length === 0 ? (
+                      <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 40 }}>
+                        Sin partidos registrados en esta temporada
+                      </Text>
+                    ) : (
+                      <StandingsTable data={standings} onTeamClick={setSelectedTeam} />
+                    )}
+                  </GlassSectionCard>
+                </div>
+              </div>
             )}
 
             {/* ══════════════════════════════════════════════════════════
@@ -871,8 +902,21 @@ export default function PublicPageClient(props: Props) {
                ══════════════════════════════════════════════════════════ */}
             {activeTab === 'stats' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div className="section-athletic-header dribbble-stagger-1">
+                  <div className="section-athletic-header__badge">
+                    <span>📊</span>
+                    <span>{selectedSeason ? `${selectedSeason.name} · ${selectedSeason.category}` : 'Líderes Oficiales'}</span>
+                  </div>
+                  <h1 className="section-athletic-header__title">
+                    LÍDERES DE CANASTAS & TRIPLES
+                  </h1>
+                  <p className="section-athletic-header__desc">
+                    Cuadro de honor individual, récord de puntos por partido y estadísticas de plantillas
+                  </p>
+                </div>
+
                 {/* Sub-navegación segmentada: Cuadro de Honor vs Plantillas */}
-                <div className="stats-subnav-bar" role="group" aria-label="Subsecciones estadísticas">
+                <div className="stats-subnav-bar dribbble-stagger-2" role="group" aria-label="Subsecciones estadísticas">
                   <button
                     type="button"
                     className={`stats-subnav-btn${statsSubView === 'leaders' ? ' stats-subnav-btn--active' : ''}`}
@@ -906,7 +950,7 @@ export default function PublicPageClient(props: Props) {
                               return (
                                 <div
                                   key={l.id}
-                                  className={`podium-card${isGold ? ' podium-card--first' : ''}`}
+                                  className={`podium-card dribbble-card${isGold ? ' podium-card--first' : ''}`}
                                 >
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <span style={{ fontSize: 18 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
@@ -915,7 +959,7 @@ export default function PublicPageClient(props: Props) {
                                     </span>
                                   </div>
                                   <div style={{ margin: '12px 0 6px' }}>
-                                    <div className="podium-number">{l.puntos}</div>
+                                    <div className="podium-number"><AnimatedNumber value={l.puntos} /></div>
                                     <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                       Puntos Anotados
                                     </div>
@@ -955,7 +999,7 @@ export default function PublicPageClient(props: Props) {
                               return (
                                 <div
                                   key={l.id}
-                                  className={`podium-card${isGold ? ' podium-card--first' : ''}`}
+                                  className={`podium-card dribbble-card${isGold ? ' podium-card--first' : ''}`}
                                   style={isGold ? { borderColor: 'rgba(56, 189, 248, 0.45)', background: 'linear-gradient(180deg, rgba(56, 189, 248, 0.12), rgba(12, 16, 24, 0.95))' } : undefined}
                                 >
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -965,7 +1009,7 @@ export default function PublicPageClient(props: Props) {
                                     </span>
                                   </div>
                                   <div style={{ margin: '12px 0 6px' }}>
-                                    <div className="podium-number" style={{ color: '#38bdf8' }}>{l.triples}</div>
+                                    <div className="podium-number" style={{ color: '#38bdf8' }}><AnimatedNumber value={l.triples} /></div>
                                     <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                       Bombas de 3PT ({Math.floor(l.triples * 3)} pts eq.)
                                     </div>
@@ -1040,100 +1084,150 @@ export default function PublicPageClient(props: Props) {
                 4. SECCIÓN MI EQUIPO — FIXTURE Y RESULTADOS POR CLUB
                ══════════════════════════════════════════════════════════ */}
             {activeTab === 'team-matches' && (
-              <GlassSectionCard>
-                <h2 className="premium-section-label">🏀 Fixture y Resultados por Club</h2>
-                <TeamMatchesTab
-                  seasonId={effectiveSeasonId}
-                  teams={teams}
-                  matches={seasonMatches}
-                  standings={standings}
-                />
-              </GlassSectionCard>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="section-athletic-header dribbble-stagger-1">
+                  <div className="section-athletic-header__badge">
+                    <span>🏀</span>
+                    <span>{selectedSeason ? `${selectedSeason.name} · ${selectedSeason.category}` : 'Clubes Oficiales'}</span>
+                  </div>
+                  <h1 className="section-athletic-header__title">
+                    SEGUIMIENTO POR EQUIPO
+                  </h1>
+                  <p className="section-athletic-header__desc">
+                    Consulta el rol particular, resultados recientes y próximos compromisos de tu escuadra
+                  </p>
+                </div>
+
+                <div className="dribbble-stagger-2">
+                  <GlassSectionCard>
+                    <TeamMatchesTab
+                      seasonId={effectiveSeasonId}
+                      teams={teams}
+                      matches={seasonMatches}
+                      standings={standings}
+                    />
+                  </GlassSectionCard>
+                </div>
+              </div>
             )}
 
             {/* ══════════════════════════════════════════════════════════
                 5. SECCIÓN LIGUILLA — CUADRO DE POSTEMPORADA
                ══════════════════════════════════════════════════════════ */}
             {activeTab === 'bracket' && (
-              <GlassSectionCard>
-                <LiguillaBracketTab seasonMatches={seasonMatches as unknown as Parameters<typeof LiguillaBracketTab>[0]['seasonMatches']} />
-              </GlassSectionCard>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="section-athletic-header dribbble-stagger-1">
+                  <div className="section-athletic-header__badge">
+                    <span>🔥</span>
+                    <span>{selectedSeason ? `${selectedSeason.name} · Postemporada` : 'Fase Final'}</span>
+                  </div>
+                  <h1 className="section-athletic-header__title">
+                    LIGUILLA & FASE DE PLAYOFFS
+                  </h1>
+                  <p className="section-athletic-header__desc">
+                    Cruces de eliminación directa, cuartos de final, semifinales y la gran final por la corona
+                  </p>
+                </div>
+
+                <div className="dribbble-stagger-2">
+                  <GlassSectionCard>
+                    <LiguillaBracketTab seasonMatches={seasonMatches as unknown as Parameters<typeof LiguillaBracketTab>[0]['seasonMatches']} />
+                  </GlassSectionCard>
+                </div>
+              </div>
             )}
 
             {/* ══════════════════════════════════════════════════════════
                 6. SECCIÓN CALENDARIO — ROL DE JUEGOS Y FILTROS
                ══════════════════════════════════════════════════════════ */}
             {activeTab === 'calendar' && (
-              <GlassSectionCard>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                    gap: 12,
-                    marginBottom: 20,
-                  }}
-                >
-                  <div>
-                    <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-                      Jornada:
-                    </Text>
-                    <Select
-                      className="premium-select"
-                      value={jornadaFilter}
-                      onChange={(value) => startTransition(() => setJornadaFilter(value))}
-                      style={{ width: '100%' }}
-                      options={[
-                        { label: 'Todas las jornadas', value: 'all' },
-                        ...jornadasDropdown.map((j) => ({ label: `Jornada ${j}`, value: j })),
-                      ]}
-                    />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="section-athletic-header dribbble-stagger-1">
+                  <div className="section-athletic-header__badge">
+                    <span>📅</span>
+                    <span>{selectedSeason ? `${selectedSeason.name} · Rol Oficial` : 'Programación'}</span>
                   </div>
-                  <div>
-                    <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-                      Equipo:
-                    </Text>
-                    <Select
-                      className="premium-select"
-                      value={calendarTeamFilter}
-                      onChange={(value) => startTransition(() => setCalendarTeamFilter(value))}
-                      style={{ width: '100%' }}
-                      options={[
-                        { label: 'Todos los equipos', value: 'all' },
-                        ...calendarTeamOptions,
-                      ]}
-                      showSearch
-                      filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
-                      filterSort={sortSelectOptions}
-                    />
-                  </div>
-                  <div>
-                    <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-                      Vista:
-                    </Text>
-                    <Select
-                      className="premium-select"
-                      value={calendarViewFilter}
-                      onChange={(value) => startTransition(() => setCalendarViewFilter(value))}
-                      style={{ width: '100%' }}
-                      options={[
-                        { label: 'Próximos partidos', value: 'upcoming' },
-                        { label: 'Todos, con pasados', value: 'all' },
-                      ]}
-                    />
-                  </div>
+                  <h1 className="section-athletic-header__title">
+                    CALENDARIO DE JUEGOS
+                  </h1>
+                  <p className="section-athletic-header__desc">
+                    Programación oficial por jornada, horarios, duela y sedes de la Liga Nochixtlán
+                  </p>
                 </div>
 
-                {seasonMatches.length === 0 ? (
-                  <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos</Text>
-                ) : (
-                  <CalendarList
-                    matches={seasonMatches}
-                    jornadaFilter={jornadaFilter}
-                    teamFilter={calendarTeamFilter}
-                    viewFilter={calendarViewFilter}
-                  />
-                )}
-              </GlassSectionCard>
+                <div className="dribbble-stagger-2">
+                  <GlassSectionCard>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                        gap: 12,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div>
+                        <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                          Jornada:
+                        </Text>
+                        <Select
+                          className="premium-select"
+                          value={jornadaFilter}
+                          onChange={(value) => startTransition(() => setJornadaFilter(value))}
+                          style={{ width: '100%' }}
+                          options={[
+                            { label: 'Todas las jornadas', value: 'all' },
+                            ...jornadasDropdown.map((j) => ({ label: `Jornada ${j}`, value: j })),
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                          Equipo:
+                        </Text>
+                        <Select
+                          className="premium-select"
+                          value={calendarTeamFilter}
+                          onChange={(value) => startTransition(() => setCalendarTeamFilter(value))}
+                          style={{ width: '100%' }}
+                          options={[
+                            { label: 'Todos los equipos', value: 'all' },
+                            ...calendarTeamOptions,
+                          ]}
+                          showSearch
+                          filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
+                          filterSort={sortSelectOptions}
+                        />
+                      </div>
+                      <div>
+                        <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+                          Vista:
+                        </Text>
+                        <Select
+                          className="premium-select"
+                          value={calendarViewFilter}
+                          onChange={(value) => startTransition(() => setCalendarViewFilter(value))}
+                          style={{ width: '100%' }}
+                          options={[
+                            { label: 'Próximos partidos', value: 'upcoming' },
+                            { label: 'Todos, con pasados', value: 'all' },
+                          ]}
+                        />
+                      </div>
+                    </div>
+
+                    {seasonMatches.length === 0 ? (
+                      <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 32 }}>Sin partidos</Text>
+                    ) : (
+                      <CalendarList
+                        matches={seasonMatches}
+                        jornadaFilter={jornadaFilter}
+                        teamFilter={calendarTeamFilter}
+                        viewFilter={calendarViewFilter}
+                      />
+                    )}
+                  </GlassSectionCard>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -1226,6 +1320,35 @@ function useIsCoarsePointer() {
   return isCoarsePointer;
 }
 
+function AnimatedNumber({ value, duration = 650 }: { value: number; duration?: number }) {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    if (!value || isNaN(value)) {
+      setDisplay(0);
+      return;
+    }
+    let startTime: number | null = null;
+    let frameId: number;
+
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(ease * value));
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
+    };
+
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [value, duration]);
+
+  return <>{display.toLocaleString('es-MX')}</>;
+}
+
 function GlassSectionCard({
   children,
   action,
@@ -1264,35 +1387,34 @@ function SmallRecordBadge({
 }) {
   return (
     <div
+      className="dribbble-card"
       style={{
-        background: 'var(--surface-section)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 14,
         padding: '16px 18px',
         flex: '1 1 240px',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 16 }}>{icon}</span>
-        <Text style={{ color, fontWeight: 800, fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+        <span style={{ fontSize: 18 }}>{icon}</span>
+        <Text style={{ color, fontWeight: 800, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
           {label}
         </Text>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 12, gap: 10 }}>
         <div>
-          <div style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>{jugador}</div>
+          <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>{jugador}</div>
           <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{equipo} · J{jornada ?? '?'}</div>
         </div>
         <div
           style={{
             color,
-            border: `1px solid ${color}44`,
-            background: `${color}12`,
+            border: `1px solid ${color}55`,
+            background: `${color}18`,
             padding: '4px 12px',
             borderRadius: 8,
             fontWeight: 900,
-            fontSize: 16,
+            fontSize: 18,
             fontVariantNumeric: 'tabular-nums',
+            boxShadow: `0 0 14px ${color}22`,
           }}
         >
           {valor}
@@ -1321,18 +1443,18 @@ function LeadersTable({
 
   return (
     <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <table style={{ width: '100%', minWidth: 260, borderCollapse: 'collapse' }} aria-label={type === 'puntos' ? 'Tabla de anotadores' : 'Tabla de tripleros'}>
+      <table style={{ width: '100%', minWidth: 320, borderCollapse: 'collapse' }} aria-label={type === 'puntos' ? 'Tabla de anotadores' : 'Tabla de tripleros'}>
         <thead>
-          <tr>
-            <th scope="col" style={{ width: 44, textAlign: 'center', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>#</th>
-            <th scope="col" style={{ textAlign: 'left', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Jugador</th>
-            <th scope="col" style={{ textAlign: 'left', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Equipo</th>
+          <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            <th scope="col" style={{ width: 50, textAlign: 'center', padding: '10px 8px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Rango</th>
+            <th scope="col" style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Jugador</th>
+            <th scope="col" style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Equipo</th>
             {type === 'puntos' ? (
-              <th scope="col" style={{ textAlign: 'right', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Puntos</th>
+              <th scope="col" style={{ textAlign: 'right', padding: '10px 8px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Puntos</th>
             ) : (
               <>
-                <th scope="col" style={{ textAlign: 'right', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>3PT</th>
-                <th scope="col" style={{ textAlign: 'right', padding: '8px 6px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Pts Eq.</th>
+                <th scope="col" style={{ textAlign: 'right', padding: '10px 8px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>3PT</th>
+                <th scope="col" style={{ textAlign: 'right', padding: '10px 8px', color: 'var(--oro-cantera)', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Pts Eq.</th>
               </>
             )}
           </tr>
@@ -1341,25 +1463,99 @@ function LeadersTable({
           {data.map((l, i) => {
             const team = teams.find((t) => t.id === l.team_id);
             const pos = startIndex + i;
+            const initials = l.nombre.trim().split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase();
             return (
-              <tr key={l.id ?? i} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
-                <td style={{ textAlign: 'center', padding: '8px 6px' }}>
-                  <span style={{ color: '#94a3b8', fontWeight: 700, fontSize: 12 }}>
+              <tr
+                key={l.id ?? i}
+                style={{
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                  transition: 'background 0.15s ease',
+                }}
+                className="fiba-table-row"
+              >
+                <td style={{ textAlign: 'center', padding: '10px 8px' }}>
+                  <span style={{ color: '#94a3b8', fontWeight: 800, fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
                     {pos}
                   </span>
                 </td>
-                <td style={{ textAlign: 'left', fontWeight: 600, color: '#f8fafc', padding: '8px 6px', fontSize: 13 }}>{l.nombre}</td>
-                <td style={{ textAlign: 'left', color: '#94a3b8', fontSize: 12, padding: '8px 6px' }}>{team?.name ?? '?'}</td>
+                <td style={{ textAlign: 'left', padding: '10px 8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.20), rgba(20, 26, 38, 0.90))',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 10,
+                        fontWeight: 900,
+                        color: 'var(--oro-cantera)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {initials}
+                    </div>
+                    <span style={{ fontWeight: 800, color: '#f8fafc', fontSize: 13, letterSpacing: '0.01em' }}>
+                      {l.nombre}
+                    </span>
+                  </div>
+                </td>
+                <td style={{ textAlign: 'left', padding: '10px 8px' }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: 6,
+                      padding: '2px 8px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: '#cbd5e1',
+                    }}
+                  >
+                    {team?.name ?? '?'}
+                  </span>
+                </td>
                 {type === 'puntos' ? (
-                  <td style={{ textAlign: 'right', padding: '8px 6px' }}>
-                    <span style={{ color, fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{l.puntos}</span>
+                  <td style={{ textAlign: 'right', padding: '10px 8px' }}>
+                    <span
+                      style={{
+                        color,
+                        background: `${color}14`,
+                        border: `1px solid ${color}33`,
+                        padding: '3px 10px',
+                        borderRadius: 6,
+                        fontWeight: 900,
+                        fontVariantNumeric: 'tabular-nums',
+                        fontSize: 13,
+                      }}
+                    >
+                      {l.puntos}
+                    </span>
                   </td>
                 ) : (
                   <>
-                    <td style={{ textAlign: 'right', padding: '8px 6px' }}>
-                      <span style={{ color, fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{l.triples}</span>
+                    <td style={{ textAlign: 'right', padding: '10px 8px' }}>
+                      <span
+                        style={{
+                          color,
+                          background: `${color}14`,
+                          border: `1px solid ${color}33`,
+                          padding: '3px 10px',
+                          borderRadius: 6,
+                          fontWeight: 900,
+                          fontVariantNumeric: 'tabular-nums',
+                          fontSize: 13,
+                        }}
+                      >
+                        {l.triples}
+                      </span>
                     </td>
-                    <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: 12, padding: '8px 6px', fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: 12, padding: '10px 8px', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
                       {Math.floor((l.triples ?? 0) * 3)}
                     </td>
                   </>
@@ -1661,16 +1857,27 @@ function EncounterList({ title, encounters, teamId, showResult = false }: { titl
     <div>
       <h3 className="premium-section-label" style={{ fontSize: 12 }}>{title}</h3>
       {encounters.length === 0 ? <Text style={{ color: '#94a3b8', padding: '10px 0', display: 'block' }}>No hay partidos en esta sección.</Text> : (
-        <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {encounters.map((encounter) => {
             const result = showResult && encounter.match ? teamMatchResult(encounter.match, teamId) : null;
             return (
-              <div key={encounter.key} className="premium-list-item" style={{ flexWrap: 'wrap' }}>
+              <div
+                key={encounter.key}
+                className="dribbble-card"
+                style={{
+                  padding: '14px 18px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+              >
                 <div>
-                  <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: 14 }}>{encounter.opponent.name}</div>
+                  <div style={{ color: '#f8fafc', fontWeight: 800, fontSize: 14 }}>{encounter.opponent.name}</div>
                   <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{encounter.leg === 'ida' ? 'Primer enfrentamiento (Ida)' : 'Segundo enfrentamiento (Vuelta)'}</div>
                 </div>
-                <div style={{ color: result?.color ?? '#cbd5e1', fontSize: 12, textAlign: 'right', fontWeight: 600 }}>
+                <div style={{ color: result?.color ?? '#cbd5e1', fontSize: 13, textAlign: 'right', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                   {result?.text ?? (encounter.match ? formatTeamMatchDate(encounter.match) : 'Por programar · Aún no registrado')}
                 </div>
               </div>
@@ -1686,17 +1893,28 @@ function PlayoffList({ matches, teamId }: { matches: MatchData[]; teamId: number
   return (
     <div>
       <h3 className="premium-section-label" style={{ fontSize: 12 }}>Liguilla / Play-offs</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.06)', marginTop: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
         {matches.map((match) => {
           const opponent = match.home_team_id === teamId ? match.away_team : match.home_team;
           const result = isPlayedStatus(match.status) ? teamMatchResult(match, teamId) : null;
           return (
-            <div key={match.id} className="premium-list-item" style={{ flexWrap: 'wrap' }}>
+            <div
+              key={match.id}
+              className="dribbble-card"
+              style={{
+                padding: '14px 18px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
               <div>
-                <div style={{ color: '#f8fafc', fontWeight: 700 }}>{opponent?.name ?? 'Rival por definir'}</div>
+                <div style={{ color: '#f8fafc', fontWeight: 800 }}>{opponent?.name ?? 'Rival por definir'}</div>
                 <div style={{ color: '#94a3b8', fontSize: 12 }}>{match.phase ?? 'Liguilla'}</div>
               </div>
-              <div style={{ color: result?.color ?? '#cbd5e1', fontSize: 12, fontWeight: 600 }}>
+              <div style={{ color: result?.color ?? '#cbd5e1', fontSize: 13, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                 {result?.text ?? formatTeamMatchDate(match)}
               </div>
             </div>
@@ -1752,39 +1970,101 @@ function CalendarList({
           <div style={{ marginBottom: 10 }}>
             <h3 className="premium-section-label" style={{ fontSize: 12 }}>{phase === 'Fase Regular' ? 'Temporada Regular' : phase}</h3>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-            {grouped[phase].map((m) => (
-              <div key={m.id} className="premium-list-item" style={{ flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 200 }}>
-                  <Tag className={`premium-tag${phase !== 'Fase Regular' ? ' premium-tag--active' : ''}`} style={{ marginInlineEnd: 0, minHeight: 28, padding: '2px 8px', fontSize: 11 }}>
-                    J{m.jornada ?? '?'}
-                  </Tag>
-                  <div>
-                    <Text style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>
-                      {m.home_team?.name ?? '?'} <span style={{ color: '#94a3b8', fontWeight: 500, margin: '0 4px' }}>vs</span> {m.away_team?.name ?? '?'}
-                    </Text>
-                    <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
-                      {m.scheduled_date ? dayjs(m.scheduled_date).format('DD MMM') : ''}
-                      {m.time_str && ` · ${m.time_str} hrs`}
-                      {m.court && ` · ${m.court}`}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {grouped[phase].map((m) => {
+              const played = isPlayedStatus(m.status);
+              return (
+                <div
+                  key={m.id}
+                  className="dribbble-card calendar-match-card"
+                  style={{
+                    padding: '14px 18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                  }}
+                >
+                  {/* Info de jornada, fecha y duela */}
+                  <div className="calendar-match-card__header" style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}>
+                    <span
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.32)',
+                        color: 'var(--oro-cantera)',
+                        fontWeight: 900,
+                        fontSize: 11,
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      J{m.jornada ?? '?'}
+                    </span>
+                    <div>
+                      <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>
+                        {m.scheduled_date ? dayjs(m.scheduled_date).format('DD MMM YYYY') : 'Fecha por definir'}
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: 11 }}>
+                        {m.time_str ? `${m.time_str} hrs · ` : ''}{m.court ?? 'Cancha Nochixtlán'}
+                      </div>
                     </div>
                   </div>
+
+                  {/* Enfrentamiento deportivo tipo Ticket */}
+                  <div className="calendar-match-card__teams" style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, justifyContent: 'center', minWidth: 260 }}>
+                    <span className="calendar-match-card__team-name calendar-match-card__team-home" style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc', textAlign: 'right', flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {m.home_team?.name ?? 'Local'}
+                    </span>
+
+                    {/* Marcador central o VS */}
+                    <div
+                      className="calendar-match-card__score"
+                      style={{
+                        padding: '5px 14px',
+                        borderRadius: 8,
+                        background: played ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                        border: played ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                        fontWeight: 900,
+                        fontSize: played ? 16 : 12,
+                        color: played ? 'var(--oro-cantera)' : '#94a3b8',
+                        fontVariantNumeric: 'tabular-nums',
+                        letterSpacing: '0.04em',
+                        minWidth: 70,
+                        textAlign: 'center',
+                        boxShadow: played ? '0 0 14px rgba(245, 158, 11, 0.2)' : 'none',
+                      }}
+                    >
+                      {played ? (
+                        `${m.home_score} - ${m.away_score}`
+                      ) : m.status?.startsWith('WO') || m.status?.startsWith('W') ? (
+                        m.status
+                      ) : (
+                        'VS'
+                      )}
+                    </div>
+
+                    <span className="calendar-match-card__team-name calendar-match-card__team-away" style={{ fontWeight: 800, fontSize: 14, color: '#f8fafc', textAlign: 'left', flex: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {m.away_team?.name ?? 'Visitante'}
+                    </span>
+                  </div>
+
+                  {/* Estado del encuentro */}
+                  <div className="calendar-match-card__status" style={{ minWidth: 90, textAlign: 'right' }}>
+                    {played ? (
+                      <span style={{ color: 'var(--verde-victoria)', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        ✓ Finalizado
+                      </span>
+                    ) : (
+                      <span style={{ color: '#38bdf8', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        ⏳ Programado
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {m.status === 'Jugado' ? (
-                  <span style={{ fontWeight: 800, fontSize: 13, color: 'var(--oro-cantera)', fontVariantNumeric: 'tabular-nums' }}>
-                    {m.home_score} — {m.away_score}
-                  </span>
-                ) : m.status?.startsWith('WO') || m.status?.startsWith('W') ? (
-                  <span style={{ fontWeight: 800, fontSize: 12, color: '#fbbf24' }}>
-                    {m.status}
-                  </span>
-                ) : (
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>
-                    {m.scheduled_date ? dayjs(m.scheduled_date).format('DD MMM') : 'Programado'}
-                  </span>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}

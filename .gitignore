@@ -47,4 +47,6 @@ tmp/
 output/
 exports/
 
+# prompt documentation
+MEGAPROMPT*
 
