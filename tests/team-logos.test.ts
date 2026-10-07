@@ -16,6 +16,12 @@ describe('team-logos resolver', () => {
     expect(getTeamLogoUrl('PLOMERIA GS')).toBe('/logos/plomeria-gs.png');
   });
 
+  it('resolves INTERCAB logo exclusively', () => {
+    expect(getTeamLogoUrl('INTERCAB')).toBe('/logos/intercab.png');
+    expect(getTeamLogoUrl('intercab')).toBe('/logos/intercab.png');
+    expect(getTeamLogoUrl('  INTERCAB  ')).toBe('/logos/intercab.png');
+  });
+
   it('resolves other known team logos and returns null for unknown teams', () => {
     expect(getTeamLogoUrl('Guerreros')).toBe('/logos/guerreros.jpg');
     expect(getTeamLogoUrl('Alacranes')).toBe('/logos/alacranes.jpg');

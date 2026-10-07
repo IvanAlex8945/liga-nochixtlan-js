@@ -16,6 +16,7 @@ const KNOWN_LOGOS: Record<string, string> = {
   'MIXTECOS': '/logos/mixtecos.jpg',
   'ELECTRICA Y PLOMERIA GS': '/logos/plomeria-gs.png',
   'PLOMERIA GS': '/logos/plomeria-gs.png',
+  'INTERCAB': '/logos/intercab.png',
 };
 
 export function normalizeTeamKey(name: string): string {
