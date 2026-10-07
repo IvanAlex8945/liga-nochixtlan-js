@@ -14,6 +14,8 @@ const KNOWN_LOGOS: Record<string, string> = {
   'M-SPORT': '/logos/m-sport.jpg',
   'ALEBRIJES': '/logos/alebrijes.jpg',
   'MIXTECOS': '/logos/mixtecos.jpg',
+  'ELECTRICA Y PLOMERIA GS': '/logos/plomeria-gs.jpg',
+  'PLOMERIA GS': '/logos/plomeria-gs.jpg',
 };
 
 export function normalizeTeamKey(name: string): string {
@@ -21,7 +23,9 @@ export function normalizeTeamKey(name: string): string {
     .trim()
     .toUpperCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/["'“”]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 export function getTeamLogoUrl(teamName: string): string | null {

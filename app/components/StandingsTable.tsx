@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { Table, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { TeamStats } from '@/lib/standings';
+import { getTeamLogoUrl } from '@/lib/team-logos';
 
 export interface TableRow extends TeamStats {
   pos: number;
@@ -194,20 +195,45 @@ export default function StandingsTable({ data, onTeamClick }: StandingsTableProp
         const isLeader = record.pos === 1;
         const palette = getTeamPalette(name);
         const initials = getTeamInitials(name);
+        const logoUrl = getTeamLogoUrl(name);
         return (
           <div className="team-cell" style={{ gap: 8 }}>
-            <div
-              className="team-avatar"
-              style={{
-                background: palette.bg,
-                border: `1.5px solid ${palette.border}`,
-                width: 26,
-                height: 26,
-                fontSize: 10,
-              }}
-            >
-              {initials}
-            </div>
+            {logoUrl ? (
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 6,
+                  background: '#ffffff',
+                  padding: 1.5,
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  overflow: 'hidden',
+                }}
+              >
+                <img
+                  src={logoUrl}
+                  alt={name}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                />
+              </div>
+            ) : (
+              <div
+                className="team-avatar"
+                style={{
+                  background: palette.bg,
+                  border: `1.5px solid ${palette.border}`,
+                  width: 26,
+                  height: 26,
+                  fontSize: 10,
+                }}
+              >
+                {initials}
+              </div>
+            )}
             <div style={{ minWidth: 0, flex: 1 }}>
               <button
                 type="button"

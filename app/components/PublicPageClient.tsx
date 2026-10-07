@@ -24,6 +24,7 @@ import GameDayBillboard from './GameDayBillboard';
 import { LiguillaBracketTab } from './LiguillaBracket';
 import { DynamicSportsBackground } from './DynamicSportsBackground';
 import { buildTeamEncounters, isPlayedStatus, isRegularPhase, type TeamEncounter } from '@/lib/public-team-matches';
+import { getTeamLogoUrl } from '@/lib/team-logos';
 
 // Carga diferida de TeamDetailModal para optimizar bundle inicial
 const TeamDetailModal = dynamic(() => import('./TeamDetailModal'), {
@@ -1629,6 +1630,7 @@ function TeamStatsTab({
           {activeTeams.map((team) => {
             const stats = standings.find((s) => s.id === team.id);
             const isSelected = selectedTeamId === team.id;
+            const logo = getTeamLogoUrl(team.name);
             return (
               <div
                 key={team.id}
@@ -1639,8 +1641,15 @@ function TeamStatsTab({
                 onClick={() => setSelectedTeamId(team.id)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedTeamId(team.id); }}
               >
-                <div style={{ color: isSelected ? 'var(--oro-cantera)' : '#fff', fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {team.name}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {logo && (
+                    <div style={{ width: 22, height: 22, borderRadius: 6, background: '#ffffff', padding: 2, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src={logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    </div>
+                  )}
+                  <div style={{ color: isSelected ? 'var(--oro-cantera)' : '#fff', fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {team.name}
+                  </div>
                 </div>
                 {stats && (
                   <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>
@@ -1690,6 +1699,38 @@ function TeamStatsTab({
 
       {selectedTeamId && (
         <>
+          {(() => {
+            const currentTeam = activeTeams.find((t) => t.id === selectedTeamId);
+            const teamLogo = currentTeam ? getTeamLogoUrl(currentTeam.name) : null;
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 16,
+                  padding: '12px 16px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  borderRadius: 12,
+                }}
+              >
+                {teamLogo ? (
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: '#ffffff', padding: 2, flexShrink: 0, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img src={teamLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </div>
+                ) : (
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                    🏀
+                  </div>
+                )}
+                <div>
+                  <div style={{ color: '#fff', fontWeight: 800, fontSize: 16 }}>{currentTeam?.name}</div>
+                  <div style={{ color: '#94a3b8', fontSize: 12 }}>Plantilla y estadísticas de jugadores</div>
+                </div>
+              </div>
+            );
+          })()}
           {teamStats.length === 0 ? (
             <Text style={{ color: '#94a3b8', display: 'block', padding: 24, textAlign: 'center' }}>
               Sin estadísticas registradas para este equipo.
@@ -1785,6 +1826,11 @@ function TeamMatchesTab({
     .sort((a, b) => getMatchSortValue(b.match) - getMatchSortValue(a.match));
   const playoffs = teamId ? matches.filter((match) => !isRegularPhase(match.phase) && (match.home_team_id === teamId || match.away_team_id === teamId)) : [];
 
+  const selectedTeam = activeTeams.find((team) => team.id === teamId);
+  const selectedTeamStats = standings.find((s) => s.id === teamId);
+  const selectedTeamPos = selectedTeam ? standings.findIndex((s) => s.id === selectedTeam.id) + 1 : null;
+  const selectedTeamLogo = selectedTeam ? getTeamLogoUrl(selectedTeam.name) : null;
+
   if (!seasonId) return <Text style={{ color: '#94a3b8' }}>Selecciona una temporada arriba.</Text>;
 
   return (
@@ -1798,6 +1844,7 @@ function TeamMatchesTab({
           {activeTeams.map((team) => {
             const stats = standings.find((s) => s.id === team.id);
             const isSelected = teamId === team.id;
+            const logo = getTeamLogoUrl(team.name);
             return (
               <div
                 key={team.id}
@@ -1808,8 +1855,15 @@ function TeamMatchesTab({
                 onClick={() => setTeamId(team.id)}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setTeamId(team.id); }}
               >
-                <div style={{ color: isSelected ? 'var(--oro-cantera)' : '#fff', fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {team.name}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {logo && (
+                    <div style={{ width: 22, height: 22, borderRadius: 6, background: '#ffffff', padding: 2, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src={logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    </div>
+                  )}
+                  <div style={{ color: isSelected ? 'var(--oro-cantera)' : '#fff', fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {team.name}
+                  </div>
                 </div>
                 {stats && (
                   <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>
@@ -1843,6 +1897,95 @@ function TeamMatchesTab({
         </Text>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {selectedTeam && (
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.95) 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: 16,
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -30,
+                  left: -30,
+                  width: 140,
+                  height: 140,
+                  borderRadius: '50%',
+                  background: 'radial-gradient(circle, rgba(245, 158, 11, 0.2) 0%, transparent 70%)',
+                  pointerEvents: 'none',
+                }}
+              />
+              {selectedTeamLogo ? (
+                <div
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 16,
+                    background: '#ffffff',
+                    padding: 3,
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 2px rgba(245, 158, 11, 0.8)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                    zIndex: 1,
+                  }}
+                >
+                  <img
+                    src={selectedTeamLogo}
+                    alt={selectedTeam.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 12 }}
+                  />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 16,
+                    background: 'rgba(245, 158, 11, 0.15)',
+                    border: '1.5px solid rgba(245, 158, 11, 0.4)',
+                    color: 'var(--gold-soft)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 26,
+                    flexShrink: 0,
+                    zIndex: 1,
+                  }}
+                >
+                  🏀
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0, zIndex: 1 }}>
+                <div style={{ color: '#fff', fontSize: 20, fontWeight: 900, letterSpacing: '0.02em', lineHeight: 1.2 }}>
+                  {selectedTeam.name}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
+                  {selectedTeamPos && selectedTeamPos > 0 && (
+                    <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--gold-soft)' }}>
+                      Posición #{selectedTeamPos}
+                    </span>
+                  )}
+                  {selectedTeamStats && (
+                    <span style={{ fontSize: 13, color: '#94a3b8' }}>
+                      <strong style={{ color: '#4ade80' }}>{selectedTeamStats.PG}G</strong> - <strong style={{ color: '#f87171' }}>{selectedTeamStats.PP}P</strong> · <strong style={{ color: '#fde68a' }}>{selectedTeamStats.Pts} pts</strong>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           <EncounterList title="Partidos por Disputar" encounters={pending} teamId={teamId} />
           <EncounterList title="Partidos ya Jugados" encounters={played} teamId={teamId} showResult />
           {playoffs.length > 0 && <PlayoffList matches={playoffs} teamId={teamId} />}
@@ -1860,6 +2003,7 @@ function EncounterList({ title, encounters, teamId, showResult = false }: { titl
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {encounters.map((encounter) => {
             const result = showResult && encounter.match ? teamMatchResult(encounter.match, teamId) : null;
+            const oppLogo = getTeamLogoUrl(encounter.opponent.name);
             return (
               <div
                 key={encounter.key}
@@ -1873,9 +2017,16 @@ function EncounterList({ title, encounters, teamId, showResult = false }: { titl
                   gap: 12,
                 }}
               >
-                <div>
-                  <div style={{ color: '#f8fafc', fontWeight: 800, fontSize: 14 }}>{encounter.opponent.name}</div>
-                  <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{encounter.leg === 'ida' ? 'Primer enfrentamiento (Ida)' : 'Segundo enfrentamiento (Vuelta)'}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {oppLogo && (
+                    <div style={{ width: 28, height: 28, borderRadius: 6, background: '#ffffff', padding: 2, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src={oppLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ color: '#f8fafc', fontWeight: 800, fontSize: 14 }}>{encounter.opponent.name}</div>
+                    <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>{encounter.leg === 'ida' ? 'Primer enfrentamiento (Ida)' : 'Segundo enfrentamiento (Vuelta)'}</div>
+                  </div>
                 </div>
                 <div style={{ color: result?.color ?? '#cbd5e1', fontSize: 13, textAlign: 'right', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                   {result?.text ?? (encounter.match ? formatTeamMatchDate(encounter.match) : 'Por programar · Aún no registrado')}
@@ -1897,6 +2048,7 @@ function PlayoffList({ matches, teamId }: { matches: MatchData[]; teamId: number
         {matches.map((match) => {
           const opponent = match.home_team_id === teamId ? match.away_team : match.home_team;
           const result = isPlayedStatus(match.status) ? teamMatchResult(match, teamId) : null;
+          const oppLogo = opponent ? getTeamLogoUrl(opponent.name) : null;
           return (
             <div
               key={match.id}
@@ -1910,9 +2062,16 @@ function PlayoffList({ matches, teamId }: { matches: MatchData[]; teamId: number
                 gap: 12,
               }}
             >
-              <div>
-                <div style={{ color: '#f8fafc', fontWeight: 800 }}>{opponent?.name ?? 'Rival por definir'}</div>
-                <div style={{ color: '#94a3b8', fontSize: 12 }}>{match.phase ?? 'Liguilla'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {oppLogo && (
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: '#ffffff', padding: 2, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img src={oppLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </div>
+                )}
+                <div>
+                  <div style={{ color: '#f8fafc', fontWeight: 800 }}>{opponent?.name ?? 'Rival por definir'}</div>
+                  <div style={{ color: '#94a3b8', fontSize: 12 }}>{match.phase ?? 'Liguilla'}</div>
+                </div>
               </div>
               <div style={{ color: result?.color ?? '#cbd5e1', fontSize: 13, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                 {result?.text ?? formatTeamMatchDate(match)}

@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { calcularElegibilidad } from '@/lib/eligibility';
 import { formatPlayerNumber } from '@/lib/player-number';
 import type { TeamStats } from '@/lib/standings';
+import { getTeamLogoUrl } from '@/lib/team-logos';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
@@ -63,6 +64,7 @@ export default function TeamDetailModal({
   }[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [phase, setPhase] = useState<Phase>('Fase Regular');
+  const logoUrl = getTeamLogoUrl(team.equipo);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,30 +155,67 @@ export default function TeamDetailModal({
       centered
       className="team-detail-modal"
       title={
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                background: 'rgba(245, 158, 11, 0.15)',
-                border: '1.5px solid rgba(245, 158, 11, 0.4)',
-                color: 'var(--gold-soft)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 16,
-                fontWeight: 900,
-              }}
-            >
-              🏀
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {logoUrl ? (
+              <div
+                style={{
+                  width: 58,
+                  height: 58,
+                  borderRadius: 14,
+                  background: '#ffffff',
+                  padding: 3,
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(245, 158, 11, 0.7)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                }}
+              >
+                <img
+                  src={logoUrl}
+                  alt={team.equipo}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    borderRadius: 11,
+                  }}
+                />
+              </div>
+            ) : (
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 14,
+                  background: 'rgba(245, 158, 11, 0.15)',
+                  border: '1.5px solid rgba(245, 158, 11, 0.4)',
+                  color: 'var(--gold-soft)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 22,
+                  fontWeight: 900,
+                  flexShrink: 0,
+                }}
+              >
+                🏀
+              </div>
+            )}
             <div>
-              <div style={{ color: '#fff', fontWeight: 800, fontSize: 18, letterSpacing: '0.02em' }}>
+              <div style={{ color: '#fff', fontWeight: 900, fontSize: 19, letterSpacing: '0.02em', lineHeight: 1.2 }}>
                 {team.equipo}
               </div>
-              <div style={{ color: '#94a3b8', fontSize: 12 }}>{seasonName}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                <span style={{ color: '#94a3b8', fontSize: 12 }}>{seasonName}</span>
+                {team.PJ > 0 && (
+                  <Tag color="gold" style={{ margin: 0, fontSize: 11, fontWeight: 700, borderRadius: 6 }}>
+                    {team.PG}G - {team.PP}P · {team.Pts} pts
+                  </Tag>
+                )}
+              </div>
             </div>
           </div>
         </div>

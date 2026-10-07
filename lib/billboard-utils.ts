@@ -524,7 +524,7 @@ export async function generateBillboardImage(
     ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
     ctx.shadowBlur = 10;
     // Ajustar si el nombre es muy largo
-    let displayName = teamName.toUpperCase();
+    const displayName = teamName.toUpperCase();
     if (displayName.length > 15) {
       ctx.font = '900 34px Inter, Arial, sans-serif';
     }

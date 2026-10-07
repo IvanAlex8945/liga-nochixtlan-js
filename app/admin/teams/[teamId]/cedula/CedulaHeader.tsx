@@ -1,5 +1,6 @@
 import type { CedulaEquipo } from './types';
 import styles from './cedula.module.css';
+import { getTeamLogoUrl } from '@/lib/team-logos';
 
 interface CedulaHeaderProps {
   equipo: CedulaEquipo;
@@ -7,10 +8,23 @@ interface CedulaHeaderProps {
 }
 
 export default function CedulaHeader({ equipo, temporada }: CedulaHeaderProps) {
+  const logoUrl = getTeamLogoUrl(equipo.nombre);
   return (
     <header className={styles['cedula-header']}>
-      <div className={styles['cedula-logo']} aria-hidden="true">
-        <span>🏀</span>
+      <div
+        className={styles['cedula-logo']}
+        aria-hidden="true"
+        style={logoUrl ? { background: '#ffffff', overflow: 'hidden', padding: 2 } : undefined}
+      >
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt={equipo.nombre}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%' }}
+          />
+        ) : (
+          <span>🏀</span>
+        )}
       </div>
       <div className={styles['cedula-title-block']}>
         <p className={styles['cedula-kicker']}>LIBERTAD, SALUD Y DEPORTE</p>
