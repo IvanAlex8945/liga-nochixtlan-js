@@ -982,6 +982,8 @@ body {
   border-radius: var(--radius-lg) !important;
   box-shadow: var(--shadow-elevated) !important;
   padding: 24px !important;
+  position: relative !important;
+  overflow: hidden !important;
 }
 
 .team-detail-modal .ant-modal-header {

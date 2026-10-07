@@ -14,8 +14,8 @@ const KNOWN_LOGOS: Record<string, string> = {
   'M-SPORT': '/logos/m-sport.jpg',
   'ALEBRIJES': '/logos/alebrijes.jpg',
   'MIXTECOS': '/logos/mixtecos.jpg',
-  'ELECTRICA Y PLOMERIA GS': '/logos/plomeria-gs.jpg',
-  'PLOMERIA GS': '/logos/plomeria-gs.jpg',
+  'ELECTRICA Y PLOMERIA GS': '/logos/plomeria-gs.png',
+  'PLOMERIA GS': '/logos/plomeria-gs.png',
 };
 
 export function normalizeTeamKey(name: string): string {

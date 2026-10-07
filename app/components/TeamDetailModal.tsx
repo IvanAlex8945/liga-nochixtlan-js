@@ -156,54 +156,25 @@ export default function TeamDetailModal({
       className="team-detail-modal"
       title={
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            {logoUrl ? (
-              <div
-                style={{
-                  width: 58,
-                  height: 58,
-                  borderRadius: 14,
-                  background: '#ffffff',
-                  padding: 3,
-                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 2px rgba(245, 158, 11, 0.7)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
-                  flexShrink: 0,
-                }}
-              >
-                <img
-                  src={logoUrl}
-                  alt={team.equipo}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    borderRadius: 11,
-                  }}
-                />
-              </div>
-            ) : (
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 14,
-                  background: 'rgba(245, 158, 11, 0.15)',
-                  border: '1.5px solid rgba(245, 158, 11, 0.4)',
-                  color: 'var(--gold-soft)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 22,
-                  fontWeight: 900,
-                  flexShrink: 0,
-                }}
-              >
-                🏀
-              </div>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                background: 'rgba(245, 158, 11, 0.15)',
+                border: '1.5px solid rgba(245, 158, 11, 0.4)',
+                color: 'var(--gold-soft)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 18,
+                fontWeight: 900,
+                flexShrink: 0,
+              }}
+            >
+              🏀
+            </div>
             <div>
               <div style={{ color: '#fff', fontWeight: 900, fontSize: 19, letterSpacing: '0.02em', lineHeight: 1.2 }}>
                 {team.equipo}
@@ -221,7 +192,43 @@ export default function TeamDetailModal({
         </div>
       }
     >
-      {/* ── Barra de Métricas Clave ─────────────────────────────────── */}
+      <div style={{ position: 'relative' }}>
+        {/* Marca de agua translúcida oficial como fondo de la ventana */}
+        {logoUrl && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 440,
+              maxWidth: '85%',
+              height: 440,
+              pointerEvents: 'none',
+              zIndex: 0,
+              opacity: 0.12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              userSelect: 'none',
+              filter: 'drop-shadow(0 0 50px rgba(245, 158, 11, 0.35))',
+            }}
+          >
+            <img
+              src={logoUrl}
+              alt=""
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+              }}
+            />
+          </div>
+        )}
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          {/* ── Barra de Métricas Clave ─────────────────────────────────── */}
       <div
         style={{
           display: 'grid',
@@ -525,6 +532,8 @@ export default function TeamDetailModal({
           ]}
         />
       )}
+        </div>
+      </div>
     </Modal>
   );
 }
