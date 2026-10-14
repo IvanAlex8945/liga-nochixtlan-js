@@ -150,3 +150,15 @@ export function checkSchedulingConflicts(input: SchedulingCheckInput): Schedulin
     warnings: Array.from(new Set(warnings)),
   };
 }
+
+export function filterTeamOption(input: string, option?: { label?: unknown }) {
+  const label = (option?.label?.toString() ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  const search = (input || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return label.includes(search);
+}

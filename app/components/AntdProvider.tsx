@@ -16,6 +16,7 @@ export default function AntdProvider({ children }: { children: React.ReactNode }
     <QueryClientProvider client={queryClient}>
       <ConfigProvider
         locale={esES}
+        virtual={false}
         getPopupContainer={(triggerNode) => {
           if (triggerNode) {
             if (triggerNode.classList.contains('ant-select')) {

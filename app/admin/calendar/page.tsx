@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useState, useMemo } from 'react';
 import AdminEditForm, { EditableMatch } from '@/app/components/AdminEditForm';
 import { invalidatePublicCache } from '@/lib/public-cache-client';
-import { checkSchedulingConflicts, SchedulingTeam } from '@/lib/scheduling';
+import { checkSchedulingConflicts, filterTeamOption, SchedulingTeam } from '@/lib/scheduling';
 import { useAdminStore } from '@/lib/admin-store';
 import LiguillaModal from './LiguillaModal';
 import MissingMatchesModal from './MissingMatchesModal';
@@ -1420,11 +1420,13 @@ export default function CalendarPage() {
               size="middle"
               allowClear
               maxTagCount={1}
+              virtual={false}
               placeholder="Filtrar por equipo"
               value={teamFilterIds}
               onChange={setTeamFilterIds}
               options={teamOptions}
               optionFilterProp="label"
+              filterOption={filterTeamOption}
             />
             <Select
               size="middle"
@@ -1549,11 +1551,13 @@ export default function CalendarPage() {
               <Select
                 allowClear
                 showSearch
+                virtual={false}
                 placeholder="Selecciona equipo"
                 value={selectedTeamCalendarId}
                 onChange={(value) => setSelectedTeamCalendarId(value ?? null)}
                 options={teamOptions}
                 optionFilterProp="label"
+                filterOption={filterTeamOption}
                 style={{ width: 280, maxWidth: '100%' }}
               />
             </div>
@@ -1613,10 +1617,10 @@ export default function CalendarPage() {
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="home_team_id" label="Equipo Local" rules={[{ required: true }]}>
-            <Select options={teamOptions} showSearch />
+            <Select virtual={false} options={teamOptions} showSearch optionFilterProp="label" filterOption={filterTeamOption} />
           </Form.Item>
           <Form.Item name="away_team_id" label="Equipo Visitante" rules={[{ required: true }]}>
-            <Select options={teamOptions} showSearch />
+            <Select virtual={false} options={teamOptions} showSearch optionFilterProp="label" filterOption={filterTeamOption} />
           </Form.Item>
           <Form.Item name="phase" label="Fase" initialValue="Fase Regular">
             <Select options={PHASES.map((p) => ({ label: p, value: p }))} />
