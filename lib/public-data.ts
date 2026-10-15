@@ -27,6 +27,8 @@ export interface PublicPlayer {
   team_id?: number;
   number?: string | null;
   name: string;
+  photo_url?: string | null;
+  photo_thumb_url?: string | null;
 }
 
 export interface PublicMatch {
@@ -102,7 +104,7 @@ async function fetchSeasonData(seasonId: number): Promise<PublicSeasonData> {
     teamIds.length > 0
       ? supabase
           .from('players')
-          .select('id, name, team_id, number')
+          .select('id, name, team_id, number, photo_url, photo_thumb_url')
           .in('team_id', teamIds)
           .limit(5000)
       : Promise.resolve({ data: [], error: null }),

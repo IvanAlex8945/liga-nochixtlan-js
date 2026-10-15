@@ -177,6 +177,7 @@ export default function TeamsPage() {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const seasonId = useAdminStore((s) => s.selectedSeasonId);
   const [photoDraft, setPhotoDraft] = useState<PhotoDraft | null>(null);
+  const [photoWasRemoved, setPhotoWasRemoved] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [credentialPreview, setCredentialPreview] = useState<CredentialPreviewState>({
     imageUrl: null,
@@ -223,6 +224,7 @@ export default function TeamsPage() {
     setEditingPlayer(null);
     playerForm.resetFields();
     replacePhotoDraft(null);
+    setPhotoWasRemoved(false);
     setIsUploadingPhoto(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -236,6 +238,7 @@ export default function TeamsPage() {
 
   function openPlayerForEdit(player: Player) {
     setEditingPlayer(player);
+    setPhotoWasRemoved(false);
     playerForm.setFieldsValue({
       curp: player.curp ?? null,
       name: player.name,
@@ -395,6 +398,7 @@ export default function TeamsPage() {
 
       const existingDraft = photoDraft;
 
+      setPhotoWasRemoved(false);
       replacePhotoDraft(nextDraft);
 
       if (
@@ -425,6 +429,7 @@ export default function TeamsPage() {
       !!currentPublicId &&
       currentPublicId !== editingPlayer?.photo_public_id;
 
+    setPhotoWasRemoved(true);
     replacePhotoDraft(null);
 
     if (shouldDeleteRemote && currentPublicId) {
@@ -908,14 +913,28 @@ export default function TeamsPage() {
       const nextPublicId = photoDraft?.publicId ?? null;
       const trimmedName = values.name.trim();
       const playerNumber = normalizePlayerNumberForStorage(values.number);
+      let nextPhotoUrl = photoDraft?.photoUrl ?? null;
+      let nextPhotoThumb = photoDraft?.thumbUrl ?? null;
+      let resolvedPublicId = nextPublicId;
+      let resolvedProvider = photoDraft?.provider ?? null;
+
+      // Salvaguarda: Si el jugador ya tiene foto y el usuario solo editó nombre/dorsal
+      // sin haber dado clic explícito a 'Quitar foto', se conserva su foto intacta.
+      if (editingPlayer && !photoDraft && !photoWasRemoved && editingPlayer.photo_url) {
+        nextPhotoUrl = editingPlayer.photo_url;
+        nextPhotoThumb = editingPlayer.photo_thumb_url ?? editingPlayer.photo_url;
+        resolvedPublicId = editingPlayer.photo_public_id ?? null;
+        resolvedProvider = editingPlayer.photo_provider ?? null;
+      }
+
       const payload = {
         ...(requiresCurp ? { curp: normalizeCurp(values.curp) } : {}),
         name: trimmedName,
         number: playerNumber,
-        photo_url: photoDraft?.photoUrl ?? null,
-        photo_thumb_url: photoDraft?.thumbUrl ?? null,
-        photo_public_id: nextPublicId,
-        photo_provider: photoDraft?.provider ?? null,
+        photo_url: nextPhotoUrl,
+        photo_thumb_url: nextPhotoThumb,
+        photo_public_id: resolvedPublicId,
+        photo_provider: resolvedProvider,
       };
 
       if (editingPlayer) {
@@ -930,8 +949,9 @@ export default function TeamsPage() {
 
         if (
           previousPublicId &&
-          previousPublicId !== nextPublicId &&
-          editingPlayer.photo_provider === 'cloudinary'
+          previousPublicId !== resolvedPublicId &&
+          editingPlayer.photo_provider === 'cloudinary' &&
+          (photoWasRemoved || (photoDraft && photoDraft.publicId !== previousPublicId))
         ) {
           try {
             await deleteCloudinaryAsset(previousPublicId);
@@ -944,8 +964,8 @@ export default function TeamsPage() {
         const credentialNeedsReissue =
           editingPlayer.name.trim() !== trimmedName ||
           (editingPlayer.number ?? null) !== playerNumber ||
-          (editingPlayer.photo_url ?? null) !== (photoDraft?.photoUrl ?? null) ||
-          (editingPlayer.photo_public_id ?? null) !== nextPublicId;
+          (editingPlayer.photo_url ?? null) !== nextPhotoUrl ||
+          (editingPlayer.photo_public_id ?? null) !== resolvedPublicId;
 
         if (currentCredential && credentialNeedsReissue) {
           const result = await reissueCredentialForPlayer(
@@ -1442,7 +1462,14 @@ export default function TeamsPage() {
                       <Tag
                         key={player.id}
                         color={player.is_active ? 'blue' : 'default'}
-                        style={{ cursor: 'pointer' }}
+                        style={{
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                        }}
                         onClick={() =>
                           togglePlayer.mutate({
                             id: player.id,
@@ -1450,15 +1477,27 @@ export default function TeamsPage() {
                           })
                         }
                       >
-                        #{formatPlayerNumber(player.number, '?')} {player.name} {!player.is_active && '(baja)'}
+                        {player.photo_thumb_url || player.photo_url ? (
+                          <img
+                            src={player.photo_thumb_url ?? player.photo_url ?? ''}
+                            alt=""
+                            style={{
+                              width: 18,
+                              height: 18,
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                            }}
+                          />
+                        ) : null}
+                        <span>#{formatPlayerNumber(player.number, '?')} {player.name} {!player.is_active && '(baja)'}</span>
                         {getPlayerCredential(player.id) && (
-                          <span style={{ marginLeft: 6, color: '#52c41a' }}>• credencial</span>
+                          <span style={{ color: '#52c41a', fontSize: 11, fontWeight: 700 }}>• QR</span>
                         )}
-                        {player.photo_url && (
-                          <span style={{ marginLeft: 6, color: '#91caff' }}>• foto</span>
+                        {(player.photo_thumb_url || player.photo_url) && (
+                          <span style={{ color: '#91caff', fontSize: 11, fontWeight: 700 }}>• foto</span>
                         )}
                         <span
-                          style={{ marginLeft: 6, color: '#ff4d4f', cursor: 'pointer' }}
+                          style={{ marginLeft: 4, color: '#ff4d4f', cursor: 'pointer', fontWeight: 900 }}
                           onClick={(event) => {
                             event.stopPropagation();
                             modal.confirm({
@@ -1558,20 +1597,77 @@ export default function TeamsPage() {
               key: '1',
               label: `Activos (${selectedTeamPlayers.filter((player) => player.is_active).length} registrados - Límite temporal apagado)`,
               children: (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {selectedTeamPlayers
                     .filter((player) => player.is_active)
-                    .map((player) => (
-                      <Tag
-                        key={player.id}
-                        color="blue"
-                        icon={<EditOutlined />}
-                        style={{ cursor: 'pointer', padding: '4px 8px' }}
-                        onClick={() => openPlayerForEdit(player)}
-                      >
-                        #{formatPlayerNumber(player.number, '?')} {player.name}
-                      </Tag>
-                    ))}
+                    .map((player) => {
+                      const isSelected = editingPlayer?.id === player.id;
+                      const hasPhoto = Boolean(player.photo_thumb_url || player.photo_url);
+                      const hasCred = Boolean(getPlayerCredential(player.id));
+                      return (
+                        <div
+                          key={player.id}
+                          role="button"
+                          tabIndex={0}
+                          style={{
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '5px 10px',
+                            borderRadius: 8,
+                            background: isSelected
+                              ? 'rgba(245, 158, 11, 0.2)'
+                              : hasPhoto
+                              ? 'rgba(30, 58, 138, 0.35)'
+                              : 'rgba(255, 255, 255, 0.05)',
+                            border: isSelected
+                              ? '1.5px solid #f59e0b'
+                              : hasPhoto
+                              ? '1px solid rgba(59, 130, 246, 0.5)'
+                              : '1px solid rgba(255, 255, 255, 0.12)',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onClick={() => openPlayerForEdit(player)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openPlayerForEdit(player); }}
+                        >
+                          {hasPhoto ? (
+                            <img
+                              src={player.photo_thumb_url ?? player.photo_url ?? ''}
+                              alt={player.name}
+                              style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: '50%',
+                                objectFit: 'cover',
+                                border: '1px solid rgba(255, 255, 255, 0.3)',
+                                flexShrink: 0,
+                              }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: 13, opacity: 0.6 }}>👤</span>
+                          )}
+                          <span style={{ fontWeight: 700, fontSize: 13, color: isSelected ? '#fde68a' : '#fff' }}>
+                            #{formatPlayerNumber(player.number, '?')} {player.name}
+                          </span>
+                          {hasPhoto && (
+                            <span style={{ fontSize: 10, background: '#1e40af', color: '#93c5fd', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                              Foto ✓
+                            </span>
+                          )}
+                          {hasCred && (
+                            <span style={{ fontSize: 10, background: '#065f46', color: '#6ee7b7', padding: '1px 5px', borderRadius: 4, fontWeight: 700 }}>
+                              QR ✓
+                            </span>
+                          )}
+                          {isSelected && (
+                            <span style={{ fontSize: 10, background: '#b45309', color: '#fef3c7', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>
+                              Editando
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   {selectedTeamPlayers.filter((player) => player.is_active).length === 0 && (
                     <Text style={{ color: '#555' }}>Sin jugadores activos</Text>
                   )}
@@ -1582,20 +1678,59 @@ export default function TeamsPage() {
               key: '2',
               label: `Bajas / Inactivos (${selectedTeamPlayers.filter((player) => !player.is_active).length})`,
               children: (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {selectedTeamPlayers
                     .filter((player) => !player.is_active)
-                    .map((player) => (
-                      <Tag
-                        key={player.id}
-                        color="default"
-                        icon={<EditOutlined />}
-                        style={{ cursor: 'pointer', padding: '4px 8px' }}
-                        onClick={() => openPlayerForEdit(player)}
-                      >
-                        #{formatPlayerNumber(player.number, '?')} {player.name}
-                      </Tag>
-                    ))}
+                    .map((player) => {
+                      const isSelected = editingPlayer?.id === player.id;
+                      const hasPhoto = Boolean(player.photo_thumb_url || player.photo_url);
+                      return (
+                        <div
+                          key={player.id}
+                          role="button"
+                          tabIndex={0}
+                          style={{
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '5px 10px',
+                            borderRadius: 8,
+                            background: isSelected
+                              ? 'rgba(245, 158, 11, 0.2)'
+                              : 'rgba(255, 255, 255, 0.03)',
+                            border: isSelected
+                              ? '1.5px solid #f59e0b'
+                              : '1px solid rgba(255, 255, 255, 0.08)',
+                            opacity: 0.75,
+                          }}
+                          onClick={() => openPlayerForEdit(player)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openPlayerForEdit(player); }}
+                        >
+                          {hasPhoto ? (
+                            <img
+                              src={player.photo_thumb_url ?? player.photo_url ?? ''}
+                              alt={player.name}
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: '50%',
+                                objectFit: 'cover',
+                                flexShrink: 0,
+                              }}
+                            />
+                          ) : null}
+                          <span style={{ fontWeight: 600, fontSize: 12, color: isSelected ? '#fde68a' : '#888' }}>
+                            #{formatPlayerNumber(player.number, '?')} {player.name} (baja)
+                          </span>
+                          {isSelected && (
+                            <span style={{ fontSize: 10, background: '#b45309', color: '#fef3c7', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>
+                              Editando
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   {selectedTeamPlayers.filter((player) => !player.is_active).length === 0 && (
                     <Text style={{ color: '#555', fontSize: 12 }}>Sin bajas</Text>
                   )}
@@ -1606,9 +1741,16 @@ export default function TeamsPage() {
         />
 
         <div style={{ borderTop: '1px solid #333', paddingTop: 16, marginTop: 16 }}>
-          <Text strong style={{ display: 'block', marginBottom: 12 }}>
-            {editingPlayer ? `Editar jugador: ${editingPlayer.name}` : 'Inscribir nuevo jugador'}
-          </Text>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <Text strong style={{ fontSize: 14, color: editingPlayer ? '#fde68a' : '#fff' }}>
+              {editingPlayer ? `✏️ Editando a: ${editingPlayer.name}` : '➕ Inscribir nuevo jugador'}
+            </Text>
+            {editingPlayer && (
+              <Button size="small" type="dashed" onClick={() => resetPlayerEditorState()}>
+                + Inscribir nuevo jugador
+              </Button>
+            )}
+          </div>
 
           <Alert
             type="info"

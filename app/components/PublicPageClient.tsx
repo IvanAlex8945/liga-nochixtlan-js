@@ -69,6 +69,8 @@ export interface PlayerData {
   team_id?: number;
   number?: string | null;
   name: string;
+  photo_url?: string | null;
+  photo_thumb_url?: string | null;
 }
 
 export interface MatchData {
@@ -342,12 +344,12 @@ export default function PublicPageClient(props: Props) {
 
   const leaders = useMemo(() => {
     const matchIds = new Set(regularMatches.map((m) => m.id));
-    const map: Record<number, { id: number; nombre: string; puntos: number; triples: number; team_id: number }> = {};
+    const map: Record<number, { id: number; nombre: string; puntos: number; triples: number; team_id: number; photo?: string | null }> = {};
     for (const s of allStats) {
       if (!matchIds.has(s.match_id) || !s.played) continue;
       const p = s.players;
       if (!p) continue;
-      if (!map[p.id]) map[p.id] = { id: p.id, nombre: p.name, puntos: 0, triples: 0, team_id: s.team_id };
+      if (!map[p.id]) map[p.id] = { id: p.id, nombre: p.name, puntos: 0, triples: 0, team_id: s.team_id, photo: p.photo_thumb_url ?? p.photo_url ?? null };
       map[p.id].puntos += s.points ?? 0;
       map[p.id].triples += s.triples ?? 0;
     }
@@ -356,12 +358,12 @@ export default function PublicPageClient(props: Props) {
 
   const tripleros = useMemo(() => {
     const matchIds = new Set(regularMatches.map((m) => m.id));
-    const map: Record<number, { id: number; nombre: string; puntos: number; triples: number; team_id: number }> = {};
+    const map: Record<number, { id: number; nombre: string; puntos: number; triples: number; team_id: number; photo?: string | null }> = {};
     for (const s of allStats) {
       if (!matchIds.has(s.match_id) || !s.played) continue;
       const p = s.players;
       if (!p || !s.triples) continue;
-      if (!map[p.id]) map[p.id] = { id: p.id, nombre: p.name, puntos: 0, triples: 0, team_id: s.team_id };
+      if (!map[p.id]) map[p.id] = { id: p.id, nombre: p.name, puntos: 0, triples: 0, team_id: s.team_id, photo: p.photo_thumb_url ?? p.photo_url ?? null };
       map[p.id].puntos += s.points ?? 0;
       map[p.id].triples += s.triples ?? 0;
     }
@@ -965,9 +967,25 @@ export default function PublicPageClient(props: Props) {
                                       Puntos Anotados
                                     </div>
                                   </div>
-                                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: 10 }}>
-                                    <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{l.nombre}</div>
-                                    <div style={{ color: '#94a3b8', fontSize: 12 }}>{team?.name ?? '?'}</div>
+                                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    {l.photo ? (
+                                      <img
+                                        src={l.photo}
+                                        alt={l.nombre}
+                                        style={{
+                                          width: 34,
+                                          height: 34,
+                                          borderRadius: '50%',
+                                          objectFit: 'cover',
+                                          border: '1.5px solid rgba(255, 255, 255, 0.25)',
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                      <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.nombre}</div>
+                                      <div style={{ color: '#94a3b8', fontSize: 12 }}>{team?.name ?? '?'}</div>
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -1015,9 +1033,25 @@ export default function PublicPageClient(props: Props) {
                                       Bombas de 3PT ({Math.floor(l.triples * 3)} pts eq.)
                                     </div>
                                   </div>
-                                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: 10 }}>
-                                    <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{l.nombre}</div>
-                                    <div style={{ color: '#94a3b8', fontSize: 12 }}>{team?.name ?? '?'}</div>
+                                  <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    {l.photo ? (
+                                      <img
+                                        src={l.photo}
+                                        alt={l.nombre}
+                                        style={{
+                                          width: 34,
+                                          height: 34,
+                                          borderRadius: '50%',
+                                          objectFit: 'cover',
+                                          border: '1.5px solid rgba(255, 255, 255, 0.25)',
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                      <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.nombre}</div>
+                                      <div style={{ color: '#94a3b8', fontSize: 12 }}>{team?.name ?? '?'}</div>
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -1432,7 +1466,7 @@ function LeadersTable({
   teams,
   startIndex = 1,
 }: {
-  data: { id: number; nombre: string; team_id: number; puntos: number; triples: number }[];
+  data: { id: number; nombre: string; team_id: number; puntos: number; triples: number; photo?: string | null }[];
   type: 'puntos' | 'triples';
   color: string;
   teams: TeamData[];
@@ -1495,9 +1529,14 @@ function LeadersTable({
                         fontWeight: 900,
                         color: 'var(--oro-cantera)',
                         flexShrink: 0,
+                        overflow: 'hidden',
                       }}
                     >
-                      {initials}
+                      {l.photo ? (
+                        <img src={l.photo} alt={l.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        initials
+                      )}
                     </div>
                     <span style={{ fontWeight: 800, color: '#f8fafc', fontSize: 13, letterSpacing: '0.01em' }}>
                       {l.nombre}
@@ -1599,10 +1638,10 @@ function TeamStatsTab({
 
   const teamStats = useMemo(() => {
     if (!selectedTeamId) return [];
-    const byPlayer: Record<number, { id: number; number: string | null; nombre: string; triples: number; puntos: number }> = {};
+    const byPlayer: Record<number, { id: number; number: string | null; nombre: string; triples: number; puntos: number; photo: string | null }> = {};
     for (const p of allPlayers) {
       if (p.team_id === selectedTeamId) {
-        byPlayer[p.id] = { id: p.id, number: p.number ?? null, nombre: p.name, triples: 0, puntos: 0 };
+        byPlayer[p.id] = { id: p.id, number: p.number ?? null, nombre: p.name, triples: 0, puntos: 0, photo: p.photo_thumb_url ?? p.photo_url ?? null };
       }
     }
     const matchIds = new Set(filteredMatches.map((m) => m.id));
@@ -1610,7 +1649,7 @@ function TeamStatsTab({
       if (!matchIds.has(s.match_id) || s.team_id !== selectedTeamId || !s.played) continue;
       const p = s.players;
       if (!p) continue;
-      if (!byPlayer[p.id]) byPlayer[p.id] = { id: p.id, number: null, nombre: p.name, triples: 0, puntos: 0 };
+      if (!byPlayer[p.id]) byPlayer[p.id] = { id: p.id, number: null, nombre: p.name, triples: 0, puntos: 0, photo: p.photo_thumb_url ?? p.photo_url ?? null };
       byPlayer[p.id].triples += s.triples ?? 0;
       byPlayer[p.id].puntos += s.points ?? 0;
     }
@@ -1750,7 +1789,20 @@ function TeamStatsTab({
                   {teamStats.map((s) => (
                     <tr key={s.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
                       <td style={{ textAlign: 'center', color: '#94a3b8', padding: '8px 6px', fontSize: 12 }}>{s.number ? `#${s.number}` : '-'}</td>
-                      <td style={{ textAlign: 'left', fontWeight: 600, color: '#f8fafc', padding: '8px 6px', fontSize: 13 }}>{s.nombre}</td>
+                      <td style={{ textAlign: 'left', fontWeight: 600, color: '#f8fafc', padding: '8px 6px', fontSize: 13 }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          {s.photo ? (
+                            <img
+                              src={s.photo}
+                              alt=""
+                              style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(255, 255, 255, 0.2)' }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: 12, opacity: 0.5 }}>👤</span>
+                          )}
+                          <span>{s.nombre}</span>
+                        </div>
+                      </td>
                       <td style={{ textAlign: 'right', padding: '8px 6px' }}>
                         <span style={{ color: s.triples > 0 ? '#38bdf8' : '#94a3b8', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{s.triples}</span>
                       </td>

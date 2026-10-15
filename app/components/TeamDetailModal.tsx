@@ -23,6 +23,8 @@ interface Player {
   name: string;
   number: number | null;
   is_active: boolean;
+  photo_url?: string | null;
+  photo_thumb_url?: string | null;
 }
 
 interface Props {
@@ -71,7 +73,7 @@ export default function TeamDetailModal({
     Promise.all([
       supabase
         .from('players')
-        .select('id, name, number, is_active')
+        .select('id, name, number, is_active, photo_url, photo_thumb_url')
         .eq('team_id', team.id)
         .order('number'),
       calcularElegibilidad(supabase, team.id, seasonId),
@@ -332,42 +334,110 @@ export default function TeamDetailModal({
               key: 'roster',
               label: `👥 Cédula (${players.length})`,
               children: (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '8px 0' }}>
+                <div style={{ padding: '8px 0' }}>
                   {players.length === 0 ? (
-                    <Text style={{ color: '#64748b' }}>Sin jugadores registrados</Text>
+                    <Text style={{ color: '#64748b', display: 'block', textAlign: 'center', padding: 24 }}>
+                      Sin jugadores registrados
+                    </Text>
                   ) : (
-                    players.map((p) => {
-                      const elig = eligibility?.find((e) => e.jugador_id === p.id);
-                      return (
-                        <Tag
-                          key={p.id}
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: 12,
-                            borderRadius: 8,
-                            background: !p.is_active
-                              ? 'rgba(255, 255, 255, 0.04)'
-                              : elig?.elegible
-                              ? 'rgba(74, 222, 128, 0.1)'
-                              : 'rgba(248, 113, 113, 0.1)',
-                            borderColor: !p.is_active
-                              ? 'rgba(255, 255, 255, 0.1)'
-                              : elig?.elegible
-                              ? 'rgba(74, 222, 128, 0.3)'
-                              : 'rgba(248, 113, 113, 0.3)',
-                            color: !p.is_active
-                              ? '#64748b'
-                              : elig?.elegible
-                              ? '#4ade80'
-                              : '#f87171',
-                            fontWeight: 600,
-                          }}
-                        >
-                          #{formatPlayerNumber(p.number, '?')} {p.name}
-                          {!p.is_active && ' (baja)'}
-                        </Tag>
-                      );
-                    })
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                        gap: 10,
+                      }}
+                    >
+                      {players.map((p) => {
+                        const elig = eligibility?.find((e) => e.jugador_id === p.id);
+                        const photo = p.photo_thumb_url || p.photo_url;
+                        return (
+                          <div
+                            key={p.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              padding: '8px 10px',
+                              borderRadius: 10,
+                              background: !p.is_active
+                                ? 'rgba(255, 255, 255, 0.03)'
+                                : elig?.elegible
+                                ? 'rgba(74, 222, 128, 0.06)'
+                                : 'rgba(248, 113, 113, 0.06)',
+                              border: `1px solid ${
+                                !p.is_active
+                                  ? 'rgba(255, 255, 255, 0.08)'
+                                  : elig?.elegible
+                                  ? 'rgba(74, 222, 128, 0.25)'
+                                  : 'rgba(248, 113, 113, 0.25)'
+                              }`,
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 42,
+                                height: 48,
+                                borderRadius: 8,
+                                overflow: 'hidden',
+                                background: '#111827',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {photo ? (
+                                <img
+                                  src={photo}
+                                  alt={p.name}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <span style={{ fontSize: 13, fontWeight: 800, color: '#64748b' }}>
+                                  #{formatPlayerNumber(p.number, '?')}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div
+                                style={{
+                                  color: !p.is_active
+                                    ? '#64748b'
+                                    : elig?.elegible
+                                    ? '#4ade80'
+                                    : '#f87171',
+                                  fontWeight: 700,
+                                  fontSize: 13,
+                                  lineHeight: 1.25,
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                                title={p.name}
+                              >
+                                #{formatPlayerNumber(p.number, '?')} {p.name}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                                {!p.is_active ? (
+                                  <Tag style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }} color="default">
+                                    Baja
+                                  </Tag>
+                                ) : elig?.elegible ? (
+                                  <Tag style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }} color="success">
+                                    Elegible ({elig.asistencias} PJ)
+                                  </Tag>
+                                ) : (
+                                  <Tag style={{ margin: 0, fontSize: 10, padding: '0 4px', lineHeight: '16px' }} color="error">
+                                    {elig?.asistencias ?? 0}/{elig?.min_requerido ?? 0} PJ
+                                  </Tag>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               ),
