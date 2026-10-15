@@ -5,6 +5,8 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request: Request) {
   try {
@@ -18,7 +20,12 @@ export async function GET(request: Request) {
     if (!user || !hasPermission(access.permissions, 'manage_teams')) {
       return NextResponse.json(
         { error: 'No tienes permiso para consultar credenciales.' },
-        { status: 403 }
+        {
+          status: 403,
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          },
+        }
       );
     }
 
@@ -29,7 +36,12 @@ export async function GET(request: Request) {
     if (!playerId || !seasonId) {
       return NextResponse.json(
         { error: 'Faltan playerId o seasonId.' },
-        { status: 400 }
+        {
+          status: 400,
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          },
+        }
       );
     }
 
@@ -48,11 +60,28 @@ export async function GET(request: Request) {
       throw error;
     }
 
-    return NextResponse.json({ credential: data ?? null });
+    return NextResponse.json(
+      { credential: data ?? null },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'CDN-Cache-Control': 'no-store',
+          'Vercel-CDN-Cache-Control': 'no-store',
+        },
+      }
+    );
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'No se pudo consultar la credencial del jugador.';
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      {
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        },
+      }
+    );
   }
 }

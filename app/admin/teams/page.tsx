@@ -284,9 +284,14 @@ export default function TeamsPage() {
     }
 
     const response = await fetch(
-      `/api/admin/player-credential?playerId=${playerId}&seasonId=${seasonId}`,
+      `/api/admin/player-credential?playerId=${playerId}&seasonId=${seasonId}&_t=${Date.now()}`,
       {
         method: 'GET',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+        },
       }
     );
 
@@ -515,7 +520,46 @@ export default function TeamsPage() {
   });
 
   const {
-    data: players = [],
+    data: seasonData,
+    isFetching: isFetchingCredentials,
+    refetch: refetchSeasonCredentials,
+  } = useQuery<{ credentials: PlayerCredential[]; players: Player[] }>({
+    queryKey: ['player-credentials', seasonId],
+    enabled: !!seasonId,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/admin/season-player-credentials?seasonId=${seasonId}&_t=${Date.now()}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            Pragma: 'no-cache',
+          },
+        }
+      );
+      const payload = (await parseJsonResponse(response)) as {
+        credentials?: PlayerCredential[];
+        players?: Player[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'No se pudieron cargar las credenciales de la temporada.');
+      }
+
+      return {
+        credentials: payload.credentials ?? [],
+        players: payload.players ?? [],
+      };
+    },
+  });
+
+  const credentials = seasonData?.credentials ?? [];
+
+  const {
+    data: rawPlayers = [],
     isFetching: isFetchingPlayers,
     refetch: refetchPlayers,
   } = useQuery<Player[]>({
@@ -532,28 +576,13 @@ export default function TeamsPage() {
     },
   });
 
-  const {
-    data: credentials = [],
-    refetch: refetchCredentials,
-  } = useQuery<PlayerCredential[]>({
-    queryKey: ['player-credentials', seasonId],
-    enabled: !!seasonId,
-    staleTime: 0,
-    refetchOnMount: 'always',
-    queryFn: async () => {
-      const response = await fetch(`/api/admin/season-player-credentials?seasonId=${seasonId}`);
-      const payload = (await parseJsonResponse(response)) as {
-        credentials?: PlayerCredential[];
-        error?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? 'No se pudieron cargar las credenciales de la temporada.');
-      }
-
-      return payload.credentials ?? [];
-    },
-  });
+  // Prefer players returned fresh from the admin endpoint, with fallback to rawPlayers
+  const players = useMemo(() => {
+    if (seasonData?.players && seasonData.players.length > 0) {
+      return seasonData.players;
+    }
+    return rawPlayers;
+  }, [seasonData?.players, rawPlayers]);
 
   const credentialByPlayer = new Map<number, PlayerCredential>();
   for (const credential of credentials) {
@@ -564,12 +593,13 @@ export default function TeamsPage() {
 
   useEffect(() => {
     if (multiTeamPdfModalOpen) {
+      setCredentialOverrides(new Map());
       qc.invalidateQueries({ queryKey: ['players'] });
       qc.invalidateQueries({ queryKey: ['player-credentials'] });
+      void refetchSeasonCredentials();
       void refetchPlayers();
-      void refetchCredentials();
     }
-  }, [multiTeamPdfModalOpen, qc, refetchPlayers, refetchCredentials]);
+  }, [multiTeamPdfModalOpen, qc, refetchSeasonCredentials, refetchPlayers]);
 
   async function issueCredentialForPlayer(playerId: number) {
     const response = await fetch('/api/admin/issue-player-credential', {
@@ -906,24 +936,27 @@ export default function TeamsPage() {
         throw new Error('Selecciona al menos una credencial para generar el PDF.');
       }
 
-      // Consultar datos y credenciales 100% frescos directamente desde Supabase en tiempo real
-      const [{ data: freshPlayers, error: playersErr }, { data: freshCreds, error: credsErr }] = await Promise.all([
+      // Consultar datos y credenciales 100% frescos directamente en tiempo real (con bypass RLS de servicio)
+      const [freshPlayersRes, freshCredsRes] = await Promise.all([
         supabase
           .from('players')
           .select('id, name, number, team_id, category, curp, photo_url, photo_thumb_url, is_active')
           .in('id', playerIds),
-        supabase
-          .from('player_credentials')
-          .select('id, player_id, credential_code, verify_token, issued_at, status')
-          .in('player_id', playerIds)
-          .eq('status', 'active'),
+        fetch(`/api/admin/season-player-credentials?seasonId=${selectedSeason.id}&_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+        })
+          .then((r) => r.json() as Promise<{ credentials?: PlayerCredential[]; players?: Player[] }>)
+          .catch(() => ({ credentials: [], players: [] })),
       ]);
 
-      if (playersErr) throw playersErr;
-      if (credsErr) throw credsErr;
-
-      const freshPlayerMap = new Map((freshPlayers ?? []).map((p) => [p.id, p]));
-      const freshCredMap = new Map((freshCreds ?? []).map((c) => [c.player_id, c]));
+      const freshPlayerMap = new Map(
+        (freshPlayersRes.data && freshPlayersRes.data.length > 0
+          ? freshPlayersRes.data
+          : freshCredsRes.players ?? []
+        ).map((p) => [p.id, p])
+      );
+      const freshCredMap = new Map((freshCredsRes.credentials ?? []).map((c) => [c.player_id, c]));
 
       const printablePlayers = playerIds
         .map((id) => {
@@ -1439,8 +1472,8 @@ export default function TeamsPage() {
               setMultiTeamPdfModalOpen(true);
               qc.invalidateQueries({ queryKey: ['players'] });
               qc.invalidateQueries({ queryKey: ['player-credentials'] });
+              void refetchSeasonCredentials();
               void refetchPlayers();
-              void refetchCredentials();
             }}
           >
             Imprimir Multi-equipo
@@ -1492,8 +1525,8 @@ export default function TeamsPage() {
                 setMultiTeamPdfModalOpen(true);
                 qc.invalidateQueries({ queryKey: ['players'] });
                 qc.invalidateQueries({ queryKey: ['player-credentials'] });
+                void refetchSeasonCredentials();
                 void refetchPlayers();
-                void refetchCredentials();
               }}
             >
               Imprimir Multi-equipo
@@ -2413,10 +2446,13 @@ export default function TeamsPage() {
             </Space>
             <Button
               size="small"
-              icon={<ReloadOutlined spin={isFetchingPlayers} />}
+              icon={<ReloadOutlined spin={isFetchingCredentials || isFetchingPlayers} />}
               onClick={async () => {
-                message.loading({ content: 'Sincronizando jugadores...', key: 'sync-multi' });
-                await Promise.all([refetchPlayers(), refetchCredentials()]);
+                message.loading({ content: 'Sincronizando jugadores y fotos...', key: 'sync-multi' });
+                setCredentialOverrides(new Map());
+                qc.invalidateQueries({ queryKey: ['player-credentials'] });
+                qc.invalidateQueries({ queryKey: ['players'] });
+                await Promise.all([refetchSeasonCredentials(), refetchPlayers()]);
                 message.success({ content: 'Datos actualizados en tiempo real.', key: 'sync-multi' });
               }}
             >
