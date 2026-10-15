@@ -26,11 +26,13 @@ import {
   ReloadOutlined,
   UploadOutlined,
   UserAddOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   App,
+  Avatar,
   Button,
   Checkbox,
   Collapse,
@@ -512,9 +514,15 @@ export default function TeamsPage() {
     },
   });
 
-  const { data: players = [] } = useQuery<Player[]>({
+  const {
+    data: players = [],
+    isFetching: isFetchingPlayers,
+    refetch: refetchPlayers,
+  } = useQuery<Player[]>({
     queryKey: ['players', seasonId],
     enabled: teams.length > 0,
+    staleTime: 0,
+    refetchOnMount: 'always',
     queryFn: async () => {
       const { data } = await supabase
         .from('players')
@@ -524,9 +532,14 @@ export default function TeamsPage() {
     },
   });
 
-  const { data: credentials = [] } = useQuery<PlayerCredential[]>({
+  const {
+    data: credentials = [],
+    refetch: refetchCredentials,
+  } = useQuery<PlayerCredential[]>({
     queryKey: ['player-credentials', seasonId],
     enabled: !!seasonId,
+    staleTime: 0,
+    refetchOnMount: 'always',
     queryFn: async () => {
       const response = await fetch(`/api/admin/season-player-credentials?seasonId=${seasonId}`);
       const payload = (await parseJsonResponse(response)) as {
@@ -548,6 +561,15 @@ export default function TeamsPage() {
       credentialByPlayer.set(credential.player_id, credential);
     }
   }
+
+  useEffect(() => {
+    if (multiTeamPdfModalOpen) {
+      qc.invalidateQueries({ queryKey: ['players'] });
+      qc.invalidateQueries({ queryKey: ['player-credentials'] });
+      void refetchPlayers();
+      void refetchCredentials();
+    }
+  }, [multiTeamPdfModalOpen, qc, refetchPlayers, refetchCredentials]);
 
   async function issueCredentialForPlayer(playerId: number) {
     const response = await fetch('/api/admin/issue-player-credential', {
@@ -838,7 +860,7 @@ export default function TeamsPage() {
             fileSafeName: player.name,
             issuedAt: credential.issued_at,
             number: player.number,
-            photoUrl: player.photo_url ?? null,
+            photoUrl: player.photo_thumb_url ?? player.photo_url ?? null,
             playerName: player.name,
             seasonName: selectedSeason.name,
             statusLabel: getCredentialStatusLabel(credential.status),
@@ -884,13 +906,33 @@ export default function TeamsPage() {
         throw new Error('Selecciona al menos una credencial para generar el PDF.');
       }
 
+      // Consultar datos y credenciales 100% frescos directamente desde Supabase en tiempo real
+      const [{ data: freshPlayers, error: playersErr }, { data: freshCreds, error: credsErr }] = await Promise.all([
+        supabase
+          .from('players')
+          .select('id, name, number, team_id, category, curp, photo_url, photo_thumb_url, is_active')
+          .in('id', playerIds),
+        supabase
+          .from('player_credentials')
+          .select('id, player_id, credential_code, verify_token, issued_at, status')
+          .in('player_id', playerIds)
+          .eq('status', 'active'),
+      ]);
+
+      if (playersErr) throw playersErr;
+      if (credsErr) throw credsErr;
+
+      const freshPlayerMap = new Map((freshPlayers ?? []).map((p) => [p.id, p]));
+      const freshCredMap = new Map((freshCreds ?? []).map((c) => [c.player_id, c]));
+
       const printablePlayers = playerIds
         .map((id) => {
-          const player = players.find((p) => p.id === id);
+          const player = freshPlayerMap.get(id) ?? players.find((p) => p.id === id);
           if (!player) return null;
-          const credential = getPlayerCredential(player.id);
+          const credential = freshCredMap.get(id) ?? getPlayerCredential(player.id);
           if (!credential) return null;
           const team = teams.find((t) => t.id === player.team_id);
+          const resolvedPhotoUrl = player.photo_thumb_url ?? player.photo_url ?? null;
 
           return {
             category: player.category ?? selectedSeason.category ?? team?.category ?? 'Libre',
@@ -899,7 +941,7 @@ export default function TeamsPage() {
             fileSafeName: player.name,
             issuedAt: credential.issued_at,
             number: player.number,
-            photoUrl: player.photo_url ?? null,
+            photoUrl: resolvedPhotoUrl,
             playerName: player.name,
             seasonName: selectedSeason.name,
             statusLabel: getCredentialStatusLabel(credential.status),
@@ -1395,6 +1437,10 @@ export default function TeamsPage() {
               setMultiTeamFilterTeamId('all');
               setMultiTeamSearchQuery('');
               setMultiTeamPdfModalOpen(true);
+              qc.invalidateQueries({ queryKey: ['players'] });
+              qc.invalidateQueries({ queryKey: ['player-credentials'] });
+              void refetchPlayers();
+              void refetchCredentials();
             }}
           >
             Imprimir Multi-equipo
@@ -1444,6 +1490,10 @@ export default function TeamsPage() {
                 setMultiTeamFilterTeamId('all');
                 setMultiTeamSearchQuery('');
                 setMultiTeamPdfModalOpen(true);
+                qc.invalidateQueries({ queryKey: ['players'] });
+                qc.invalidateQueries({ queryKey: ['player-credentials'] });
+                void refetchPlayers();
+                void refetchCredentials();
               }}
             >
               Imprimir Multi-equipo
@@ -2305,7 +2355,7 @@ export default function TeamsPage() {
                       transition: 'all 0.2s',
                     }}
                   >
-                    <Space>
+                    <Space align="center">
                       <Checkbox
                         checked={isChecked}
                         onChange={(e) => {
@@ -2317,9 +2367,24 @@ export default function TeamsPage() {
                           );
                         }}
                       />
+                      <Avatar
+                        size={32}
+                        src={player.photo_thumb_url || player.photo_url || undefined}
+                        icon={<UserOutlined />}
+                        style={{
+                          backgroundColor: (player.photo_thumb_url || player.photo_url) ? 'transparent' : '#333',
+                          border: (player.photo_thumb_url || player.photo_url) ? '1px solid #52c41a' : '1px solid #444',
+                          flexShrink: 0,
+                        }}
+                      />
                       <Text strong style={{ color: '#fff' }}>
                         #{formatPlayerNumber(player.number, '?')} {player.name}
                       </Text>
+                      {(player.photo_thumb_url || player.photo_url) && (
+                        <Tag color="green" style={{ margin: 0, fontSize: 11, lineHeight: '18px', padding: '0 5px' }}>
+                          Foto ✓
+                        </Tag>
+                      )}
                     </Space>
                     <Space size={6}>
                       {player.curp && (
@@ -2341,10 +2406,23 @@ export default function TeamsPage() {
 
       <Modal
         title={
-          <Space>
-            <PrinterOutlined style={{ color: '#FAAD14' }} />
-            <span>Impresión combinada de credenciales (Multi-equipo)</span>
-          </Space>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', paddingRight: 32 }}>
+            <Space>
+              <PrinterOutlined style={{ color: '#FAAD14' }} />
+              <span>Impresión combinada de credenciales (Multi-equipo)</span>
+            </Space>
+            <Button
+              size="small"
+              icon={<ReloadOutlined spin={isFetchingPlayers} />}
+              onClick={async () => {
+                message.loading({ content: 'Sincronizando jugadores...', key: 'sync-multi' });
+                await Promise.all([refetchPlayers(), refetchCredentials()]);
+                message.success({ content: 'Datos actualizados en tiempo real.', key: 'sync-multi' });
+              }}
+            >
+              Actualizar
+            </Button>
+          </div>
         }
         open={multiTeamPdfModalOpen}
         onCancel={() => setMultiTeamPdfModalOpen(false)}
@@ -2442,15 +2520,17 @@ export default function TeamsPage() {
               {selectedPlayerIdsForMultiPdf.map((id) => {
                 const player = allSeasonCredentialPlayers.find((p) => p.id === id);
                 if (!player) return null;
+                const hasPhoto = Boolean(player.photo_thumb_url || player.photo_url);
                 return (
                   <Tag
                     key={id}
                     closable
-                    color="blue"
+                    color={hasPhoto ? 'blue' : 'orange'}
                     onClose={() => setSelectedPlayerIdsForMultiPdf((prev) => prev.filter((pId) => pId !== id))}
                     style={{ margin: 0, padding: '2px 6px' }}
                   >
                     <b>{player.teamName}:</b> #{formatPlayerNumber(player.number, '?')} {player.name}
+                    {hasPhoto ? ' 📷' : ''}
                   </Tag>
                 );
               })}
@@ -2477,6 +2557,7 @@ export default function TeamsPage() {
               {filteredMultiTeamPlayers.map((player) => {
                 const cred = getPlayerCredential(player.id);
                 const isChecked = selectedPlayerIdsForMultiPdf.includes(player.id);
+                const hasPhoto = Boolean(player.photo_thumb_url || player.photo_url);
 
                 return (
                   <div
@@ -2500,7 +2581,7 @@ export default function TeamsPage() {
                       transition: 'all 0.2s',
                     }}
                   >
-                    <Space>
+                    <Space align="center">
                       <Checkbox
                         checked={isChecked}
                         onChange={(e) => {
@@ -2512,12 +2593,27 @@ export default function TeamsPage() {
                           );
                         }}
                       />
+                      <Avatar
+                        size={32}
+                        src={player.photo_thumb_url || player.photo_url || undefined}
+                        icon={<UserOutlined />}
+                        style={{
+                          backgroundColor: hasPhoto ? 'transparent' : '#333',
+                          border: hasPhoto ? '1px solid #52c41a' : '1px solid #444',
+                          flexShrink: 0,
+                        }}
+                      />
                       <Tag color="geekblue" style={{ margin: 0, fontWeight: 600 }}>
                         {player.teamName}
                       </Tag>
                       <Text strong style={{ color: '#fff' }}>
                         #{formatPlayerNumber(player.number, '?')} {player.name}
                       </Text>
+                      {hasPhoto && (
+                        <Tag color="green" style={{ margin: 0, fontSize: 11, lineHeight: '18px', padding: '0 5px' }}>
+                          Foto ✓
+                        </Tag>
+                      )}
                     </Space>
                     <Space size={6}>
                       {player.curp && (
