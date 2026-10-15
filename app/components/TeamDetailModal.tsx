@@ -23,8 +23,6 @@ interface Player {
   name: string;
   number: number | null;
   is_active: boolean;
-  photo_url?: string | null;
-  photo_thumb_url?: string | null;
 }
 
 interface Props {
@@ -73,7 +71,7 @@ export default function TeamDetailModal({
     Promise.all([
       supabase
         .from('players')
-        .select('id, name, number, is_active, photo_url, photo_thumb_url')
+        .select('id, name, number, is_active')
         .eq('team_id', team.id)
         .order('number'),
       calcularElegibilidad(supabase, team.id, seasonId),
@@ -349,7 +347,6 @@ export default function TeamDetailModal({
                     >
                       {players.map((p) => {
                         const elig = eligibility?.find((e) => e.jugador_id === p.id);
-                        const photo = p.photo_thumb_url || p.photo_url;
                         return (
                           <div
                             key={p.id}
@@ -375,29 +372,21 @@ export default function TeamDetailModal({
                           >
                             <div
                               style={{
-                                width: 42,
-                                height: 48,
+                                width: 36,
+                                height: 36,
                                 borderRadius: 8,
-                                overflow: 'hidden',
-                                background: '#111827',
-                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 flexShrink: 0,
+                                fontSize: 13,
+                                fontWeight: 800,
+                                color: 'var(--gold-soft, #fbbf24)',
                               }}
                             >
-                              {photo ? (
-                                <img
-                                  src={photo}
-                                  alt={p.name}
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                />
-                              ) : (
-                                <span style={{ fontSize: 13, fontWeight: 800, color: '#64748b' }}>
-                                  #{formatPlayerNumber(p.number, '?')}
-                                </span>
-                              )}
+                              #{formatPlayerNumber(p.number, '?')}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div
@@ -405,8 +394,8 @@ export default function TeamDetailModal({
                                   color: !p.is_active
                                     ? '#64748b'
                                     : elig?.elegible
-                                    ? '#4ade80'
-                                    : '#f87171',
+                                    ? '#f8fafc'
+                                    : '#cbd5e1',
                                   fontWeight: 700,
                                   fontSize: 13,
                                   lineHeight: 1.25,
@@ -416,7 +405,7 @@ export default function TeamDetailModal({
                                 }}
                                 title={p.name}
                               >
-                                #{formatPlayerNumber(p.number, '?')} {p.name}
+                                {p.name}
                               </div>
                               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
                                 {!p.is_active ? (
