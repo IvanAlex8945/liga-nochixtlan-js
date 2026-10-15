@@ -23,6 +23,7 @@ import {
   FilePdfOutlined,
   PlusOutlined,
   PrinterOutlined,
+  ReloadOutlined,
   UploadOutlined,
   UserAddOutlined,
 } from '@ant-design/icons';
@@ -252,6 +253,27 @@ export default function TeamsPage() {
           : 'No se pudo cargar la credencial del jugador.'
       );
     });
+
+    // Cargar inmediatamente la versión más reciente desde BD por si hubo cambios recientes
+    void supabase
+      .from('players')
+      .select('*')
+      .eq('id', player.id)
+      .single()
+      .then(
+        ({ data: fresh }) => {
+          if (fresh) {
+            setEditingPlayer(fresh);
+            playerForm.setFieldsValue({
+              curp: fresh.curp ?? null,
+              name: fresh.name,
+              number: formatPlayerNumber(fresh.number, ''),
+            });
+            replacePhotoDraft(getPlayerPhotoDraft(fresh));
+          }
+        },
+        () => {}
+      );
   }
 
   async function hydratePlayerCredential(playerId: number) {
@@ -920,11 +942,26 @@ export default function TeamsPage() {
 
       // Salvaguarda: Si el jugador ya tiene foto y el usuario solo editó nombre/dorsal
       // sin haber dado clic explícito a 'Quitar foto', se conserva su foto intacta.
-      if (editingPlayer && !photoDraft && !photoWasRemoved && editingPlayer.photo_url) {
-        nextPhotoUrl = editingPlayer.photo_url;
-        nextPhotoThumb = editingPlayer.photo_thumb_url ?? editingPlayer.photo_url;
-        resolvedPublicId = editingPlayer.photo_public_id ?? null;
-        resolvedProvider = editingPlayer.photo_provider ?? null;
+      if (editingPlayer && !photoDraft && !photoWasRemoved) {
+        if (editingPlayer.photo_url) {
+          nextPhotoUrl = editingPlayer.photo_url;
+          nextPhotoThumb = editingPlayer.photo_thumb_url ?? editingPlayer.photo_url;
+          resolvedPublicId = editingPlayer.photo_public_id ?? null;
+          resolvedProvider = editingPlayer.photo_provider ?? null;
+        } else {
+          // Consultar la BD directamente para no sobreescribir con null una foto existente
+          const { data: dbCurrent } = await supabase
+            .from('players')
+            .select('photo_url, photo_thumb_url, photo_public_id, photo_provider')
+            .eq('id', editingPlayer.id)
+            .single();
+          if (dbCurrent?.photo_url) {
+            nextPhotoUrl = dbCurrent.photo_url;
+            nextPhotoThumb = dbCurrent.photo_thumb_url ?? dbCurrent.photo_url;
+            resolvedPublicId = dbCurrent.photo_public_id ?? null;
+            resolvedProvider = dbCurrent.photo_provider ?? null;
+          }
+        }
       }
 
       const payload = {
@@ -1020,6 +1057,7 @@ export default function TeamsPage() {
       }
     },
     onSuccess: async () => {
+      qc.invalidateQueries({ queryKey: ['team-modal-players'] });
       qc.invalidateQueries({ queryKey: ['players'] });
       qc.invalidateQueries({ queryKey: ['player-credentials'] });
       await invalidatePublicCache({ seasonId });
@@ -1042,6 +1080,7 @@ export default function TeamsPage() {
         next.set(editingPlayer.id, result.credential);
         return next;
       });
+      qc.invalidateQueries({ queryKey: ['team-modal-players'] });
       qc.invalidateQueries({ queryKey: ['player-credentials'] });
       message.success('Credencial reemitida correctamente');
     },
@@ -1070,6 +1109,7 @@ export default function TeamsPage() {
       }
     },
     onSuccess: async (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['team-modal-players'] });
       qc.invalidateQueries({ queryKey: ['players'] });
       qc.invalidateQueries({ queryKey: ['player-credentials'] });
       await invalidatePublicCache({ seasonId });
@@ -1117,6 +1157,7 @@ export default function TeamsPage() {
       return 'deleted';
     },
     onSuccess: async (status) => {
+      qc.invalidateQueries({ queryKey: ['team-modal-players'] });
       qc.invalidateQueries({ queryKey: ['players'] });
       await invalidatePublicCache({ seasonId });
       if (status === 'soft-deleted') {
@@ -1223,7 +1264,33 @@ export default function TeamsPage() {
     },
   ];
 
-  const selectedTeamPlayers = players.filter((player) => player.team_id === playerModal);
+  const { data: modalPlayers } = useQuery<Player[]>({
+    queryKey: ['team-modal-players', playerModal],
+    enabled: playerModal !== null,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('team_id', playerModal!)
+        .order('number', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const selectedTeamPlayers = useMemo(() => {
+    if (playerModal === null) return [];
+    if (modalPlayers && modalPlayers.length > 0) return modalPlayers;
+    return players
+      .filter((player) => player.team_id === playerModal)
+      .sort((a, b) => {
+        const numA = Number(a.number) || 999;
+        const numB = Number(b.number) || 999;
+        return numA - numB;
+      });
+  }, [playerModal, modalPlayers, players]);
   const activeSeasonPlayers = players.filter((player) => player.is_active);
   const activeSeasonCredentialCount = activeSeasonPlayers.filter((player) =>
     Boolean(getPlayerCredential(player.id))
@@ -1576,7 +1643,22 @@ export default function TeamsPage() {
       </Modal>
 
       <Modal
-        title={`Jugadores – ${teams.find((team) => team.id === playerModal)?.name ?? ''}`}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 32 }}>
+            <span>Jugadores – {teams.find((team) => team.id === playerModal)?.name ?? ''}</span>
+            <Button
+              size="small"
+              icon={<ReloadOutlined />}
+              onClick={() => {
+                qc.invalidateQueries({ queryKey: ['team-modal-players'] });
+                qc.invalidateQueries({ queryKey: ['players'] });
+                qc.invalidateQueries({ queryKey: ['player-credentials'] });
+              }}
+            >
+              Actualizar
+            </Button>
+          </div>
+        }
         open={playerModal !== null}
         onCancel={() => {
           setPlayerModal(null);
