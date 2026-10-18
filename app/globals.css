@@ -1657,7 +1657,606 @@ body {
   margin: 8px 0;
 }
 
+/* ============================================================
+   SHOWCASE Y FILTRO DE CATEGORÍAS — DUELA DEPORTIVA PREMIUM
+   Liga Municipal de Baloncesto de Nochixtlán
+   ============================================================ */
 
+/* 1. Contenedor principal con diseño atlético y duela deportiva */
+.category-showcase-section {
+  position: relative;
+  background: var(--surface-section);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 24px 22px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  isolation: isolate;
+}
 
+/* Sutil acento de duela y resplandor ambiental superior */
+.category-showcase-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--oro-mixteco), transparent);
+  opacity: 0.6;
+  pointer-events: none;
+}
 
+.category-showcase-section::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.05) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 2. Encabezado deportivo del showcase */
+.category-showcase-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.category-showcase-badge,
+.category-showcase-header .category-badge-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--oro-mixteco);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  width: fit-content;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.category-showcase-title,
+.category-showcase-header h2,
+.category-showcase-header h3 {
+  font-family: var(--font-family-display), var(--font-family-sans);
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 0;
+  background: linear-gradient(135deg, #ffffff 40%, var(--oro-cantera) 75%, var(--oro-mixteco) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.category-showcase-subtitle,
+.category-showcase-header p {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+  max-width: 720px;
+}
+
+/* 3. Cuadrícula responsive de categorías */
+.category-showcase-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+
+/* Soporte para scroll horizontal en pantallas móviles reducidas */
+@media (max-width: 640px) {
+  .category-showcase-section {
+    padding: 18px 14px;
+  }
+
+  .category-showcase-grid.is-scrollable,
+  .category-showcase-grid--scroll-mobile {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 8px;
+    margin-inline: -6px;
+    padding-inline: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(245, 158, 11, 0.4) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .category-showcase-grid.is-scrollable > .category-card,
+  .category-showcase-grid--scroll-mobile > .category-card {
+    flex: 0 0 230px;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 480px) {
+  .category-showcase-grid:not(.is-scrollable):not(.category-showcase-grid--scroll-mobile) {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+  }
+}
+
+/* 4. Tarjeta interactiva de categoría con duela deportiva */
+.category-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: linear-gradient(145deg, rgba(18, 24, 38, 0.88) 0%, rgba(10, 14, 22, 0.95) 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  cursor: pointer;
+  user-select: none;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition:
+    transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1),
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    background 0.22s ease;
+  overflow: hidden;
+  outline: none;
+}
+
+/* Rayado sutil superior de duela deportiva en hover */
+.category-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.4), transparent);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  pointer-events: none;
+}
+
+.category-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.85), 0 0 24px rgba(245, 158, 11, 0.16);
+}
+
+.category-card:hover::before {
+  opacity: 1;
+}
+
+.category-card:focus-visible {
+  outline: 2px solid var(--oro-mixteco);
+  outline-offset: 2px;
+}
+
+/* Encabezado interno de la tarjeta */
+.category-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Badge de icono con fondo temático deportivo */
+.category-card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(245, 158, 11, 0.05));
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--oro-cantera);
+  flex-shrink: 0;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.category-card:hover .category-card-icon {
+  transform: scale(1.06);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.28), rgba(245, 158, 11, 0.1));
+}
+
+/* Nombre de la categoría en mayúsculas deportivas con tracking */
+.category-card-name,
+.category-card-title {
+  font-family: var(--font-family-sans);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.25;
+}
+
+/* Badge de temporada dentro de la tarjeta */
+.category-card-season,
+.category-card-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  width: fit-content;
+  margin-top: 6px;
+}
+
+/* 5. Estado activo con resplandor neón visible y badge de 'ACTIVA' con punto pulsante */
+.category-card--active {
+  background: linear-gradient(145deg, rgba(28, 36, 54, 0.95) 0%, rgba(14, 18, 30, 0.98) 100%) !important;
+  border-color: var(--oro-mixteco) !important;
+  box-shadow: 0 16px 36px -6px rgba(0, 0, 0, 0.9), var(--oro-mixteco-glow), inset 0 0 0 1px rgba(245, 158, 11, 0.45) !important;
+  transform: translateY(-2px);
+}
+
+.category-card--active::before {
+  opacity: 1 !important;
+  height: 3px !important;
+  background: linear-gradient(90deg, transparent, var(--oro-mixteco), transparent) !important;
+}
+
+.category-card--active .category-card-icon {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.32), rgba(245, 158, 11, 0.12));
+  border-color: var(--oro-mixteco);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.3);
+}
+
+/* Badge de estado ACTIVA */
+.category-card-status--active,
+.category-card-pill--active,
+.category-badge-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+}
+
+.category-card-status--active.is-gold,
+.category-card-pill--active.is-gold,
+.category-badge-active.is-gold {
+  color: var(--oro-mixteco);
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+/* Punto pulsante verde/dorado */
+.category-pulsing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #10b981;
+  animation: categoryPulseGreen 2s infinite ease-in-out;
+}
+
+.category-pulsing-dot--gold {
+  background-color: var(--oro-mixteco);
+  animation: categoryPulseGold 2s infinite ease-in-out;
+}
+
+@keyframes categoryPulseGreen {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes categoryPulseGold {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 6px rgba(245, 158, 11, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+/* 6. Contenedor y botones de acciones rápidas */
+.category-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+.category-card-actions .category-action-btn,
+.category-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+  white-space: nowrap;
+  user-select: none;
+  flex: 1 1 auto;
+}
+
+.category-action-btn:hover {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.category-action-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.category-action-btn:focus-visible {
+  outline: 2px solid var(--oro-mixteco);
+  outline-offset: 2px;
+}
+
+.category-action-btn--primary {
+  background: linear-gradient(135deg, var(--oro-mixteco), #d97706);
+  border-color: var(--oro-mixteco);
+  color: #0b0f17;
+  font-weight: 800;
+}
+
+.category-action-btn--primary:hover {
+  background: linear-gradient(135deg, var(--oro-mixteco-hover), #f59e0b);
+  border-color: var(--oro-mixteco-hover);
+  color: #000000;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);
+}
+
+/* 7. Franja inferior de resumen (Categoría seleccionada y navegación rápida) */
+.category-active-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 20px;
+  background: linear-gradient(90deg, rgba(18, 24, 38, 0.95) 0%, rgba(12, 16, 26, 0.98) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.category-active-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--oro-mixteco), #d97706);
+}
+
+.category-active-bar-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 260px;
+}
+
+.category-active-bar-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--oro-mixteco);
+}
+
+.category-active-bar-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+.category-active-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .category-active-bar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 16px;
+  }
+
+  .category-active-bar-actions {
+    width: 100%;
+  }
+
+  .category-active-bar-actions .category-action-btn {
+    flex: 1;
+  }
+}
+
+/* ==========================================================================
+   Filtro Deportivo de Categorías en Pestañas (.tab-category-filter-wrap)
+   ========================================================================== */
+.tab-category-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: rgba(18, 24, 38, 0.75);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  margin-bottom: 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.tab-category-filter-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--oro-cantera);
+  white-space: nowrap;
+}
+
+.tab-category-filter-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab-category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.tab-category-pill:hover {
+  color: #ffffff;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.45);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.tab-category-pill:active {
+  transform: translateY(0);
+}
+
+.tab-category-pill:focus-visible {
+  outline: 2px solid var(--oro-mixteco);
+  outline-offset: 2px;
+}
+
+.tab-category-pill--active {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.28) 0%, rgba(217, 119, 6, 0.15) 100%) !important;
+  border-color: var(--oro-mixteco) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  font-weight: 800;
+}
+
+.tab-category-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: categoryPulseGreen 2s infinite ease-in-out;
+}
+
+.tab-category-pill__icon {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+
+.tab-category-pill__label {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .tab-category-filter-list {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(245, 158, 11, 0.4) transparent;
+  }
+
+  .tab-category-filter-list::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .tab-category-filter-list::-webkit-scrollbar-thumb {
+    background: rgba(245, 158, 11, 0.4);
+    border-radius: var(--radius-pill);
+  }
+
+  .tab-category-pill {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+  }
+}
 

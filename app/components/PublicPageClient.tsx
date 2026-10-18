@@ -128,6 +128,115 @@ function sortSelectOptions<T extends { label?: ReactNode }>(a: T, b: T) {
   return String(a.label ?? '').localeCompare(String(b.label ?? ''), 'es', { sensitivity: 'base' });
 }
 
+export function getCategoryMeta(category: string) {
+  const norm = (category || '').toLowerCase().trim();
+  if (norm.includes('femenil')) {
+    return {
+      label: 'Rama Femenil',
+      shortLabel: 'Femenil',
+      icon: '🔥',
+      badge: 'Torneo Oficial',
+      description: 'Competencia femenil de alto nivel en la duela mixteca.',
+    };
+  }
+  if (norm.includes('3ra') || norm.includes('tercera')) {
+    return {
+      label: 'Tercera Fuerza',
+      shortLabel: '3ra Fuerza',
+      icon: '⚡',
+      badge: 'Formativa & Duela',
+      description: 'Gran nivel competitivo, pasión y clubes en ascenso.',
+    };
+  }
+  if (norm.includes('libre') || norm.includes('1ra') || norm.includes('primera')) {
+    return {
+      label: 'Categoría Libre',
+      shortLabel: 'Libre',
+      icon: '🏆',
+      badge: 'Primera Fuerza',
+      description: 'La máxima división y espectáculo del básquetbol regional.',
+    };
+  }
+  if (norm.includes('veterano')) {
+    return {
+      label: 'Liga Veteranos',
+      shortLabel: 'Veteranos',
+      icon: '🛡️',
+      badge: 'Experiencia',
+      description: 'Historia viva, dinastías y talento legendario en la cancha.',
+    };
+  }
+  if (norm.includes('master') || norm.includes('máster')) {
+    return {
+      label: 'Liga Máster',
+      shortLabel: 'Máster',
+      icon: '🎖️',
+      badge: 'Tradición',
+      description: 'Tradición deportiva y pasión que trasciende generaciones.',
+    };
+  }
+  return {
+    label: category || 'General',
+    shortLabel: category || 'General',
+    icon: '🏀',
+    badge: 'Oficial',
+    description: 'División oficial de básquetbol de Nochixtlán.',
+  };
+}
+
+interface TabCategoryFilterProps {
+  categories: string[];
+  activeSeasons: Season[];
+  selectedCategory?: string;
+  onSelectCategory: (seasonId: number) => void;
+}
+
+function TabCategoryFilter({
+  categories,
+  activeSeasons,
+  selectedCategory,
+  onSelectCategory,
+}: TabCategoryFilterProps) {
+  if (!categories || categories.length <= 1) return null;
+
+  return (
+    <div className="tab-category-filter-wrap" role="group" aria-label="Filtrar por categoría">
+      <div className="tab-category-filter-label">
+        <span>🏀</span>
+        <span>Categoría:</span>
+      </div>
+      <div className="tab-category-filter-list">
+        {categories.map((cat) => {
+          const meta = getCategoryMeta(cat);
+          const catSeason = activeSeasons.find((s) => s.category === cat);
+          const isActive = selectedCategory === cat;
+
+          return (
+            <button
+              key={cat}
+              type="button"
+              role="button"
+              tabIndex={0}
+              aria-pressed={isActive}
+              aria-label={`Ver categoría ${meta.label}`}
+              className={`tab-category-pill${isActive ? ' tab-category-pill--active' : ''}`}
+              onClick={() => {
+                if (catSeason) {
+                  onSelectCategory(catSeason.id);
+                }
+              }}
+            >
+              <span className="tab-category-pill__icon">{meta.icon}</span>
+              <span className="tab-category-pill__label">{meta.label}</span>
+              {isActive && <span className="tab-category-pill__dot" />}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function PublicPageClient(props: Props) {
   const { seasons } = props;
   const usesInitialData = 'initialData' in props;
@@ -596,6 +705,7 @@ export default function PublicPageClient(props: Props) {
                         {/* Chips de Categorías */}
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                           {categories.map((cat) => {
+                            const meta = getCategoryMeta(cat);
                             const isActive = selectedSeason?.category === cat;
                             return (
                               <Tag
@@ -617,7 +727,7 @@ export default function PublicPageClient(props: Props) {
                                   }
                                 }}
                               >
-                                {cat}
+                                {meta.icon} {meta.shortLabel}
                               </Tag>
                             );
                           })}
@@ -873,6 +983,14 @@ export default function PublicPageClient(props: Props) {
                   </p>
                 </div>
 
+                {/* Filtro de Categoría Directo en Posiciones */}
+                <TabCategoryFilter
+                  categories={categories}
+                  activeSeasons={activeSeasons}
+                  selectedCategory={selectedSeason?.category}
+                  onSelectCategory={(seasonId) => startTransition(() => setSelectedSeasonId(seasonId))}
+                />
+
                 <div className="dribbble-stagger-2">
                   <GlassSectionCard
                     action={(
@@ -915,6 +1033,14 @@ export default function PublicPageClient(props: Props) {
                     Cuadro de honor individual, récord de puntos por partido y estadísticas de plantillas
                   </p>
                 </div>
+
+                {/* Filtro de Categoría Directo en Estadísticas */}
+                <TabCategoryFilter
+                  categories={categories}
+                  activeSeasons={activeSeasons}
+                  selectedCategory={selectedSeason?.category}
+                  onSelectCategory={(seasonId) => startTransition(() => setSelectedSeasonId(seasonId))}
+                />
 
                 {/* Sub-navegación segmentada: Cuadro de Honor vs Plantillas */}
                 <div className="stats-subnav-bar dribbble-stagger-2" role="group" aria-label="Subsecciones estadísticas">
@@ -1099,6 +1225,14 @@ export default function PublicPageClient(props: Props) {
                   </p>
                 </div>
 
+                {/* Filtro de Categoría Directo en Mi Equipo */}
+                <TabCategoryFilter
+                  categories={categories}
+                  activeSeasons={activeSeasons}
+                  selectedCategory={selectedSeason?.category}
+                  onSelectCategory={(seasonId) => startTransition(() => setSelectedSeasonId(seasonId))}
+                />
+
                 <div className="dribbble-stagger-2">
                   <GlassSectionCard>
                     <TeamMatchesTab
@@ -1130,6 +1264,14 @@ export default function PublicPageClient(props: Props) {
                   </p>
                 </div>
 
+                {/* Filtro de Categoría Directo en Liguilla */}
+                <TabCategoryFilter
+                  categories={categories}
+                  activeSeasons={activeSeasons}
+                  selectedCategory={selectedSeason?.category}
+                  onSelectCategory={(seasonId) => startTransition(() => setSelectedSeasonId(seasonId))}
+                />
+
                 <div className="dribbble-stagger-2">
                   <GlassSectionCard>
                     <LiguillaBracketTab seasonMatches={seasonMatches as unknown as Parameters<typeof LiguillaBracketTab>[0]['seasonMatches']} />
@@ -1155,6 +1297,14 @@ export default function PublicPageClient(props: Props) {
                     Programación oficial por jornada, horarios, duela y sedes de la Liga Nochixtlán
                   </p>
                 </div>
+
+                {/* Filtro de Categoría Directo en Calendario */}
+                <TabCategoryFilter
+                  categories={categories}
+                  activeSeasons={activeSeasons}
+                  selectedCategory={selectedSeason?.category}
+                  onSelectCategory={(seasonId) => startTransition(() => setSelectedSeasonId(seasonId))}
+                />
 
                 <div className="dribbble-stagger-2">
                   <GlassSectionCard>
