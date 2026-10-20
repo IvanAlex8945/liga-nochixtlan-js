@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Cormorant_Garamond, Sora } from 'next/font/google';
 import './globals.css';
 import AntdProvider from './components/AntdProvider';
+import { Analytics } from '@vercel/analytics/next';
 
 const sora = Sora({
   subsets: ['latin'],
@@ -28,6 +29,7 @@ export default function RootLayout({
     <html lang="es" className={`${sora.variable} ${cormorant.variable}`}>
       <body className="glass-root">
         <AntdProvider>{children}</AntdProvider>
+        <Analytics />
       </body>
     </html>
   );
