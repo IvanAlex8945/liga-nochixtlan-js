@@ -309,9 +309,6 @@ export default function PublicPageClient(props: Props) {
     [...new Set(activeSeasons.map((s) => s.category))].filter(Boolean),
     [activeSeasons]);
 
-  const seasonOptions = useMemo(() =>
-    activeSeasons.map((s) => ({ label: s.name, value: s.id })),
-    [activeSeasons]);
 
   const seasonMatches = useMemo(() =>
     allMatches.filter((m) => m.season_id === effectiveSeasonId),
@@ -688,19 +685,6 @@ export default function PublicPageClient(props: Props) {
                           </span>
                         </div>
 
-                        {/* Selector de Temporada */}
-                        <div style={{ marginBottom: 10 }}>
-                          <Select
-                            className="premium-select"
-                            value={effectiveSeasonId}
-                            onChange={(value) => startTransition(() => setSelectedSeasonId(value))}
-                            options={seasonOptions}
-                            style={{ width: '100%' }}
-                            placeholder="Seleccionar temporada"
-                            showSearch
-                            filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
-                          />
-                        </div>
 
                         {/* Chips de Categorías */}
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
