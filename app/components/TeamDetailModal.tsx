@@ -129,8 +129,6 @@ export default function TeamDetailModal({
   const teamTotalPts = Object.values(byPlayer).reduce((s, p) => s + p.puntos, 0);
   const teamTotalTri = Object.values(byPlayer).reduce((s, p) => s + p.triples, 0);
 
-  const eligible = eligibility?.filter((e) => e.elegible).length ?? 0;
-
   const phaseSelector = (
     <div style={{ marginBottom: 14 }}>
       <Radio.Group
@@ -333,6 +331,31 @@ export default function TeamDetailModal({
               label: `👥 Cédula (${players.length})`,
               children: (
                 <div style={{ padding: '8px 0' }}>
+                  {eligibility && eligibility[0]?.min_requerido !== undefined && (
+                    <div
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        marginBottom: 12,
+                        fontSize: 12,
+                        color: '#cbd5e1',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: 6,
+                      }}
+                    >
+                      <span>
+                        Mínimo para Liguilla: <strong style={{ color: 'var(--gold-soft)' }}>{eligibility[0].min_requerido} partidos</strong> (de {team.PJ} disputados)
+                      </span>
+                      <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                        Regla: mitad + 1 de juegos del equipo
+                      </span>
+                    </div>
+                  )}
                   {players.length === 0 ? (
                     <Text style={{ color: '#64748b', display: 'block', textAlign: 'center', padding: 24 }}>
                       Sin jugadores registrados
@@ -530,61 +553,6 @@ export default function TeamDetailModal({
                     </table>
                     </div>
                   )}
-                </div>
-              ),
-            },
-            {
-              key: 'eligibility',
-              label: `✅ Elegibilidad (${eligible}/${eligibility?.length ?? 0})`,
-              children: !eligibility ? (
-                <Spin />
-              ) : eligibility.length === 0 ? (
-                <Text style={{ color: '#64748b' }}>Sin jugadores activos</Text>
-              ) : (
-                <div>
-                  <div
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      marginBottom: 12,
-                      fontSize: 12,
-                      color: '#cbd5e1',
-                    }}
-                  >
-                    Mínimo requerido: <strong style={{ color: 'var(--gold-soft)' }}>{eligibility[0]?.min_requerido ?? '?'} partidos</strong> (de {team.PJ} disputados por el equipo)
-                  </div>
-                  <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-                    {eligibility.map((e) => (
-                      <div
-                        key={e.jugador_id}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-                          padding: '8px 4px',
-                        }}
-                      >
-                        <Text style={{ fontSize: 13, color: '#f8fafc', fontWeight: 500 }}>{e.nombre}</Text>
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                          <span style={{ color: '#94a3b8', fontSize: 12 }}>{e.asistencias} asist.</span>
-                          <Tag
-                            style={{
-                              margin: 0,
-                              borderRadius: 6,
-                              background: e.elegible ? 'rgba(74, 222, 128, 0.12)' : 'rgba(248, 113, 113, 0.12)',
-                              borderColor: e.elegible ? 'rgba(74, 222, 128, 0.3)' : 'rgba(248, 113, 113, 0.3)',
-                              color: e.elegible ? '#4ade80' : '#f87171',
-                              fontWeight: 700,
-                            }}
-                          >
-                            {e.elegible ? 'Elegible' : 'No elegible'}
-                          </Tag>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               ),
             },
