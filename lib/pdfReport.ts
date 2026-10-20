@@ -91,19 +91,19 @@ export function generateEligibilityPDF(
   // Meta info
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('Fecha de emision: ', 14, 32);
+  doc.text('Fecha de emisión: ', 14, 32);
   doc.setFont('helvetica', 'normal');
-  doc.text(fecha, 43, 32);
+  doc.text(fecha, 45, 32);
 
   doc.setFont('helvetica', 'bold');
   doc.text('Temporada: ', 14, 37);
   doc.setFont('helvetica', 'normal');
-  doc.text(seasonName, 35, 37);
+  doc.text(seasonName, 36, 37);
 
   doc.setFont('helvetica', 'bold');
   doc.text('Total de equipos: ', 14, 42);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${top8.length}`, 43, 42);
+  doc.text(`${top8.length}`, 44, 42);
 
   doc.setFont('helvetica', 'bold');
   doc.text('Total de jugadores en plantilla: ', 14, 47);
@@ -117,13 +117,42 @@ export function generateEligibilityPDF(
 
   doc.setLineWidth(0.1);
   doc.setDrawColor(200, 200, 200);
-  doc.line(14, 58, 196, 58);
+  doc.line(14, 57, 196, 57);
 
-  let y = 68;
+  // ── Notas Institucionales ──────────────────────────────────
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(14, 61, 182, 19, 1.5, 1.5, 'FD');
+
+  doc.setFontSize(8);
+  doc.setTextColor(30, 41, 59);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Criterio de Elegibilidad:', 17, 67.5);
+  const critW = doc.getTextWidth('Criterio de Elegibilidad:');
+  doc.setFont('helvetica', 'normal');
+  doc.text(' Asistencia a más del 50% de los partidos del club (mitad más uno).', 17 + critW, 67.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Actualización Dinámica:', 17, 74.5);
+  const actW = doc.getTextWidth('Actualización Dinámica:');
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    ' Este reporte es oficial y se recalcula en tiempo real con cada partido jugado y capturado por la mesa directiva.',
+    17 + actW,
+    74.5
+  );
+
+  doc.setLineWidth(0.1);
+  doc.setDrawColor(200, 200, 200);
+  doc.line(14, 84, 196, 84);
+
+  let y = 92;
 
   // ── Per-team eligibility ──────────────────────────────────
   for (const tData of teamData) {
-    if (y > 250) {
+    if (y > 235) {
       doc.addPage();
       y = 20;
     }
@@ -145,7 +174,7 @@ export function generateEligibilityPDF(
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
     doc.text(
-      `Partidos jugados: ${tData.totalPartidos} | Minimo requerido: ${tData.minReq} ( ( ${tData.totalPartidos} / 2 ) + 1 ) | Elegibles: ${tData.elegiblesCount} de ${tData.jugadoresCount}`,
+      `Partidos disputados: ${tData.totalPartidos} | Asistencias requeridas: ${tData.minReq} | Elegibles: ${tData.elegiblesCount} de ${tData.jugadoresCount}`,
       14, y
     );
     y += 4;
@@ -203,6 +232,21 @@ export function generateEligibilityPDF(
       });
       y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14;
     }
+  }
+
+  // Pie de página institucional y numeración
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 120, 120);
+    doc.text(
+      `Página ${i} de ${totalPages} · Liga Municipal de Basquetbol de Nochixtlán`,
+      105,
+      290,
+      { align: 'center' }
+    );
   }
 
   doc.save(`Elegibilidad_${seasonName.replace(/\s/g, '_')}.pdf`);

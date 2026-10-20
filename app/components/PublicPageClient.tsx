@@ -15,7 +15,7 @@ import {
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Typography, Tag, Select, Button, Spin } from 'antd';
-import { FilePdfOutlined, ArrowRightOutlined } from '@ant-design/icons';
+import { FilePdfOutlined } from '@ant-design/icons';
 import StandingsTable from './StandingsTable';
 import { calcularPosiciones, MatchForStandings, TeamStats } from '@/lib/standings';
 import dayjs from 'dayjs';
@@ -270,6 +270,7 @@ export default function PublicPageClient(props: Props) {
   const [jornadaFilter, setJornadaFilter] = useState<number | 'all'>('all');
   const [calendarTeamFilter, setCalendarTeamFilter] = useState<number | 'all'>('all');
   const [calendarViewFilter, setCalendarViewFilter] = useState<'upcoming' | 'all'>('upcoming');
+  const [isEligibilityInfoOpen, setIsEligibilityInfoOpen] = useState(false);
 
   // Cache dinámico de temporadas secundarias
   const [dynamicData, setDynamicData] = useState<{
@@ -642,35 +643,6 @@ export default function PublicPageClient(props: Props) {
                         La máxima fiesta del básquetbol regional. Consulta la tabla general, líderes anotadores, estadísticas individuales y el rol oficial de juegos en tiempo real.
                       </p>
 
-                      {/* CTAs de acción rápida */}
-                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <Button
-                          type="primary"
-                          className="premium-button"
-                          style={{
-                            background: 'linear-gradient(135deg, var(--oro-mixteco), #d97706)',
-                            borderColor: 'transparent',
-                            color: '#0b0f17',
-                            fontWeight: 800,
-                            boxShadow: '0 4px 18px rgba(245, 158, 11, 0.35)',
-                          }}
-                          onClick={() => switchTab('standings')}
-                        >
-                          🏆 Ver Posiciones
-                        </Button>
-                        <Button
-                          className="premium-button"
-                          onClick={() => switchTab('stats')}
-                        >
-                          📊 Estadísticas & Líderes
-                        </Button>
-                        <Button
-                          className="premium-button"
-                          onClick={() => switchTab('calendar')}
-                        >
-                          📅 Rol de Juegos
-                        </Button>
-                      </div>
                     </div>
 
                     {/* Zona B: Cockpit Oficial de Temporada (40%) */}
@@ -841,111 +813,6 @@ export default function PublicPageClient(props: Props) {
                   </div>
                 </section>
 
-                {/* Bloque 4: Quick Navigation Hub (Atajos Visuales a las Demás Secciones) */}
-                <section className="premium-section-card" style={{ padding: '22px 24px' }}>
-                  <h2 className="premium-section-label">🚀 Explora las Secciones Oficiales</h2>
-                  <div className="quick-nav-grid">
-                    {/* Atajo: Posiciones */}
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="quick-nav-card"
-                      onClick={() => switchTab('standings')}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('standings'); }}
-                    >
-                      <div>
-                        <div style={{ fontSize: 24, marginBottom: 8 }}>🏆</div>
-                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Tabla de Posiciones</div>
-                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
-                          Clasificación general con regla oficial 3-1-0, diferencia de puntos y zonas de liguilla.
-                        </div>
-                      </div>
-                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        Ver Tabla Oficial <ArrowRightOutlined />
-                      </div>
-                    </div>
-
-                    {/* Atajo: Estadísticas */}
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="quick-nav-card"
-                      onClick={() => switchTab('stats')}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('stats'); }}
-                    >
-                      <div>
-                        <div style={{ fontSize: 24, marginBottom: 8 }}>📊</div>
-                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Estadísticas & Líderes</div>
-                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
-                          Top canasteros, mejores tripleros, récords y plantillas detalladas por club.
-                        </div>
-                      </div>
-                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        Consultar Estadísticas <ArrowRightOutlined />
-                      </div>
-                    </div>
-
-                    {/* Atajo: Mi Equipo */}
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="quick-nav-card"
-                      onClick={() => switchTab('team-matches')}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('team-matches'); }}
-                    >
-                      <div>
-                        <div style={{ fontSize: 24, marginBottom: 8 }}>🏀</div>
-                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Mi Equipo</div>
-                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
-                          Encuentra a tu club, consulta el calendario ida y vuelta y sus resultados.
-                        </div>
-                      </div>
-                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        Buscar Mi Club <ArrowRightOutlined />
-                      </div>
-                    </div>
-
-                    {/* Atajo: Liguilla */}
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="quick-nav-card"
-                      onClick={() => switchTab('bracket')}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('bracket'); }}
-                    >
-                      <div>
-                        <div style={{ fontSize: 24, marginBottom: 8 }}>🔥</div>
-                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Cuadro de Liguilla</div>
-                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
-                          Las llaves de cuartos, semifinales y la gran final por la corona del torneo.
-                        </div>
-                      </div>
-                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        Ver Cuadro de Play-offs <ArrowRightOutlined />
-                      </div>
-                    </div>
-
-                    {/* Atajo: Calendario */}
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="quick-nav-card"
-                      onClick={() => switchTab('calendar')}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') switchTab('calendar'); }}
-                    >
-                      <div>
-                        <div style={{ fontSize: 24, marginBottom: 8 }}>📅</div>
-                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Rol de Juegos</div>
-                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
-                          Horarios oficiales, sedes y partidos de toda la temporada por jornada.
-                        </div>
-                      </div>
-                      <div style={{ color: 'var(--oro-cantera)', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        Ver Calendario <ArrowRightOutlined />
-                      </div>
-                    </div>
-                  </div>
-                </section>
               </div>
             )}
 
@@ -975,19 +842,157 @@ export default function PublicPageClient(props: Props) {
                   onSelectCategory={(seasonId) => startTransition(() => setSelectedSeasonId(seasonId))}
                 />
 
-                <div className="dribbble-stagger-2">
-                  <GlassSectionCard
-                    action={(
+                {/* Banner explicativo plegable de Elegibilidad para Liguilla */}
+                <div
+                  className="dribbble-stagger-2"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.75) 100%)',
+                    border: '1px solid rgba(245, 158, 11, 0.22)',
+                    borderRadius: 16,
+                    padding: '16px 20px',
+                    backdropFilter: 'blur(10px)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: '1 1 280px' }}>
+                      <div
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 10,
+                          background: 'rgba(245, 158, 11, 0.15)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 20,
+                          flexShrink: 0,
+                        }}
+                      >
+                        🛡️
+                      </div>
+                      <div>
+                        <div style={{ color: '#fff', fontWeight: 800, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span>Criterio Oficial de Elegibilidad para Liguilla</span>
+                          <Tag color="gold" style={{ margin: 0, fontWeight: 700, fontSize: 11 }}>En Vivo</Tag>
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
+                          ¿Quiénes pueden jugar la fase final? Conoce cómo funciona el reglamento y descarga el reporte oficial.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <Button
+                        type="default"
+                        className="premium-button"
+                        onClick={() => setIsEligibilityInfoOpen(!isEligibilityInfoOpen)}
+                        style={{
+                          background: isEligibilityInfoOpen ? 'rgba(245, 158, 11, 0.18)' : 'rgba(255, 255, 255, 0.05)',
+                          borderColor: isEligibilityInfoOpen ? 'var(--oro-cantera)' : 'rgba(255, 255, 255, 0.15)',
+                          color: isEligibilityInfoOpen ? 'var(--oro-cantera)' : '#cbd5e1',
+                          fontWeight: 700,
+                          fontSize: 13,
+                        }}
+                      >
+                        {isEligibilityInfoOpen ? 'Ocultar explicación ▴' : '¿Cómo funciona? Leer explicación ▾'}
+                      </Button>
+
                       <Button
                         icon={<FilePdfOutlined />}
                         onClick={handlePDF}
                         disabled={standings.length === 0}
                         className="premium-button"
+                        style={{
+                          background: 'linear-gradient(135deg, var(--oro-mixteco), #d97706)',
+                          borderColor: 'transparent',
+                          color: '#0b0f17',
+                          fontWeight: 800,
+                        }}
                       >
-                        Reporte de Elegibilidad PDF
+                        Descargar Reporte PDF
                       </Button>
-                    )}
-                  >
+                    </div>
+                  </div>
+
+                  {isEligibilityInfoOpen && (
+                    <div
+                      style={{
+                        marginTop: 16,
+                        paddingTop: 16,
+                        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                        gap: 14,
+                      }}
+                    >
+                      {/* Tarjeta 1: La Regla */}
+                      <div
+                        style={{
+                          background: 'rgba(15, 23, 42, 0.65)',
+                          border: '1px solid rgba(255, 255, 255, 0.06)',
+                          borderRadius: 12,
+                          padding: '14px 16px',
+                        }}
+                      >
+                        <div style={{ color: 'var(--oro-cantera)', fontWeight: 800, fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>🏀</span> Regla del 50% + 1 de Partidos
+                        </div>
+                        <p style={{ color: '#cbd5e1', fontSize: 12, lineHeight: 1.55, margin: 0 }}>
+                          Para que un jugador esté habilitado reglamentariamente para disputar la fase de Liguilla, debe haber participado en al menos la <strong>mitad más uno</strong> de los partidos que su club haya jugado en la temporada regular.
+                        </p>
+                        <div style={{ marginTop: 8, fontSize: 11, color: '#94a3b8' }}>
+                          <em>Ejemplo: con 10 partidos jugados requiere 6 asistencias; con 11 partidos jugados requiere 6 asistencias.</em>
+                        </div>
+                      </div>
+
+                      {/* Tarjeta 2: Actualización en Tiempo Real */}
+                      <div
+                        style={{
+                          background: 'rgba(15, 23, 42, 0.65)',
+                          border: '1px solid rgba(255, 255, 255, 0.06)',
+                          borderRadius: 12,
+                          padding: '14px 16px',
+                        }}
+                      >
+                        <div style={{ color: '#38bdf8', fontWeight: 800, fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>⚡</span> Cálculo Dinámico en Tiempo Real
+                        </div>
+                        <p style={{ color: '#cbd5e1', fontSize: 12, lineHeight: 1.55, margin: 0 }}>
+                          Este reporte <strong>no es fijo</strong>; se recalcula de forma automática cada vez que la mesa directiva y el cuerpo arbitral capturan el acta oficial de un nuevo partido. A más jornadas jugadas por tu club, la meta requerida se ajusta proporcionalmente en vivo.
+                        </p>
+                      </div>
+
+                      {/* Tarjeta 3: Uso del PDF */}
+                      <div
+                        style={{
+                          background: 'rgba(15, 23, 42, 0.65)',
+                          border: '1px solid rgba(255, 255, 255, 0.06)',
+                          borderRadius: 12,
+                          padding: '14px 16px',
+                        }}
+                      >
+                        <div style={{ color: '#4ade80', fontWeight: 800, fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>📄</span> Documento Oficial Descargable
+                        </div>
+                        <p style={{ color: '#cbd5e1', fontSize: 12, lineHeight: 1.55, margin: 0 }}>
+                          El archivo PDF contiene el desglose oficial plantilla por plantilla con semáforo de habilitación (<strong>Elegible</strong> en verde / <strong>No elegible</strong> en rojo), avalado para cotejo ante la mesa técnica y capitanes antes del silbatazo inicial.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="dribbble-stagger-2">
+                  <GlassSectionCard>
                     {standings.length === 0 ? (
                       <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 40 }}>
                         Sin partidos registrados en esta temporada
@@ -1440,28 +1445,14 @@ export default function PublicPageClient(props: Props) {
   );
 }
 
-function useIsCoarsePointer() {
-  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mediaQuery = window.matchMedia('(pointer: coarse)');
-    const update = () => setIsCoarsePointer(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener('change', update);
-    return () => mediaQuery.removeEventListener('change', update);
-  }, []);
-
-  return isCoarsePointer;
-}
 
 function AnimatedNumber({ value, duration = 650 }: { value: number; duration?: number }) {
   const [display, setDisplay] = useState(0);
 
   useEffect(() => {
     if (!value || isNaN(value)) {
-      setDisplay(0);
-      return;
+      const resetId = requestAnimationFrame(() => setDisplay(0));
+      return () => cancelAnimationFrame(resetId);
     }
     let startTime: number | null = null;
     let frameId: number;
@@ -1721,7 +1712,6 @@ function TeamStatsTab({
 }) {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [phaseFilter, setPhaseFilter] = useState<'all' | 'Fase Regular' | 'Liguilla'>('Fase Regular');
-  const isCoarsePointer = useIsCoarsePointer();
 
   const activeTeams = useMemo(() => sortTeamsByName(teams.filter((t) => t.season_id === seasonId)), [teams, seasonId]);
 
@@ -1796,39 +1786,21 @@ function TeamStatsTab({
         </div>
       </div>
 
-      <div style={{ marginBottom: 18, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 240px' }}>
-          <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-            O busca por nombre:
-          </Text>
-          <Select
-            className="premium-select"
-            style={{ width: '100%', maxWidth: 420 }}
-            placeholder="Seleccionar club"
-            value={selectedTeamId}
-            onChange={(v) => setSelectedTeamId(v as number | null)}
-            options={activeTeams.map((t) => ({ label: t.name, value: t.id }))}
-            showSearch={!isCoarsePointer}
-            filterOption={(input, opt) => (opt?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
-            filterSort={sortSelectOptions}
-          />
-        </div>
-        <div style={{ flex: '0 1 220px' }}>
-          <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-            Fase de Torneo:
-          </Text>
-          <Select
-            className="premium-select"
-            style={{ width: '100%' }}
-            value={phaseFilter}
-            onChange={setPhaseFilter}
-            options={[
-              { label: 'Toda la temporada', value: 'all' },
-              { label: 'Fase Regular', value: 'Fase Regular' },
-              { label: 'Liguilla / Play-offs', value: 'Liguilla' },
-            ]}
-          />
-        </div>
+      <div style={{ marginBottom: 18, maxWidth: 240 }}>
+        <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
+          Fase de Torneo:
+        </Text>
+        <Select
+          className="premium-select"
+          style={{ width: '100%' }}
+          value={phaseFilter}
+          onChange={setPhaseFilter}
+          options={[
+            { label: 'Toda la temporada', value: 'all' },
+            { label: 'Fase Regular', value: 'Fase Regular' },
+            { label: 'Liguilla / Play-offs', value: 'Liguilla' },
+          ]}
+        />
       </div>
 
       {selectedTeamId && (
@@ -1954,7 +1926,6 @@ function TeamMatchesTab({
   standings: TeamStats[];
 }) {
   const [teamId, setTeamId] = useState<number | null>(null);
-  const isCoarsePointer = useIsCoarsePointer();
   const activeTeams = useMemo(() => sortTeamsByName(teams.filter((team) => team.season_id === seasonId)), [seasonId, teams]);
   const encounters = useMemo(() => teamId ? buildTeamEncounters(teamId, activeTeams, matches) : [], [activeTeams, matches, teamId]);
   const pending = encounters.filter((item) => !item.match || !isPlayedStatus(item.match.status));
@@ -2012,20 +1983,6 @@ function TeamMatchesTab({
         </div>
       </div>
 
-      <Text style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>
-        O selecciona en lista:
-      </Text>
-      <Select
-        className="premium-select"
-        style={{ width: '100%', maxWidth: 440, marginBottom: 20 }}
-        placeholder="Seleccionar equipo"
-        value={teamId}
-        onChange={setTeamId}
-        options={activeTeams.map((team) => ({ label: team.name, value: team.id }))}
-        showSearch={!isCoarsePointer}
-        filterOption={(input, option) => (option?.label?.toString() ?? '').toLowerCase().includes(input.toLowerCase())}
-        filterSort={sortSelectOptions}
-      />
 
       {!teamId ? (
         <Text style={{ color: '#94a3b8', display: 'block', textAlign: 'center', padding: 28 }}>

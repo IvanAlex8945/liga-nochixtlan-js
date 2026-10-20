@@ -92,13 +92,17 @@ function DynamicSportsBackgroundComponent({ activeTab }: DynamicSportsBackground
     if (activeTab === prevTabRef.current) return;
     prevTabRef.current = activeTab;
 
-    if (activeLayer === 'A') {
-      setLayerB(currentConfig);
-      setActiveLayer('B');
-    } else {
-      setLayerA(currentConfig);
-      setActiveLayer('A');
-    }
+    const frameId = requestAnimationFrame(() => {
+      if (activeLayer === 'A') {
+        setLayerB(currentConfig);
+        setActiveLayer('B');
+      } else {
+        setLayerA(currentConfig);
+        setActiveLayer('A');
+      }
+    });
+
+    return () => cancelAnimationFrame(frameId);
   }, [activeTab, activeLayer, currentConfig]);
 
   return (
