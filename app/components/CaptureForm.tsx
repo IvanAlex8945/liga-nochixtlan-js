@@ -10,12 +10,13 @@ import {
   Button,
   Alert,
   Spin,
-  message,
+  App,
   Typography,
   Tag,
 } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import PlayerAttendanceTable, { PlayerRow } from './PlayerAttendanceTable';
+import DictadoEstadisticas from './DictadoEstadisticas';
 import { saveMatchResult, ResultType } from '@/lib/saveMatch';
 import { invalidatePublicCache } from '@/lib/public-cache-client';
 import { supabase } from '@/lib/supabase';
@@ -78,6 +79,7 @@ function TeamRunningScore({
 }
 
 export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers, initialResultType = 'Normal', onSaved }: Props) {
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [resultType, setResultType] = useState<ResultType>(initialResultType);
   const [homeLineup, setHomeLineup] = useState<PlayerRow[]>(homePlayers);
@@ -99,6 +101,21 @@ export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers,
   const homeColor = getScoreColor(homeScore, awayScore);
   const awayColor = getScoreColor(awayScore, homeScore);
 
+  const invalidateMatchQueries = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['matches-programmed'] });
+    if (seasonId) {
+      await queryClient.invalidateQueries({ queryKey: ['matches-programmed', seasonId] });
+      await queryClient.invalidateQueries({ queryKey: ['matches', seasonId] });
+      await queryClient.invalidateQueries({ queryKey: ['stats', seasonId] });
+      await queryClient.invalidateQueries({ queryKey: ['standings', seasonId] });
+      await queryClient.invalidateQueries({ queryKey: ['season-detail', seasonId] });
+    }
+    await queryClient.invalidateQueries({ queryKey: ['match', match.id] });
+    await queryClient.invalidateQueries({ queryKey: ['players-capture-home'] });
+    await queryClient.invalidateQueries({ queryKey: ['players-capture-away'] });
+    await queryClient.invalidateQueries({ queryKey: ['eligibility'] });
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -110,19 +127,7 @@ export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers,
         getLineupForSave(awayLineup)
       );
       await invalidatePublicCache({ seasonId });
-
-      await queryClient.invalidateQueries({ queryKey: ['matches-programmed'] });
-      if (seasonId) {
-        await queryClient.invalidateQueries({ queryKey: ['matches-programmed', seasonId] });
-        await queryClient.invalidateQueries({ queryKey: ['matches', seasonId] });
-        await queryClient.invalidateQueries({ queryKey: ['stats', seasonId] });
-        await queryClient.invalidateQueries({ queryKey: ['standings', seasonId] });
-        await queryClient.invalidateQueries({ queryKey: ['season-detail', seasonId] });
-      }
-      await queryClient.invalidateQueries({ queryKey: ['match', match.id] });
-      await queryClient.invalidateQueries({ queryKey: ['players-capture-home'] });
-      await queryClient.invalidateQueries({ queryKey: ['players-capture-away'] });
-      await queryClient.invalidateQueries({ queryKey: ['eligibility'] });
+      await invalidateMatchQueries();
 
       message.success('✓ Resultado guardado correctamente. Puedes capturar el siguiente partido.', 5);
       onSaved?.();
@@ -172,6 +177,23 @@ export default function CaptureForm({ seasonId, match, homePlayers, awayPlayers,
             </Text>
           </div>
         )}
+
+        {/* ── Asistente de Dictado por Voz + Reporte Semáforo de Cédula ── */}
+        <DictadoEstadisticas
+          seasonId={seasonId}
+          match={match}
+          homePlayers={homeLineup}
+          awayPlayers={awayLineup}
+          resultType={resultType}
+          onApplyToTables={(nextHome, nextAway) => {
+            setHomeLineup(nextHome);
+            setAwayLineup(nextAway);
+          }}
+          onSavedDirect={async () => {
+            await invalidateMatchQueries();
+            onSaved?.();
+          }}
+        />
 
         {/* ── Marcador en vivo (Sticky Context) ─────────────── */}
         <div style={{
